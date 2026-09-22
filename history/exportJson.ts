@@ -25,16 +25,16 @@ function todayStamp(): string {
 }
 
 /**
- * Writes this run's scraped messages for one thread to a standalone JSON
- * file (array, pretty-printed), separate from the append-only JSONL store —
- * meant to be opened/shared directly, so each message carries both a raw
- * unix-ms `ts` and human-readable `timeIso` / `timeLocal` (Asia/Ho_Chi_Minh)
- * fields. One file per thread per day; reruns on the same day overwrite it
- * with that run's window.
+ * Writes this run's scraped messages for one conversation to a standalone
+ * JSON file (array, pretty-printed), separate from the append-only JSONL
+ * store — meant to be opened/shared directly, so each message carries both
+ * a raw unix-ms `ts` and human-readable `timeIso` / `timeLocal`
+ * (Asia/Ho_Chi_Minh) fields. One file per conversation per day; reruns on
+ * the same day overwrite it with that run's window.
  */
-export function exportThreadJson(threadId: string, messages: NormalizedMessage[]): string {
+export function exportThreadJson(groupId: string, messages: NormalizedMessage[]): string {
     fs.mkdirSync(exportDir, { recursive: true });
-    const filePath = path.join(exportDir, `${threadId}_${todayStamp()}.json`);
+    const filePath = path.join(exportDir, `${groupId}_${todayStamp()}.json`);
 
     const enriched = messages
         .slice()

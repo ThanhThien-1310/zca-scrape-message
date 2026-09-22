@@ -7,6 +7,54 @@ import { exportThreadJson } from "./exportJson.js";
 import { messageIdPrefix, selectors, type ScrapedRow } from "./scrapeSelectors.js";
 
 /**
+ * Browser-context JS snippet (interpolated into both `extractVisibleRows`
+ * and `installLiveMessageObserver`'s injected scripts) that reads the real
+ * Zalo identity behind a message row — sender id, group id, group name —
+ * from React's internal fiber tree rather than the DOM's rendered text.
+ * None of this is exposed as a DOM attribute or class; the CSS selectors in
+ * `scrapeSelectors.ts` only ever get display names.
+ *
+ * Confirmed live against a real group: React attaches its fiber under a
+ * `__reactFiber$<hash>` / `__reactInternalInstance$<hash>` property on the
+ * DOM node itself. Walking `.return` up from the row finds an ancestor
+ * fiber whose `memoizedProps.data` is the raw message object Zalo's own
+ * client uses to render the bubble — it carries `fromUid` (sender's real
+ * numeric id) alongside sibling props `conversation` (`isGroup`, `userId`)
+ * and `groupInfo` (`groupId`, `displayName`, member list).
+ *
+ * One confirmed quirk: `data.fromUid` is only the real sender id for
+ * *other* people's messages — for your own messages it's always the
+ * placeholder `"0"`, so self messages fall back to `props.user.userId`
+ * (the currently logged-in account's own id) instead.
+ *
+ * This is a materially more fragile dependency than the CSS selectors
+ * above: it relies on undocumented React internals rather than Zalo's own
+ * markup, so it can break on a React version bump alone, with no UI change
+ * at all. See README "Bảo trì & giới hạn đã biết".
+ */
+const readMsgIdentitySrc = `
+    const readMsgIdentity = (el, isSelf) => {
+        const fiberKey = Object.keys(el).find((k) => k.startsWith("__reactFiber") || k.startsWith("__reactInternalInstance"));
+        let fiber = fiberKey ? el[fiberKey] : null;
+        let props = null;
+        for (let i = 0; i < 10 && fiber; i++) {
+            if (fiber.memoizedProps && fiber.memoizedProps.data) { props = fiber.memoizedProps; break; }
+            fiber = fiber.return;
+        }
+        if (!props) return { senderId: "", groupId: null, groupName: null, isGroup: false };
+
+        const data = props.data || {};
+        const conv = props.conversation || {};
+        const groupInfo = props.groupInfo || null;
+        const selfUserId = (props.user && props.user.userId) || "";
+        const senderId = isSelf ? selfUserId : (data.fromUid != null ? String(data.fromUid) : "");
+        const groupId = (groupInfo && groupInfo.groupId) || conv.userId || null;
+        const groupName = (groupInfo && groupInfo.displayName) || (props.friendInfo && props.friendInfo.displayName) || null;
+        return { senderId, groupId, groupName, isGroup: !!conv.isGroup };
+    };
+`;
+
+/**
  * The whole bot, now: Zalo Desktop (Electron) is read over the Chrome
  * DevTools Protocol via history/cdp.ts, run on-demand or on a schedule
  * (Task Scheduler at e.g. 08:00 and 12:00). There is no separate login —
@@ -37,10 +85,20 @@ export async function runScrape(store: MessageStore): Promise<void> {
 export async function scrapeAndSaveTarget(page: CdpPage, store: MessageStore, target: string): Promise<void> {
     console.log(`[scrape] scraping "${target}"...`);
     const rows = await scrapeThreadHistory(page, target);
-    const threadId = slugify(target);
-    const normalized = rows.map((r) => toNormalizedMessage(r, threadId));
+    if (rows.length === 0) {
+        console.log(`[scrape] "${target}": no messages found in this window, nothing to save.`);
+        return;
+    }
+
+    const identity = resolveGroupIdentity(rows, target);
+    if (!identity) {
+        console.warn(`[scrape] "${target}": could not read groupId from any scraped row (React internals may have changed — see readMsgIdentitySrc) — skipping save.`);
+        return;
+    }
+
+    const normalized = rows.map((r) => toNormalizedMessage(r, identity.groupId, identity.groupName, identity.isGroup, "history"));
     const written = store.saveMany(normalized);
-    const exportPath = exportThreadJson(threadId, normalized);
+    const exportPath = exportThreadJson(identity.groupId, normalized);
     console.log(`[scrape] "${target}": scraped ${rows.length}, ${written} new, exported to ${exportPath}`);
 }
 
@@ -61,8 +119,15 @@ export async function scrapeAndSaveLatest(page: CdpPage, store: MessageStore, ta
     await delay(1_000);
 
     const rows = await extractVisibleRows(page);
-    const threadId = slugify(target);
-    const normalized = rows.map((r) => toNormalizedMessage(r, threadId));
+    if (rows.length === 0) return;
+
+    const identity = resolveGroupIdentity(rows, target);
+    if (!identity) {
+        console.warn(`[watch] "${target}": could not read groupId from any visible row (React internals may have changed) — skipping save.`);
+        return;
+    }
+
+    const normalized = rows.map((r) => toNormalizedMessage(r, identity.groupId, identity.groupName, identity.isGroup, "history"));
     const written = store.saveMany(normalized);
     console.log(`[watch] "${target}": saw ${rows.length} visible, ${written} new`);
 }
@@ -163,10 +228,10 @@ async function scrapeThreadHistory(page: CdpPage, targetName: string): Promise<S
 }
 
 /**
- * Right after Zalo Desktop (re)starts, the sidebar renders its list
- * incrementally — waitForSidebarLoaded only confirms *something* is there,
- * not that this specific conversation has rendered yet — so this retries
- * for a while instead of failing on the first miss.
+ * Right after Zalo Desktop (re)starts, its contact/thread data may still be
+ * loading — an immediate search can come back empty not because the thread
+ * doesn't exist, but because Zalo hasn't finished loading yet — so this
+ * retries for a while instead of failing on the first miss.
  */
 async function clickConversationWithRetry(page: CdpPage, targetName: string, timeoutMs: number): Promise<boolean> {
     const deadline = Date.now() + timeoutMs;
@@ -186,6 +251,40 @@ async function clickConversationWithRetry(page: CdpPage, targetName: string, tim
 }
 
 /**
+ * Sets Zalo Desktop's sidebar search box (`selectors.contactSearchInput`)
+ * to `query` and dispatches a real `input` event. The box is a
+ * React-controlled input, so a plain `input.value = query` assignment is
+ * invisible to React (it overrides the native `value` setter to detect
+ * genuine user input) — this instead calls through the native
+ * `HTMLInputElement` setter first, the standard workaround, so React's
+ * change handler actually fires and the sidebar filters.
+ */
+async function setSidebarSearch(page: CdpPage, query: string): Promise<void> {
+    const expr = `
+(() => {
+    const input = document.querySelector(${JSON.stringify(selectors.contactSearchInput)});
+    if (!input) return false;
+    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+    nativeSetter.call(input, ${JSON.stringify(query)});
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.blur();
+    return true;
+})()`;
+    await page.evaluate<boolean>(expr);
+}
+
+/**
+ * Finds and opens a thread by display name.
+ *
+ * Zalo Desktop's unfiltered sidebar only renders a small "recently active"
+ * window of conversations — not the full list — and that window is
+ * constantly reshuffled by *other* threads' activity. A target thread with
+ * no recent messages of its own can be entirely absent from the DOM, and no
+ * amount of scrolling reveals it, since it isn't in the underlying data
+ * either. Searching by name instead (`selectors.contactSearchInput`) finds
+ * the thread directly regardless of how "recent" it is, then the exact
+ * match below picks the right result out of the (small) filtered set.
+ *
  * Compares by trimmed+whitespace-collapsed, NFC-normalized, zero-width-char-
  * stripped text rather than raw `===` — Vietnamese conversation names can
  * look identical between the sidebar and the notification popup (which is
@@ -193,9 +292,18 @@ async function clickConversationWithRetry(page: CdpPage, targetName: string, tim
  * resolveTarget) while differing in Unicode normalization form or carrying
  * invisible characters (soft-wrap zero-width spaces, NBSP), which would
  * otherwise make an exact string match fail silently forever.
+ *
+ * Always clears the search box before returning (even on failure), since
+ * this reuses the user's own live Zalo Desktop window — leaving it stuck in
+ * a filtered search state would be a visible, confusing side effect for
+ * them.
  */
 async function clickConversation(page: CdpPage, targetName: string): Promise<{ matched: boolean; candidates: string[] }> {
-    const expr = `
+    try {
+        await setSidebarSearch(page, targetName);
+        await delay(1_000);
+
+        const expr = `
 (() => {
     const norm = (s) => s.normalize("NFC").replace(/[\\u200B-\\u200D\\uFEFF]/g, "").replace(/\\s+/g, " ").trim();
     const wanted = norm(${JSON.stringify(targetName)});
@@ -207,12 +315,16 @@ async function clickConversation(page: CdpPage, targetName: string): Promise<{ m
     item.click();
     return { matched: true, candidates: [] };
 })()`;
-    return page.evaluate<{ matched: boolean; candidates: string[] }>(expr);
+        return await page.evaluate<{ matched: boolean; candidates: string[] }>(expr);
+    } finally {
+        await setSidebarSearch(page, "");
+    }
 }
 
 async function extractVisibleRows(page: CdpPage): Promise<ScrapedRow[]> {
     const expr = `
 (() => {
+    ${readMsgIdentitySrc}
     const idPrefix = ${JSON.stringify(messageIdPrefix)};
     const rows = Array.from(document.querySelectorAll(${JSON.stringify(selectors.messageRow)}));
     return rows.map((el) => {
@@ -223,12 +335,18 @@ async function extractVisibleRows(page: CdpPage): Promise<ScrapedRow[]> {
         // — only the leading segment is the timestamp either way.
         const tsPart = id.startsWith(idPrefix) ? id.slice(idPrefix.length).split("_")[0] : null;
         const ts = tsPart && /^\\d+$/.test(tsPart) ? Number(tsPart) : null;
+        const isSelf = / me /.test(" " + el.className + " ");
+        const identity = readMsgIdentity(el, isSelf);
         return {
             externalId: id || null,
+            senderId: identity.senderId,
             senderName: senderEl ? senderEl.textContent.trim() : "",
             content: contentEl ? contentEl.textContent.trim() : "",
             ts,
-            isSelf: / me /.test(" " + el.className + " "),
+            isSelf,
+            groupId: identity.groupId,
+            groupName: identity.groupName,
+            isGroup: identity.isGroup,
         };
     });
 })()`;
@@ -262,10 +380,19 @@ async function scrollMessagePaneToTop(page: CdpPage): Promise<number | null> {
  * earlier) is disconnected first, since switching threads tears down and
  * replaces the message pane anyway. Caller must have already called
  * `page.addBinding(bindingName)` once (idempotent per binding name).
+ *
+ * The message pane container is reused by Zalo Desktop across manual thread
+ * switches (only its children are swapped), so this observer keeps firing
+ * for whatever thread the user has open, not just the one it was installed
+ * for. Each pushed payload therefore includes `activeTarget`, the sidebar
+ * display name read fresh from `.conv-item.selected` at the moment the row
+ * renders — the caller must use this (not any previously-remembered "open
+ * thread" state) to decide which thread a row belongs to.
  */
 export async function installLiveMessageObserver(page: CdpPage, bindingName: string): Promise<boolean> {
     const expr = `
 (() => {
+    ${readMsgIdentitySrc}
     const msg = document.querySelector(${JSON.stringify(selectors.messageRow)});
     if (!msg) return false;
     let container = msg.parentElement;
@@ -277,22 +404,31 @@ export async function installLiveMessageObserver(page: CdpPage, bindingName: str
 
     const idPrefix = ${JSON.stringify(messageIdPrefix)};
     const rowSelector = ${JSON.stringify(selectors.messageRow)};
+    const activeTitleSelector = ${JSON.stringify(selectors.activeConversationTitle)};
     const extractRow = (el) => {
         const senderEl = el.querySelector(${JSON.stringify(selectors.senderName)});
         const contentEl = el.querySelector(${JSON.stringify(selectors.messageContent)});
         const id = el.id || "";
         const tsPart = id.startsWith(idPrefix) ? id.slice(idPrefix.length).split("_")[0] : null;
         const ts = tsPart && /^\\d+$/.test(tsPart) ? Number(tsPart) : null;
+        const isSelf = / me /.test(" " + el.className + " ");
+        const identity = readMsgIdentity(el, isSelf);
         return {
             externalId: id || null,
+            senderId: identity.senderId,
             senderName: senderEl ? senderEl.textContent.trim() : "",
             content: contentEl ? contentEl.textContent.trim() : "",
             ts,
-            isSelf: / me /.test(" " + el.className + " "),
+            isSelf,
+            groupId: identity.groupId,
+            groupName: identity.groupName,
+            isGroup: identity.isGroup,
         };
     };
 
     const observer = new MutationObserver((mutations) => {
+        const activeTitleEl = document.querySelector(activeTitleSelector);
+        const activeTarget = activeTitleEl ? activeTitleEl.textContent.trim() : null;
         for (const m of mutations) {
             for (const node of m.addedNodes) {
                 if (node.nodeType !== 1) continue;
@@ -301,7 +437,7 @@ export async function installLiveMessageObserver(page: CdpPage, bindingName: str
                     const id = row.id || "";
                     if (id && window.__zalobotLiveSeen.has(id)) continue;
                     if (id) window.__zalobotLiveSeen.add(id);
-                    window.${bindingName}(JSON.stringify(extractRow(row)));
+                    window.${bindingName}(JSON.stringify({ ...extractRow(row), activeTarget }));
                 }
             }
         }
@@ -313,34 +449,38 @@ export async function installLiveMessageObserver(page: CdpPage, bindingName: str
     return page.evaluate<boolean>(expr);
 }
 
-export function toNormalizedMessage(row: ScrapedRow, threadId: string): NormalizedMessage {
+export function toNormalizedMessage(row: ScrapedRow, groupId: string, groupName: string, isGroup: boolean, source: "history" | "realtime"): NormalizedMessage {
     return {
         msgId: row.externalId,
-        threadId,
-        threadType: "group",
-        senderId: "",
+        groupId,
+        groupName,
+        threadType: isGroup ? "group" : "user",
+        senderId: row.senderId,
         senderName: row.senderName,
         isSelf: row.isSelf,
         ts: row.ts ?? Date.now(),
         msgType: "desktop.text",
         content: row.content,
-        source: "history",
+        source,
     };
+}
+
+/**
+ * Every row in a batch belongs to the same open conversation, so its
+ * `groupId`/`groupName`/`isGroup` should be identical across rows — this
+ * just picks the first row where the React-fiber read (see
+ * `readMsgIdentitySrc`) actually succeeded, tolerating the occasional row
+ * where it doesn't (an unusual message type with a differently-shaped fiber
+ * tree, say) without losing the whole batch's identity.
+ */
+function resolveGroupIdentity(rows: ScrapedRow[], fallbackName: string): { groupId: string; groupName: string; isGroup: boolean } | null {
+    const identity = rows.find((r): r is ScrapedRow & { groupId: string } => r.groupId != null);
+    if (!identity) return null;
+    return { groupId: identity.groupId, groupName: identity.groupName ?? fallbackName, isGroup: identity.isGroup };
 }
 
 function hashRow(row: { senderName: string; content: string; ts: number | null }): string {
     return "scraped_" + Buffer.from(`${row.senderName}:${row.content}:${row.ts}`).toString("base64url").slice(0, 24);
-}
-
-export function slugify(name: string): string {
-    return (
-        name
-            .normalize("NFD")
-            .replace(/[̀-ͯ]/g, "")
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "_")
-            .replace(/^_+|_+$/g, "") || "thread"
-    );
 }
 
 function delay(ms: number) {

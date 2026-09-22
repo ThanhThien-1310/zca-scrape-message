@@ -48,7 +48,7 @@ export function normalizeSenderName(name: string): string {
  * empty senderName and will NOT match a senderName filter, so a strict
  * filter can under-count a sender's real message total.
  */
-export function exportThreadExcel(threadId: string, messages: NormalizedMessage[], opts: { senderName?: string; fileSuffix?: string } = {}): string {
+export function exportThreadExcel(groupId: string, messages: NormalizedMessage[], opts: { senderName?: string; fileSuffix?: string } = {}): string {
     fs.mkdirSync(exportDir, { recursive: true });
 
     const wantedSender = opts.senderName ? normalizeSenderName(opts.senderName) : null;
@@ -60,19 +60,20 @@ export function exportThreadExcel(threadId: string, messages: NormalizedMessage[
         .map((m) => ({
             "Thời gian": formatVN(m.ts),
             "Người gửi": m.senderName,
+            "Sender ID": m.senderId,
             "Nội dung": typeof m.content === "string" ? m.content : JSON.stringify(m.content),
             "Loại": m.msgType,
             "MsgId": m.msgId,
         }));
 
     const sheet = XLSX.utils.json_to_sheet(rows);
-    sheet["!cols"] = [{ wch: 20 }, { wch: 22 }, { wch: 60 }, { wch: 14 }, { wch: 28 }];
+    sheet["!cols"] = [{ wch: 20 }, { wch: 22 }, { wch: 22 }, { wch: 60 }, { wch: 14 }, { wch: 28 }];
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Messages");
 
     const suffix = opts.fileSuffix ? `_${opts.fileSuffix}` : "";
-    const filePath = path.join(exportDir, `${threadId}${suffix}_${todayStamp()}.xlsx`);
+    const filePath = path.join(exportDir, `${groupId}${suffix}_${todayStamp()}.xlsx`);
     XLSX.writeFile(workbook, filePath);
     return filePath;
 }

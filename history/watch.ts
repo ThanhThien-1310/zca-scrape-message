@@ -1,7 +1,7 @@
 import { config } from "../config.js";
 import { MessageStore } from "../store/messageStore.js";
 import { CdpPage, connectToZaloMainPage, connectToZaloNotificationPage } from "./cdp.js";
-import { ensureZaloReady, installLiveMessageObserver, scrapeAndSaveLatest, slugify, toNormalizedMessage, waitForSidebarLoaded } from "./desktopScraper.js";
+import { ensureZaloReady, installLiveMessageObserver, scrapeAndSaveLatest, toNormalizedMessage, waitForSidebarLoaded } from "./desktopScraper.js";
 import type { ScrapedRow } from "./scrapeSelectors.js";
 
 const NOTIFY_BINDING = "__zalobotNotify";
@@ -32,15 +32,18 @@ export async function watch(): Promise<void> {
     const notifPage = await connectToZaloNotificationPage(config.cdpUrl);
     await installNotificationObserver(notifPage);
 
-    // Tracks which target is currently open in mainPage, so incoming
-    // LIVE_MSG_BINDING calls (which don't carry a thread name themselves —
-    // the observer just reports "a new row rendered") know which thread
-    // they belong to.
-    let currentOpenTarget: string | null = null;
+    // Each LIVE_MSG_BINDING payload carries `activeTarget`, the sidebar name
+    // read fresh from `.conv-item.selected` at the moment the row rendered
+    // (see installLiveMessageObserver) — the message pane container is
+    // reused across manual thread switches, so the observer keeps firing
+    // for whatever thread the user actually has open, not just the one it
+    // was installed for. Using this per-message value (instead of
+    // remembering "the target we last opened") is what stops messages from
+    // a manually-opened thread being attributed to a previous one.
     await mainPage.addBinding(LIVE_MSG_BINDING);
     mainPage.onBindingCalled((name, payload) => {
-        if (name !== LIVE_MSG_BINDING || !currentOpenTarget) return;
-        let row: ScrapedRow;
+        if (name !== LIVE_MSG_BINDING) return;
+        let row: ScrapedRow & { activeTarget: string | null };
         try {
             row = JSON.parse(payload);
         } catch {
@@ -48,11 +51,18 @@ export async function watch(): Promise<void> {
         }
         if (!row.externalId) return;
 
-        const threadId = slugify(currentOpenTarget);
-        const normalized = toNormalizedMessage(row, threadId);
+        const activeTarget = row.activeTarget;
+        if (!activeTarget || !config.targets.includes(activeTarget)) return;
+
+        if (!row.groupId) {
+            console.warn(`[watch] "${activeTarget}": could not read groupId for a live message (React internals may have changed) — skipping save.`);
+            return;
+        }
+
+        const normalized = toNormalizedMessage(row, row.groupId, row.groupName ?? activeTarget, row.isGroup, "realtime");
         if (store.save(normalized)) {
             const who = normalized.isSelf ? "bạn" : normalized.senderName || "(cùng người vừa nhắn)";
-            console.log(`[watch] "${currentOpenTarget}" live: ${who}: ${String(normalized.content).slice(0, 120)}`);
+            console.log(`[watch] "${activeTarget}" live: ${who}: ${String(normalized.content).slice(0, 120)}`);
         }
     });
 
@@ -97,7 +107,6 @@ export async function watch(): Promise<void> {
                         // the instant they render — no more waiting on this
                         // thread's own notification, which may well have gone
                         // quiet now that it's the focused/open conversation.
-                        currentOpenTarget = target;
                         await installLiveMessageObserver(mainPage, LIVE_MSG_BINDING);
                     })
                     .catch((err) => console.error(`[watch] scrape failed for "${target}":`, err));

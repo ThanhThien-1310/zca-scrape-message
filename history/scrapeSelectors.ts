@@ -11,6 +11,29 @@ export const selectors = {
     /** Sidebar entry (ancestor of conversationTitle) — click this to open the thread. */
     conversationItem: ".conv-item",
 
+    /**
+     * Display-name element of whichever sidebar entry is currently open —
+     * the open item gets an extra `selected` class alongside `.conv-item`
+     * (confirmed via debug-active-conversation.ts). Used by the live
+     * message observer to read which thread is actually open at the moment
+     * a message renders, instead of trusting Node-side state that goes
+     * stale the instant the user manually switches conversations.
+     */
+    activeConversationTitle: ".conv-item.selected .conv-item-title__name",
+
+    /**
+     * Sidebar's conversation search box — filters the sidebar down to
+     * matching contacts/threads by name, independent of the "recently
+     * active" window the unfiltered sidebar list otherwise renders (that
+     * window is small and constantly reshuffled by other threads'
+     * activity, so a target thread with no recent messages of its own can
+     * simply not be present in the DOM at all — no amount of scrolling
+     * reveals it, since it isn't in the underlying data either). Confirmed
+     * live: typing a name here reliably surfaces that exact thread's
+     * `.conv-item` regardless of how "recent" it is.
+     */
+    contactSearchInput: "#contact-search-input",
+
     /** One row = one message bubble in the open thread's message pane. */
     messageRow: ".chat-message",
 
@@ -30,8 +53,14 @@ export const messageIdPrefix = "bb_msg_id_";
 
 export type ScrapedRow = {
     externalId: string;
+    senderId: string;
     senderName: string;
     content: string;
     ts: number | null;
     isSelf: boolean;
+    /** Real Zalo conversation id (group: `g<digits>`; DM: the other party's numeric user id) — not derived from any display name, stable across renames. Null only if Zalo's internal data model couldn't be read for this row. */
+    groupId: string | null;
+    /** Display name of the conversation at scrape time — informational only; use `groupId` for identity. */
+    groupName: string | null;
+    isGroup: boolean;
 };

@@ -14,37 +14,42 @@ import { MessageStore } from "../store/messageStore.js";
 const store = new MessageStore();
 const server = new McpServer({ name: "zalo-read-only", version: "1.0.0" });
 
-server.tool("list_threads", "List every thread (group or user) that has stored messages, with a message count each.", {}, async () => {
-    const threads = store.listThreads();
-    const counts = await Promise.all(
-        threads.map(async (threadId) => ({
-            threadId,
-            messageCount: (await store.readThread(threadId)).length,
-        })),
-    );
-    return { content: [{ type: "text", text: JSON.stringify(counts, null, 2) }] };
-});
+server.tool(
+    "list_threads",
+    "List every conversation (group or DM) that has stored messages, with its display name and message count each.",
+    {},
+    async () => {
+        const groupIds = store.listThreads();
+        const groups = await Promise.all(
+            groupIds.map(async (groupId) => {
+                const rows = await store.readThread(groupId);
+                return { groupId, groupName: rows.at(-1)?.groupName ?? null, messageCount: rows.length };
+            }),
+        );
+        return { content: [{ type: "text", text: JSON.stringify(groups, null, 2) }] };
+    },
+);
 
 server.tool(
     "get_recent_messages",
-    "Get the most recent messages from one thread, oldest first.",
-    { threadId: z.string().describe("Thread id, as returned by list_threads"), limit: z.number().int().positive().max(500).optional().describe("Max messages to return (default 50)") },
-    async ({ threadId, limit }) => {
-        const rows = await store.getRecent(threadId, limit ?? 50);
+    "Get the most recent messages from one conversation, oldest first.",
+    { groupId: z.string().describe("Conversation id, as returned by list_threads"), limit: z.number().int().positive().max(500).optional().describe("Max messages to return (default 50)") },
+    async ({ groupId, limit }) => {
+        const rows = await store.getRecent(groupId, limit ?? 50);
         return { content: [{ type: "text", text: JSON.stringify(rows, null, 2) }] };
     },
 );
 
 server.tool(
     "search_messages",
-    "Full-text search message content across one or all threads, newest first.",
+    "Full-text search message content across one or all conversations, newest first.",
     {
         query: z.string().describe("Text to search for (case-insensitive substring match)"),
-        threadId: z.string().optional().describe("Restrict the search to a single thread id"),
+        groupId: z.string().optional().describe("Restrict the search to a single conversation id"),
         limit: z.number().int().positive().max(500).optional().describe("Max results to return (default 50)"),
     },
-    async ({ query, threadId, limit }) => {
-        const rows = await store.search(query, { threadId, limit: limit ?? 50 });
+    async ({ query, groupId, limit }) => {
+        const rows = await store.search(query, { groupId, limit: limit ?? 50 });
         return { content: [{ type: "text", text: JSON.stringify(rows, null, 2) }] };
     },
 );
