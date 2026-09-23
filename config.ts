@@ -61,7 +61,7 @@ export const config = {
      */
     autoLaunchZalo: true,
 
-    /** One JSONL file per thread is written here. */
+    /** One JSON file per thread is written here. */
     dataDir: path.join(repoRoot, "data"),
 
     /**
@@ -70,7 +70,7 @@ export const config = {
      *
      * Example: targets: ["IT Foundation", "Gia đình"],
      */
-    targets: ["bot test", "LC_ChuVănAn_BTAN"] as string[],
+    targets: ["bot test", "LC_ChuVănAn_BTAN", "LC_TríTuệViệt_BTAN"] as string[],
 
     /**
      * Only keep messages at or after this time (unix ms) — scrolling stops

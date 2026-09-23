@@ -3,10 +3,10 @@ import { exportThreadExcel, normalizeSenderName } from "./exportExcel.js";
 
 /**
  * CLI: npx tsx history/exportExcelCli.ts <groupId> [senderName]
- * Reads already-scraped messages for <groupId> from the JSONL store and
+ * Reads already-scraped messages for <groupId> from the JSON store and
  * writes them to a .xlsx file under data/export, optionally filtered to one
  * sender's messages. Find groupId via the MCP server's list_threads tool or
- * by checking the data/ directory's .jsonl filenames.
+ * by checking the data/ directory's .json filenames.
  */
 async function main() {
     const [groupId, senderName] = process.argv.slice(2);

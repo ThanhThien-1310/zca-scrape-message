@@ -5,10 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this project is
 
 Reads Zalo group/DM message history from **Zalo Desktop** (the Windows app, not
-chat.zalo.me) by attaching to it over the Chrome DevTools Protocol and scraping
-the DOM. Read-only: no send/reply path, no realtime WebSocket listener, no
-separate login flow — it reuses whatever Zalo Desktop session is already
-logged in on the machine. See `README.md` for the full design rationale
+chat.zalo.me) by attaching to it over the Chrome DevTools Protocol — scraping
+the DOM for message content, and (in watch mode) also observing Zalo Desktop's
+own WebSocket connection to its chat backend via CDP's `Network` domain purely
+as a fast, best-effort trigger for "something new arrived in thread X" (see
+`history/realtimeListener.ts`). Read-only: no send/reply path, no separate
+login flow — it reuses whatever Zalo Desktop session is already logged in on
+the machine; the WS observation reuses that same session's connection rather
+than opening one of its own. See `README.md` for the full design rationale
 (why CDP instead of Playwright/`zca-js` web login) and detailed data-flow
 walkthrough — it's kept in sync with the code and is the source of truth for
 anything not covered below.
@@ -37,27 +41,25 @@ other mode has an active CDP connection will sever it.
 Two independent run modes share the same core scraping/storage layer:
 
 - **`index.ts`** — one-shot: scrape each `config.targets` conversation once, then exit. Meant for Task Scheduler.
-- **`watch.ts`** — long-running: two `MutationObserver`s (see `history/watch.ts`) — one on Zalo's toast-notification popup window, one installed on the currently-open thread's message pane (since Zalo suppresses toasts for the thread you have focused) — trigger scrapes as messages arrive, debounced 2s.
+- **`watch.ts`** — long-running: reacts to new messages from two independent trigger sources (see `history/watch.ts`) — Zalo Desktop's own WebSocket connection to its chat backend (`history/realtimeListener.ts`, primary) and its toast-notification popup window (fallback, also covers the currently-open thread via a `MutationObserver` on the message pane, since Zalo suppresses toasts for it) — both funnel into the same debounced (2s) scrape trigger. Always restarts Zalo Desktop on startup so the WS source can observe its one-time cipher-key handshake.
 
 Both funnel through:
 
 - **`history/desktopScraper.ts`** — the core logic: `ensureZaloReady()` (checks/opens the CDP debug port, killing and relaunching `Zalo.exe` with `--remote-debugging-port` if needed — safe because the login session lives in the local profile, not the process), connects to the main window, finds/opens each target conversation in the sidebar, scrolls to load history until `targetMessageCount`, `sinceTs`, or a stalled scroll height stops it.
 - **`history/cdp.ts`** — a minimal hand-rolled CDP WebSocket client (`Runtime.evaluate`, `Runtime.addBinding`/`bindingCalled`). Exists because Playwright's `connectOverCDP` can't attach to Zalo Desktop's Electron build (old CDP version, `Browser.setDownloadBehavior` errors).
 - **`history/scrapeSelectors.ts`** — the CSS selectors for Zalo Desktop's DOM. **This is the most fragile part of the codebase** — a Zalo UI update can silently break it (symptom: message counts drop to 0, or "sidebar item not found"). Fix by running `npm run zalo:debug`, then probing the live DOM via `Runtime.evaluate` over `history/cdp.ts` and updating selectors to match.
-- **`store/messageStore.ts`** — writes/reads `data/<thread-slug>.jsonl`, append-only, deduped by `msgId`.
-- **`history/exportJson.ts`** — writes `data/export/<thread-slug>_<YYYY-MM-DD>.json`, a full pretty-printed snapshot of one calendar day's run (overwritten on same-day reruns — the JSONL is the durable store, this is a per-day view).
-- **`history/exportExcel.ts`** / **`exportExcelCli.ts`** — ad-hoc export of an already-scraped thread from the JSONL store to `.xlsx`, optionally filtered to one sender.
-- **`mcp/server.ts`** — read-only MCP server (`list_threads`, `get_recent_messages`, `search_messages`) exposing `store/messageStore.ts` data to MCP clients (Claude Code/Desktop). Never touches Zalo/CDP itself — just reads the JSONL files the scraper already wrote, so it works whether or not the scraper is currently running.
+- **`store/messageStore.ts`** — writes/reads `data/<groupId>.json` (one pretty-printed JSON array per thread, rewritten in full — via a temp-file-then-rename — on every save), deduped by `msgId`. This is the only persisted output; there's no separate append-only log or daily export file.
+- **`history/exportExcel.ts`** / **`exportExcelCli.ts`** — ad-hoc export of an already-scraped thread from the JSON store to `.xlsx`, optionally filtered to one sender.
+- **`mcp/server.ts`** — read-only MCP server (`list_threads`, `get_recent_messages`, `search_messages`) exposing `store/messageStore.ts` data to MCP clients (Claude Code/Desktop). Never touches Zalo/CDP itself — just reads the JSON files the scraper already wrote, so it works whether or not the scraper is currently running.
 
 ## Config (`config.ts`) — the one file you edit for day-to-day changes
 
 `config.targets` (exact display names as shown in the Zalo Desktop sidebar)
 and the `sinceTs`/`untilTs` time window (via the `todayAt(hour, minute)`
 helper, evaluated against the current day at import time) are the primary
-inputs. Renaming a group in Zalo requires updating `targets` to match — old
-history stays under the old slug's `.jsonl` file, there's no automatic
-history migration across a rename. Full field-by-field reference is in
-`README.md` under "Cấu hình (`config.ts`)".
+inputs. Renaming a group in Zalo does not affect storage — `data/<groupId>.json`
+is keyed by the group's real (stable) id, not its display name.
+Full field-by-field reference is in `README.md` under "Cấu hình (`config.ts`)".
 
 ## Known fragile points (see README "Bảo trì" section for full detail)
 
@@ -66,4 +68,9 @@ then `config.targets` drifting from actual group names, then message-ID/timestam
 format varying by message type (e.g. album-photo messages have a different
 `bb_msg_id_...` shape than plain text — only the leading numeric segment is
 parsed out), then `zaloExePath` auto-detection breaking if Zalo changes its
-install layout (e.g. MSIX/Store distribution).
+install layout (e.g. MSIX/Store distribution). `history/realtimeListener.ts`
+is a distinct, more fragile category on its own — an undocumented,
+reverse-engineered wire protocol (cmd/subCmd codes, AES-GCM + gzip framing)
+that could change without any visible UI symptom; it's a best-effort trigger
+source only, so a break there degrades to the notification-popup fallback
+rather than losing messages outright.

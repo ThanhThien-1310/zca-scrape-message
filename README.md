@@ -2,9 +2,12 @@
 
 Đọc lịch sử tin nhắn của các nhóm/hội thoại chỉ định từ **Zalo Desktop**
 (app Windows, không phải web), chạy theo lịch hoặc theo thời gian thực, ghi
-ra file JSONL + JSON/Excel export. Không gửi tin, không có bước đăng nhập
-riêng của bot — chỉ đọc DOM của phiên Zalo Desktop bạn đã đăng nhập sẵn
-theo thói quen dùng hàng ngày.
+ra file JSON (+ Excel export theo yêu cầu). Không gửi tin, không có bước
+đăng nhập riêng của bot — nội dung tin nhắn luôn đọc qua DOM của phiên Zalo
+Desktop bạn đã đăng nhập sẵn theo thói quen dùng hàng ngày; chế độ theo dõi
+thời gian thực còn quan sát thêm WebSocket nội bộ mà Zalo Desktop tự mở tới
+backend của nó (qua CDP `Network` domain) để phát hiện tin mới nhanh hơn,
+nhưng đây chỉ là nguồn kích hoạt phụ, không thay thế bước đọc DOM.
 
 > [!NOTE]
 > Đây là công cụ tự động hoá cá nhân, không phải sản phẩm dùng cho tổ chức
@@ -35,14 +38,15 @@ WebSocket thô (`Runtime.evaluate`) thay vì dùng Playwright.
 | Chế độ | Script | Mô tả |
 |---|---|---|
 | Quét theo lịch | `npm run bot:scrape` | Chạy 1 lần: mở từng nhóm trong `config.targets`, cuộn lấy lịch sử theo khung giờ cấu hình, rồi thoát. Dùng với Task Scheduler. |
-| Theo dõi thời gian thực | `npm run bot:watch` | Đứng chạy liên tục, phản ứng ngay khi có tin mới qua popup thông báo của Zalo Desktop — không cần đợi tới giờ quét kế tiếp. |
+| Theo dõi thời gian thực | `npm run bot:watch` | Đứng chạy liên tục, phản ứng ngay khi có tin mới — qua 2 nguồn song song: WebSocket nội bộ của Zalo Desktop (nhanh nhất, xem `history/realtimeListener.ts`) và popup thông báo (dự phòng) — không cần đợi tới giờ quét kế tiếp. |
 | Xuất Excel | `npm run export:excel` | Xuất tin đã cào sẵn của 1 nhóm ra file `.xlsx`, có thể lọc theo người gửi. |
 | MCP server | `npm run mcp` | Phơi dữ liệu đã cào ra cho Claude Code/Claude Desktop qua 3 tool chỉ-đọc. |
 
-Cả 2 chế độ quét đều ghi vào cùng 1 kho `data/<thread-slug>.jsonl`
-(append-only, dedupe theo `msgId`), nên chạy xen kẽ giữa 2 chế độ ở các
-thời điểm khác nhau không tạo dữ liệu trùng — chỉ lưu ý **không chạy đồng
-thời cùng lúc** (xem cảnh báo ở mục [Theo dõi thời gian thực](#chế-độ-theo-dõi-thời-gian-thực-watch)).
+Cả 2 chế độ quét đều ghi vào cùng 1 kho `data/<groupId>.json` (1 file JSON
+dạng mảng cho mỗi cuộc trò chuyện, dedupe theo `msgId`), nên chạy xen kẽ giữa
+2 chế độ ở các thời điểm khác nhau không tạo dữ liệu trùng — chỉ lưu ý
+**không chạy đồng thời cùng lúc** (xem cảnh báo ở mục [Theo dõi thời gian
+thực](#chế-độ-theo-dõi-thời-gian-thực-watch)).
 
 ## Bắt đầu nhanh
 
@@ -73,7 +77,7 @@ cục bộ của app, không phải trong tiến trình.
 | `cdpPort` / `cdpUrl` | Cổng debug CDP dùng để mở/kết nối Zalo Desktop (mặc định `9222`). |
 | `zaloExePath` | Đường dẫn `Zalo.exe`, **tự dò** trong `%LOCALAPPDATA%\Programs\Zalo\Zalo-*\Zalo.exe` (lấy bản mới nhất). Chỉ cần set tay nếu tự dò thất bại. |
 | `autoLaunchZalo` | `true` = tự tắt/mở lại Zalo Desktop kèm cờ debug khi cần (bắt buộc `true` để chạy không người trực lúc lên lịch). |
-| `dataDir` | Thư mục gốc chứa `data/` (JSONL + export). |
+| `dataDir` | Thư mục gốc chứa `data/` (1 file `.json` mỗi nhóm). |
 | `targets` | Danh sách **tên hiển thị chính xác** của hội thoại/nhóm cần lấy, đúng như hiện trên sidebar Zalo Desktop. Hỗ trợ nhiều nhóm cùng lúc — xem ghi chú hiệu năng bên dưới. |
 | `sinceTs` | Mốc thời gian **chặn dưới** (unix ms). Dùng `todayAt(giờ, phút)` — tự tính theo **ngày hiện tại lúc bot chạy**, vì `todayAt` gọi `new Date()` mỗi lần `config.ts` được import. `null` = không chặn dưới. |
 | `untilTs` | Mốc thời gian **chặn trên** (unix ms). Chỉ lọc kết quả cuối, không ảnh hưởng việc cuộn. `null` = không chặn trên (lấy tới lúc chạy thật sự). Dùng để cố định khung giờ (VD 8h–12h) không bị trôi nếu job chạy trễ. |
@@ -122,36 +126,51 @@ Mỗi lần chạy `index.ts` (`bot:scrape`):
      không đổi 3 lần liên tiếp (hết lịch sử để tải), hoặc mọi tin đang thấy
      đều cũ hơn `config.sinceTs` (không cần cuộn tiếp).
    - Lọc lại theo cả `sinceTs` (chặn dưới) và `untilTs` (chặn trên).
-   - Ghi vào `MessageStore` (JSONL, dedupe theo `msgId`) **và** xuất một
-     file JSON riêng cho lần chạy này.
+   - Ghi vào `MessageStore` (`data/<groupId>.json`, dedupe theo `msgId`).
 
 ### Chế độ theo dõi thời gian thực (`watch`)
 
-`npm run bot:watch` đứng chạy liên tục và phản ứng ngay khi có tin mới,
-dùng **2 observer** khác nhau (`history/watch.ts`):
+`npm run bot:watch` đứng chạy liên tục và phản ứng ngay khi có tin mới, từ
+**3 nguồn trigger** độc lập (`history/watch.ts`), cả 3 đều đổ vào chung 1
+hàng đợi debounce 2 giây (gộp nhiều sự kiện dồn dập của cùng 1 nhóm thành 1
+lần quét) rồi gọi `scrapeAndSaveLatest` — logic đọc/lưu tin nhắn không đổi
+theo nguồn nào kích hoạt:
 
-1. **Observer thông báo (toast)** — gắn CDP vào cửa sổ popup thông báo
-   riêng của Zalo Desktop (`znotification.html`). Theo dõi bằng
+1. **WebSocket nội bộ của Zalo Desktop (`history/realtimeListener.ts`,
+   nhanh nhất)** — Zalo Desktop tự mở 1 kết nối WebSocket tới backend chat
+   của nó để tự cập nhật UI; bot chỉ **quan sát** kết nối đó qua CDP
+   `Network` domain (không tạo kết nối riêng, không cần đăng nhập gì thêm).
+   Giải mã frame `cmd=501`/`521` (tin nhắn mới) để lấy `idTo` (id hội thoại),
+   so khớp với `groupId` đã biết của `config.targets` (học từ dữ liệu đã
+   cào trước đó trong `data/`), rồi kích hoạt quét đúng nhóm đó — kể cả khi
+   nhóm đó đang là nhóm bạn mở/focus. Cần **key mã hoá trao đổi lúc kết nối
+   mở** nên `bot:watch` luôn tắt/mở lại Zalo Desktop lúc khởi động (xem mục
+   Bảo trì #4) để chắc chắn bắt được key này; nhóm chưa từng được cào lần
+   nào thì chưa có `groupId` để so khớp, nguồn này sẽ bỏ qua nhóm đó cho tới
+   khi có ít nhất 1 lần quét (qua `bot:scrape` hoặc nguồn #2/#3 dưới đây).
+2. **Observer thông báo (toast, dự phòng)** — gắn CDP vào cửa sổ popup
+   thông báo riêng của Zalo Desktop (`znotification.html`). Theo dõi bằng
    `MutationObserver`, mỗi khi đổi nội dung sẽ push sự kiện về Node qua CDP
    binding (không polling). Tên nhóm trong thông báo có dạng `"Nhóm: <tên>"`;
-   chỉ những tên khớp `config.targets` mới kích hoạt. Có debounce 2 giây để
-   gộp nhiều thông báo dồn dập của cùng 1 nhóm thành 1 lần quét.
-2. **Observer trong nhóm đang mở** — sau khi observer #1 mở đúng nhóm và
-   đọc dữ liệu hiện có, gắn thêm 1 `MutationObserver` thẳng vào khung tin
-   nhắn của nhóm đó, bắt từng tin mới render ra DOM ngay lập tức — vì khi 1
-   nhóm đang mở/focus, Zalo thường không popup thông báo cho chính nhóm đó
-   nữa. Mỗi tin nhắn observer #2 bắt được đều kèm theo **tên nhóm đang thật
-   sự mở, đọc tươi từ sidebar tại đúng thời điểm đó** — không dùng biến nhớ
-   "nhóm bot vừa mở" — nên nếu bạn tự tay chuyển sang xem nhóm khác trong
-   lúc watcher đang chạy, tin nhắn của nhóm đó vẫn được gán đúng `groupId`,
-   không bị lẫn vào nhóm trước đó.
+   chỉ những tên khớp `config.targets` mới kích hoạt.
+3. **Observer trong nhóm đang mở (dự phòng)** — sau khi nguồn #1 hoặc #2 mở
+   đúng nhóm và đọc dữ liệu hiện có, gắn thêm 1 `MutationObserver` thẳng vào
+   khung tin nhắn của nhóm đó, bắt từng tin mới render ra DOM ngay lập tức —
+   vì khi 1 nhóm đang mở/focus, Zalo thường không popup thông báo cho chính
+   nhóm đó nữa (nguồn #1 không bị giới hạn này). Mỗi tin nhắn nguồn #3 bắt
+   được đều kèm theo **tên nhóm đang thật sự mở, đọc tươi từ sidebar tại
+   đúng thời điểm đó** — không dùng biến nhớ "nhóm bot vừa mở" — nên nếu bạn
+   tự tay chuyển sang xem nhóm khác trong lúc watcher đang chạy, tin nhắn
+   của nhóm đó vẫn được gán đúng `groupId`, không bị lẫn vào nhóm trước đó.
 
 > [!WARNING]
 > **Không chạy đồng thời `bot:scrape` (qua Task Scheduler) và `bot:watch`.**
-> Cả hai đều gọi `ensureZaloReady()`, có thể tắt/mở lại Zalo Desktop nếu
-> thấy debug port chưa mở; nếu `bot:scrape` làm vậy giữa lúc `bot:watch`
-> đang chạy, toàn bộ kết nối CDP của watcher sẽ bị đứt theo. Chọn 1 trong 2
-> chế độ vận hành trên cùng 1 máy.
+> `bot:watch` luôn tắt/mở lại Zalo Desktop lúc khởi động (không chỉ khi
+> debug port chưa mở, khác với `bot:scrape`); `bot:scrape` cũng có thể
+> tắt/mở lại nếu thấy debug port chưa mở. Nếu 1 trong 2 làm vậy giữa lúc
+> bên kia đang chạy, toàn bộ kết nối CDP của bên đó sẽ bị đứt theo (và
+> `bot:watch` sẽ mất luôn cipher key WS đang có, phải bắt lại từ đầu ở lần
+> chạy sau). Chọn 1 trong 2 chế độ vận hành trên cùng 1 máy.
 
 > [!NOTE]
 > Watcher hiện chỉ là 1 tiến trình Node bình thường — đóng terminal là nó
@@ -171,7 +190,7 @@ npm run zalo:debug          # chỉ mở Zalo Desktop kèm cổng debug, không 
 npm run typecheck           # tsc --noEmit
 ```
 
-`export:excel` đọc dữ liệu **đã có sẵn** trong `data/<groupId>.jsonl`
+`export:excel` đọc dữ liệu **đã có sẵn** trong `data/<groupId>.json`
 (không tự cào), nên cần chạy `bot:scrape` hoặc `bot:watch` trước ít nhất 1
 lần cho nhóm đó. Tìm `groupId` bằng cách xem tên file trong `data/`, hoặc
 gọi tool `list_threads` qua MCP server (trả về cả `groupId` lẫn `groupName`).
@@ -211,35 +230,38 @@ debug-active-conversation.ts     chẩn đoán: in className của item sidebar 
 history/
   desktopScraper.ts              logic chính: ensureZaloReady, tìm nhóm, cuộn, cào,
                                   đọc groupId/groupName/senderId thật qua React fiber
-  watch.ts                       logic watcher: 2 observer + debounce + queue
+  watch.ts                       logic watcher: nguồn WS realtime + notification popup,
+                                  chung 1 debounce + queue
+  realtimeListener.ts            nghe WebSocket nội bộ của Zalo Desktop qua CDP Network
+                                  domain (best-effort, xem mục Bảo trì)
   cdp.ts                         client CDP thô (WebSocket) thay Playwright
   scrapeSelectors.ts             CSS selector DOM Zalo Desktop
-  exportJson.ts                  xuất data/export/<groupId>_<ngày>.json
   exportExcel.ts / exportExcelCli.ts   xuất .xlsx từ dữ liệu đã cào
 
 store/
-  messageStore.ts                ghi/đọc data/<groupId>.jsonl, dedupe
+  messageStore.ts                ghi/đọc data/<groupId>.json (mảng JSON), dedupe
 
 mcp/
   server.ts                      MCP server chỉ-đọc: list_threads,
                                   get_recent_messages, search_messages
 
 data/                             DỮ LIỆU ĐẦU RA (không commit, .gitignore)
-  <groupId>.jsonl                  lưu vĩnh viễn, append-only, dedupe theo msgId,
-                                    đặt tên theo group id thật (bền vững khi đổi tên nhóm)
-  export/
-    <groupId>_<YYYY-MM-DD>.json      xuất theo từng lần chạy trong ngày,
-                                        chạy lại trong cùng ngày sẽ ghi đè
+  <groupId>.json                   lưu vĩnh viễn, mảng JSON ghi đè mỗi lần lưu,
+                                    dedupe theo msgId, đặt tên theo group id thật
+                                    (bền vững khi đổi tên nhóm)
 ```
 
 ## Dữ liệu đầu ra
 
-### 1. `data/<groupId>.jsonl` — kho lưu vĩnh viễn
+### `data/<groupId>.json` — kho lưu vĩnh viễn duy nhất
 
-Mỗi dòng 1 tin nhắn (JSON), append-only, dedupe theo `msgId` (chạy lại
-không tạo tin trùng). Tên file là `groupId` thật (không phải slug tên
-nhóm), nên **không bị vỡ lịch sử khi nhóm đổi tên**. Shape
-`NormalizedMessage` (`store/messageStore.ts`):
+Một file JSON (mảng, pretty-print, sắp theo `ts` tăng dần) cho mỗi cuộc trò
+chuyện — đây là **nơi lưu trữ duy nhất**, không có kho phụ hay bản xuất
+riêng theo ngày. Mỗi lần lưu tin mới, cả mảng được ghi đè lại (qua file tạm
+rồi rename, tránh hỏng file nếu bị ngắt giữa chừng), dedupe theo `msgId` —
+chạy lại `bot:scrape`/`bot:watch` không tạo tin trùng. Tên file là `groupId`
+thật (không phải slug tên nhóm), nên **không bị vỡ lịch sử khi nhóm đổi
+tên**. Shape `NormalizedMessage` (`store/messageStore.ts`):
 
 ```ts
 {
@@ -264,18 +286,9 @@ nhóm), nên **không bị vỡ lịch sử khi nhóm đổi tên**. Shape
 > attribute nào cả. Xem điểm bảo trì #1 bên dưới — đây là phần dễ vỡ nhất
 > trong toàn bộ scraper.
 
-### 2. `data/export/<groupId>_<YYYY-MM-DD>.json` — xuất theo lần chạy
-
-Mảng JSON, pretty-print, sắp theo thời gian tăng dần, chỉ chứa tin của
-**lần chạy đó** (đã áp `sinceTs`/`untilTs`). Giống `NormalizedMessage`
-nhưng thêm 2 trường thời gian dễ đọc: `timeIso` (ISO 8601 UTC) và
-`timeLocal` (giờ Việt Nam, `HH:mm:ss DD/MM/YYYY`).
-
-> [!IMPORTANT]
-> Chạy lại trong cùng ngày sẽ **ghi đè** file export của ngày đó (không
-> cộng dồn) — file `.jsonl` mới là nơi lưu lâu dài/dedupe. Watch mode chỉ
-> ghi vào `.jsonl`, **không đụng tới `data/export/...json`**, để tránh ghi
-> đè snapshot đầy đủ của `bot:scrape` bằng vài dòng vừa thấy.
+Cần bản xuất dễ đọc/chia sẻ (kèm giờ Việt Nam, lọc theo người gửi)? Dùng
+`npm run export:excel <groupId> [senderName]` để xuất `.xlsx` theo yêu cầu,
+thay vì một file export tự động sinh mỗi ngày.
 
 ## Bảo trì & giới hạn đã biết
 
@@ -308,30 +321,44 @@ Xếp theo khả năng gặp phải, cao → thấp:
    `timeLocal` bất thường trong file export, khả năng cao là một định dạng
    id mới chưa được xử lý.
 
-4. **`zaloExePath` tự dò theo cấu trúc thư mục cài đặt hiện tại**
+4. **Nguồn WS realtime (`history/realtimeListener.ts`) dựa trên giao thức
+   nhị phân chưa công bố của Zalo** (mã lệnh cmd/subCmd, mã hoá AES-GCM +
+   nén gzip) — dò ngược qua dự án `zca-js` và xác nhận lại bằng cách bắt
+   trực tiếp gói tin qua CDP `Network` domain, không phải API chính thức.
+   Zalo đổi giao thức bất cứ lúc nào mà không có dấu hiệu gì ở UI. Vì đây
+   chỉ là **nguồn trigger phụ, best-effort** (song song với popup thông
+   báo), nếu nó hỏng thì `bot:watch` tự động chỉ còn chạy bằng cơ chế
+   notification cũ — không mất khả năng theo dõi, chỉ mất phần "tức thời
+   hơn". Triệu chứng hỏng: không còn thấy log `[watch] realtime-ws: new
+   message detected` dù có tin nhắn mới.
+
+5. **`zaloExePath` tự dò theo cấu trúc thư mục cài đặt hiện tại**
    (`%LOCALAPPDATA%\Programs\Zalo\Zalo-<version>\Zalo.exe`). Nếu Zalo đổi
    cách cài đặt (VD chuyển sang Microsoft Store/MSIX) thì auto-detect sẽ
    thất bại — lúc đó cần set `zaloExePath` thủ công trong `config.ts`.
 
-5. **`autoLaunchZalo: true` sẽ tắt Zalo Desktop bất kể bạn đang dùng dở** —
-   nếu job chạy đúng lúc bạn đang gõ chat mà debug port chưa mở, Zalo sẽ bị
-   tắt/mở lại đột ngột (không mất dữ liệu, chỉ gián đoạn UI). Nếu thấy
-   phiền, có thể tắt `autoLaunchZalo` và tự đảm bảo Zalo luôn mở kèm
-   `--remote-debugging-port=9222` (VD gắn cờ vào shortcut).
+6. **`autoLaunchZalo: true` sẽ tắt Zalo Desktop bất kể bạn đang dùng dở** —
+   với `bot:scrape`, chỉ xảy ra khi debug port chưa mở; với `bot:watch`,
+   xảy ra **mỗi lần khởi động**, kể cả khi Zalo đã mở sẵn — cần thiết để
+   nguồn WS realtime bắt được cipher key trao đổi lúc kết nối (xem
+   `history/realtimeListener.ts`). Không mất dữ liệu, chỉ gián đoạn UI vài
+   giây. Nếu thấy phiền, có thể tắt `autoLaunchZalo`, nhưng khi đó `bot:watch`
+   sẽ mất nguồn WS realtime (vẫn còn popup thông báo làm dự phòng).
 
-6. **Không có cơ chế bù lại (backfill) nếu job bị bỏ lỡ** — máy tắt/ngủ
+7. **Không có cơ chế bù lại (backfill) nếu job bị bỏ lỡ** — máy tắt/ngủ
    đúng giờ lên lịch, hoặc Task Scheduler bị lỗi, thì ngày đó coi như mất,
    `sinceTs`/`untilTs` không tự lùi lại quét bù.
 
-7. **Không có cảnh báo khi chạy lỗi** — script chỉ log ra console và thoát
+8. **Không có cảnh báo khi chạy lỗi** — script chỉ log ra console và thoát
    mã lỗi khác 0; nếu chạy qua Task Scheduler không ai để ý, lỗi sẽ không
    ai biết trừ khi chủ động kiểm tra lịch sử tác vụ hoặc log.
 
-8. **`data/` không có dọn dẹp tự động** — `data/*.jsonl` tăng dần vô hạn
-   (append-only), `data/export/` cộng thêm 1 file/nhóm/ngày mỗi ngày chạy.
-   Không ảnh hưởng chức năng nhưng nên để ý dung lượng nếu chạy lâu dài.
+9. **`data/` không có dọn dẹp tự động** — mỗi `data/<groupId>.json` tăng
+   dần vô hạn theo số tin nhắn của nhóm đó. Không ảnh hưởng chức năng nhưng
+   nên để ý dung lượng nếu chạy lâu dài (mỗi lần lưu ghi đè lại toàn bộ file,
+   nên file càng lớn thì mỗi lần lưu càng chậm hơn một chút).
 
-9. **`senderId` là id số thật, không phải dữ liệu ẩn danh** — dữ liệu nội
+10. **`senderId` là id số thật, không phải dữ liệu ẩn danh** — dữ liệu nội
    bộ Zalo đọc qua React fiber (`readMsgIdentitySrc`) còn chứa cả số điện
    thoại, ngày sinh, avatar... của người gửi, nhưng scraper **chỉ trích
    xuất đúng `fromUid`/`userId`**, không lưu các trường nhạy cảm khác. Nếu

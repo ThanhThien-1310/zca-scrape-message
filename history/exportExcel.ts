@@ -61,7 +61,7 @@ export function exportThreadExcel(groupId: string, messages: NormalizedMessage[]
             "Thời gian": formatVN(m.ts),
             "Người gửi": m.senderName,
             "Sender ID": m.senderId,
-            "Nội dung": typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+            "Nội dung": m.content,
             "Loại": m.msgType,
             "MsgId": m.msgId,
         }));

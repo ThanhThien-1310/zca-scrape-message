@@ -1,11 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import readline from "node:readline";
 import { config } from "../config.js";
 
 export type NormalizedMessage = {
     msgId: string;
-    /** Real Zalo conversation id (group: `g<digits>`; DM: the other party's numeric user id) — stable across renames, also used as the JSONL filename. */
+    /** Real Zalo conversation id (group: `g<digits>`; DM: the other party's numeric user id) — stable across renames, also used as the JSON filename. */
     groupId: string;
     /** Display name of the conversation at scrape time — informational only, never used as a storage key. */
     groupName: string;
@@ -14,21 +13,29 @@ export type NormalizedMessage = {
     senderName: string;
     isSelf: boolean;
     ts: number;
+    /** `"desktop.text"` for DOM-scraped rows (the only kind this scraper reads text content for); `"chat.photo"` for a photo message saved directly from the realtime WS payload — see history/realtimeListener.ts. Other Zalo msgTypes (sticker, voice, video, file...) aren't captured specially yet and fall through as an empty-content `"desktop.text"` row, same as before. */
     msgType: string;
-    content: unknown;
-    /** Which of the two data sources produced this row. */
-    source: "realtime" | "history";
+    /** Message text. For `"chat.photo"`, this is the photo's caption (empty string if it has none) — the image itself is `url`, not `content`. */
+    content: string;
+    /** Image URL — only present for `"chat.photo"` rows (see history/realtimeListener.ts). */
+    url?: string;
 };
 
 /**
- * Append-only JSONL store, one file per conversation (named by `groupId`,
- * not the display name — see NormalizedMessage), deduped by msgId. Both the
- * realtime listener and the history scraper write through this so a message
- * seen twice (e.g. a recent message the scraper also scrolls past) is only
- * ever stored once.
+ * One JSON file per conversation (named by `groupId`, not the display name —
+ * see NormalizedMessage), each holding a pretty-printed array of every
+ * message seen so far for that thread, deduped by msgId and kept sorted by
+ * `ts`. Both the realtime listener and the history scraper write through
+ * this so a message seen twice (e.g. a recent message the scraper also
+ * scrolls past) is only ever stored once. The whole array is rewritten
+ * (atomically, via a temp file + rename) on every save — simpler to read
+ * and to hand to other tools directly than an append-only log, at the cost
+ * of a full rewrite per save; fine at this scale (per-conversation message
+ * counts), not meant for high-volume threads.
  */
 export class MessageStore {
     private dataDir: string;
+    private rows = new Map<string, NormalizedMessage[]>();
     private seenIds = new Map<string, Set<string>>();
     /** Per-group senderId -> last known senderName, seeded from disk on first access — see backfillSenderName. */
     private senderNames = new Map<string, Map<string, string>>();
@@ -39,37 +46,47 @@ export class MessageStore {
     }
 
     private filePath(groupId: string) {
-        return path.join(this.dataDir, `${groupId}.jsonl`);
+        return path.join(this.dataDir, `${groupId}.json`);
     }
 
-    private loadSeenIds(groupId: string): Set<string> {
-        let set = this.seenIds.get(groupId);
-        if (set) return set;
+    private load(groupId: string): NormalizedMessage[] {
+        let rows = this.rows.get(groupId);
+        if (rows) return rows;
 
-        set = new Set();
+        rows = [];
         const names = new Map<string, string>();
         const file = this.filePath(groupId);
         if (fs.existsSync(file)) {
-            const lines = fs.readFileSync(file, "utf-8").split("\n");
-            for (const line of lines) {
-                if (!line.trim()) continue;
-                try {
-                    const row = JSON.parse(line) as NormalizedMessage;
-                    set.add(row.msgId);
-                    if (row.senderId && row.senderName) names.set(row.senderId, row.senderName);
-                } catch {
-                    // ignore malformed line
-                }
+            try {
+                rows = JSON.parse(fs.readFileSync(file, "utf-8")) as NormalizedMessage[];
+            } catch {
+                console.warn(`[store] "${file}" is not valid JSON — starting this thread fresh in memory (existing file left untouched until the next save).`);
+                rows = [];
             }
         }
-        this.seenIds.set(groupId, set);
+
+        const seen = new Set(rows.map((r) => r.msgId));
+        for (const row of rows) {
+            if (row.senderId && row.senderName) names.set(row.senderId, row.senderName);
+        }
+
+        this.rows.set(groupId, rows);
+        this.seenIds.set(groupId, seen);
         this.senderNames.set(groupId, names);
-        return set;
+        return rows;
     }
 
     private getSenderNames(groupId: string): Map<string, string> {
-        this.loadSeenIds(groupId); // seeds both maps together from disk on first access
+        this.load(groupId); // seeds all three maps together from disk on first access
         return this.senderNames.get(groupId)!;
+    }
+
+    private writeToDisk(groupId: string): void {
+        const rows = this.rows.get(groupId) ?? [];
+        const file = this.filePath(groupId);
+        const tmpFile = `${file}.tmp`;
+        fs.writeFileSync(tmpFile, JSON.stringify(rows, null, 2), "utf-8");
+        fs.renameSync(tmpFile, file);
     }
 
     /**
@@ -101,12 +118,15 @@ export class MessageStore {
 
     /** Returns true if the message was new and got written, false if it was a duplicate. */
     save(message: NormalizedMessage): boolean {
-        const seen = this.loadSeenIds(message.groupId);
+        const rows = this.load(message.groupId);
+        const seen = this.seenIds.get(message.groupId)!;
         this.backfillSenderName(message);
         if (seen.has(message.msgId)) return false;
 
         seen.add(message.msgId);
-        fs.appendFileSync(this.filePath(message.groupId), JSON.stringify(message) + "\n", "utf-8");
+        rows.push(message);
+        rows.sort((a, b) => a.ts - b.ts);
+        this.writeToDisk(message.groupId);
         return true;
     }
 
@@ -119,9 +139,24 @@ export class MessageStore {
             if (!m.senderId || !m.senderName) continue;
             this.getSenderNames(m.groupId).set(m.senderId, m.senderName);
         }
+
+        const touchedGroupIds = new Set<string>();
         let written = 0;
         for (const m of messages) {
-            if (this.save(m)) written++;
+            const rows = this.load(m.groupId);
+            const seen = this.seenIds.get(m.groupId)!;
+            this.backfillSenderName(m);
+            if (seen.has(m.msgId)) continue;
+
+            seen.add(m.msgId);
+            rows.push(m);
+            touchedGroupIds.add(m.groupId);
+            written++;
+        }
+
+        for (const groupId of touchedGroupIds) {
+            this.rows.get(groupId)!.sort((a, b) => a.ts - b.ts);
+            this.writeToDisk(groupId);
         }
         return written;
     }
@@ -130,26 +165,12 @@ export class MessageStore {
         if (!fs.existsSync(this.dataDir)) return [];
         return fs
             .readdirSync(this.dataDir)
-            .filter((f) => f.endsWith(".jsonl"))
-            .map((f) => f.slice(0, -".jsonl".length));
+            .filter((f) => f.endsWith(".json"))
+            .map((f) => f.slice(0, -".json".length));
     }
 
     async readThread(groupId: string): Promise<NormalizedMessage[]> {
-        const file = this.filePath(groupId);
-        if (!fs.existsSync(file)) return [];
-
-        const rows: NormalizedMessage[] = [];
-        const rl = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity });
-        for await (const line of rl) {
-            if (!line.trim()) continue;
-            try {
-                rows.push(JSON.parse(line) as NormalizedMessage);
-            } catch {
-                // ignore malformed line
-            }
-        }
-        rows.sort((a, b) => a.ts - b.ts);
-        return rows;
+        return this.load(groupId).slice().sort((a, b) => a.ts - b.ts);
     }
 
     async getRecent(groupId: string, limit = 50): Promise<NormalizedMessage[]> {
@@ -165,7 +186,7 @@ export class MessageStore {
         for (const groupId of groupIds) {
             const rows = await this.readThread(groupId);
             for (const row of rows) {
-                const text = typeof row.content === "string" ? row.content : JSON.stringify(row.content);
+                const text = row.content;
                 if (text.toLowerCase().includes(needle)) hits.push(row);
             }
         }

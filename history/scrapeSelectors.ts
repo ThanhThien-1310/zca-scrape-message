@@ -45,9 +45,13 @@ export const selectors = {
 };
 
 /**
- * Each message row's `id` attribute is `bb_msg_id_<unix-ms timestamp>` —
- * confirmed live (the trailing number matches wall-clock time of the
- * message), so there's no separate timestamp element to parse.
+ * Each message row's `id` attribute is `bb_msg_id_<cliMsgId>` (a client-
+ * generated id close to, but not exactly, the message's server `ts`) —
+ * confirmed live. Superseded as the primary identity source by the row's
+ * `[data-qid]` descendant(s), which carry Zalo's own real numeric message
+ * id (see `extractRowsFromMessageSrc` in `history/desktopScraper.ts`); this
+ * prefix is now only used as a fallback for a row with no `[data-qid]` at
+ * all.
  */
 export const messageIdPrefix = "bb_msg_id_";
 

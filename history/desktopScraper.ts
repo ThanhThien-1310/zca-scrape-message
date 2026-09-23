@@ -3,7 +3,6 @@ import { config } from "../config.js";
 import type { NormalizedMessage } from "../store/messageStore.js";
 import { MessageStore } from "../store/messageStore.js";
 import { CdpPage, connectToZaloMainPage, isCdpReachable } from "./cdp.js";
-import { exportThreadJson } from "./exportJson.js";
 import { messageIdPrefix, selectors, type ScrapedRow } from "./scrapeSelectors.js";
 
 /**
@@ -55,6 +54,104 @@ const readMsgIdentitySrc = `
 `;
 
 /**
+ * Browser-context JS snippet (interpolated into both `extractVisibleRows`
+ * and `installLiveMessageObserver`'s injected scripts, alongside
+ * `readMsgIdentitySrc`) that turns one `.chat-message` row into
+ * one-or-more `ScrapedRow`-shaped objects.
+ *
+ * Confirmed live 2026-09-23: every `[data-qid]` element inside a row
+ * (there can be more than one — an album's photos each get their own,
+ * sharing one `.chat-message` row) carries
+ * `<realMsgId>@<cliMsgId>_<uidFrom>_<groupId>`. `realMsgId` matches
+ * Zalo's own numeric `msgId` exactly — cross-checked character-for-
+ * character against the realtime WS payload for the same message (see
+ * history/realtimeListener.ts, which now saves photo rows under this same
+ * id). `cliMsgId` is what the row's own `id` attribute was already using
+ * as its trailing "timestamp" (close to, but not exactly, the server
+ * `ts`). `uidFrom` is `"0"` for the account's own messages — same
+ * placeholder convention as the WS wire format — so that case falls back
+ * to the fiber-read self id. `groupId` already carries the `g` prefix for
+ * groups, none for DMs, matching `NormalizedMessage.groupId`'s own
+ * convention, so `isGroup` is just `groupId.startsWith("g")`. Splitting on
+ * `[data-qid]` (rather than one row = one message) is what correctly
+ * separates an album's individual photos, which otherwise all render
+ * inside one shared `.chat-message` row with one shared id.
+ *
+ * Falls back to the row's own `id` (the older `bb_msg_id_<cliMsgId>[...]`
+ * scheme) for a row with no `[data-qid]` descendant at all — covers
+ * whatever message types this hasn't been confirmed against yet (stickers,
+ * voice, system messages...), so those still get scraped, just without a
+ * Zalo-native id.
+ */
+const extractRowsFromMessageSrc = `
+    const qidPattern = /^(\\d+)@(\\d+)_([^_]+)_([^_]+)$/;
+    const idPrefix = ${JSON.stringify(messageIdPrefix)};
+    const readBubble = (scopeEl, fallbackEl) => {
+        const senderEl = scopeEl.querySelector(${JSON.stringify(selectors.senderName)}) || (fallbackEl && fallbackEl.querySelector(${JSON.stringify(selectors.senderName)}));
+        const contentEl = scopeEl.querySelector(${JSON.stringify(selectors.messageContent)}) || (fallbackEl && fallbackEl.querySelector(${JSON.stringify(selectors.messageContent)}));
+        return {
+            senderName: senderEl ? senderEl.textContent.trim() : "",
+            content: contentEl ? contentEl.textContent.trim() : "",
+        };
+    };
+    const extractRowsFromMessage = (msgEl) => {
+        const isSelf = / me /.test(" " + msgEl.className + " ");
+        const qidEls = Array.from(msgEl.querySelectorAll("[data-qid]"));
+
+        if (qidEls.length > 0) {
+            return qidEls.map((qidEl) => {
+                const raw = qidEl.getAttribute("data-qid") || "";
+                const m = raw.match(qidPattern);
+                const identity = readMsgIdentity(qidEl, isSelf);
+                const bubble = readBubble(qidEl, msgEl);
+                if (!m) {
+                    return {
+                        externalId: msgEl.id || null,
+                        senderId: identity.senderId,
+                        senderName: bubble.senderName,
+                        content: bubble.content,
+                        ts: null,
+                        isSelf,
+                        groupId: identity.groupId,
+                        groupName: identity.groupName,
+                        isGroup: identity.isGroup,
+                    };
+                }
+                const realMsgId = m[1], cliMsgId = m[2], uidFrom = m[3], groupIdRaw = m[4];
+                return {
+                    externalId: realMsgId,
+                    senderId: uidFrom === "0" ? identity.senderId : uidFrom,
+                    senderName: bubble.senderName,
+                    content: bubble.content,
+                    ts: Number(cliMsgId),
+                    isSelf,
+                    groupId: groupIdRaw || identity.groupId,
+                    groupName: identity.groupName,
+                    isGroup: groupIdRaw.startsWith("g"),
+                };
+            });
+        }
+
+        const id = msgEl.id || "";
+        const tsPart = id.startsWith(idPrefix) ? id.slice(idPrefix.length).split("_")[0] : null;
+        const ts = tsPart && /^\\d+$/.test(tsPart) ? Number(tsPart) : null;
+        const identity = readMsgIdentity(msgEl, isSelf);
+        const bubble = readBubble(msgEl, null);
+        return [{
+            externalId: id || null,
+            senderId: identity.senderId,
+            senderName: bubble.senderName,
+            content: bubble.content,
+            ts,
+            isSelf,
+            groupId: identity.groupId,
+            groupName: identity.groupName,
+            isGroup: identity.isGroup,
+        }];
+    };
+`;
+
+/**
  * The whole bot, now: Zalo Desktop (Electron) is read over the Chrome
  * DevTools Protocol via history/cdp.ts, run on-demand or on a schedule
  * (Task Scheduler at e.g. 08:00 and 12:00). There is no separate login —
@@ -81,7 +178,7 @@ export async function runScrape(store: MessageStore): Promise<void> {
     }
 }
 
-/** Scrapes one target thread's full window (scrolls back to sinceTs) and writes it to both the JSONL store and the JSON export — used by the scheduled one-shot run (bot/index.ts). */
+/** Scrapes one target thread's full window (scrolls back to sinceTs) and writes it to the JSON store — used by the scheduled one-shot run (bot/index.ts). */
 export async function scrapeAndSaveTarget(page: CdpPage, store: MessageStore, target: string): Promise<void> {
     console.log(`[scrape] scraping "${target}"...`);
     const rows = await scrapeThreadHistory(page, target);
@@ -96,10 +193,9 @@ export async function scrapeAndSaveTarget(page: CdpPage, store: MessageStore, ta
         return;
     }
 
-    const normalized = rows.map((r) => toNormalizedMessage(r, identity.groupId, identity.groupName, identity.isGroup, "history"));
+    const normalized = rows.map((r) => toNormalizedMessage(r, identity.groupId, identity.groupName, identity.isGroup));
     const written = store.saveMany(normalized);
-    const exportPath = exportThreadJson(identity.groupId, normalized);
-    console.log(`[scrape] "${target}": scraped ${rows.length}, ${written} new, exported to ${exportPath}`);
+    console.log(`[scrape] "${target}": scraped ${rows.length}, ${written} new (data/${identity.groupId}.json)`);
 }
 
 /**
@@ -108,10 +204,8 @@ export async function scrapeAndSaveTarget(page: CdpPage, store: MessageStore, ta
  * watcher (history/watch.ts), where a new message is already visible at the
  * bottom of the pane as soon as the thread is opened, so walking back
  * through the day's history on every trigger would just be wasted work.
- * Writes only to the JSONL store (dedup handles overlap with prior scrapes)
- * — deliberately does NOT touch the JSON export, since that file is a full
- * sinceTs–untilTs snapshot and overwriting it with just these few visible
- * rows would drop everything a scheduled run already wrote for today.
+ * Writes to the JSON store (dedup handles overlap with prior scrapes and
+ * with the fuller `scrapeAndSaveTarget` scrolls).
  */
 export async function scrapeAndSaveLatest(page: CdpPage, store: MessageStore, target: string): Promise<void> {
     const opened = await clickConversationWithRetry(page, target, 15_000);
@@ -127,7 +221,7 @@ export async function scrapeAndSaveLatest(page: CdpPage, store: MessageStore, ta
         return;
     }
 
-    const normalized = rows.map((r) => toNormalizedMessage(r, identity.groupId, identity.groupName, identity.isGroup, "history"));
+    const normalized = rows.map((r) => toNormalizedMessage(r, identity.groupId, identity.groupName, identity.isGroup));
     const written = store.saveMany(normalized);
     console.log(`[watch] "${target}": saw ${rows.length} visible, ${written} new`);
 }
@@ -161,6 +255,46 @@ export async function ensureZaloReady(): Promise<void> {
     }).unref();
 
     await waitForCdpReady(config.cdpUrl, 30_000);
+}
+
+/**
+ * Unconditionally kills and relaunches Zalo Desktop, even if its debug port
+ * is already open — unlike `ensureZaloReady`, which only restarts when
+ * necessary. The realtime WebSocket listener (history/realtimeListener.ts)
+ * needs to observe the one-time cipher-key frame sent right when Zalo
+ * Desktop's own connection to its chat backend opens; if that connection
+ * has been open since before we attached, the key frame already passed and
+ * live message detection silently never activates. Forcing a fresh
+ * connection here — right before attaching — guarantees we're listening
+ * from its very first frame. Same account-session safety guarantee as
+ * `ensureZaloReady`: the login lives in the local profile, not the process.
+ *
+ * Deliberately does NOT wait for the debug port to come up (unlike
+ * `ensureZaloReady`) — the caller must race straight into
+ * `connectToZaloMainPageEarly` (history/cdp.ts) right after this returns, so
+ * it's already polling for the main window (and enables `Network` the
+ * instant it attaches) rather than losing time to a separate readiness
+ * wait first. See history/watch.ts.
+ */
+export async function forceRestartZalo(): Promise<void> {
+    if (!config.autoLaunchZalo) {
+        throw new Error("forceRestartZalo requires autoLaunchZalo — the realtime WS listener needs to control when Zalo Desktop's connection is (re)established.");
+    }
+    if (!config.zaloExePath) {
+        throw new Error("Could not auto-detect Zalo.exe under %LOCALAPPDATA%\\Programs\\Zalo — set zaloExePath in bot/config.ts manually.");
+    }
+
+    console.log("[watch] restarting Zalo Desktop to capture its WebSocket connection from the start...");
+    await killZalo();
+    // Zalo Desktop's single-instance lock (app.requestSingleInstanceLock)
+    // can briefly outlive the killed process — spawning immediately after
+    // `taskkill` sometimes hands off to nothing and starts no new instance
+    // at all. A short pause avoids that race.
+    await delay(1_000);
+    spawn(config.zaloExePath, [`--remote-debugging-port=${config.cdpPort}`], {
+        detached: true,
+        stdio: "ignore",
+    }).unref();
 }
 
 function killZalo(): Promise<void> {
@@ -325,30 +459,9 @@ async function extractVisibleRows(page: CdpPage): Promise<ScrapedRow[]> {
     const expr = `
 (() => {
     ${readMsgIdentitySrc}
-    const idPrefix = ${JSON.stringify(messageIdPrefix)};
-    const rows = Array.from(document.querySelectorAll(${JSON.stringify(selectors.messageRow)}));
-    return rows.map((el) => {
-        const senderEl = el.querySelector(${JSON.stringify(selectors.senderName)});
-        const contentEl = el.querySelector(${JSON.stringify(selectors.messageContent)});
-        const id = el.id || "";
-        // Text messages: bb_msg_id_<ts>. Media/album messages: bb_msg_id_<ts>_<n>_<groupId>
-        // — only the leading segment is the timestamp either way.
-        const tsPart = id.startsWith(idPrefix) ? id.slice(idPrefix.length).split("_")[0] : null;
-        const ts = tsPart && /^\\d+$/.test(tsPart) ? Number(tsPart) : null;
-        const isSelf = / me /.test(" " + el.className + " ");
-        const identity = readMsgIdentity(el, isSelf);
-        return {
-            externalId: id || null,
-            senderId: identity.senderId,
-            senderName: senderEl ? senderEl.textContent.trim() : "",
-            content: contentEl ? contentEl.textContent.trim() : "",
-            ts,
-            isSelf,
-            groupId: identity.groupId,
-            groupName: identity.groupName,
-            isGroup: identity.isGroup,
-        };
-    });
+    ${extractRowsFromMessageSrc}
+    const msgEls = Array.from(document.querySelectorAll(${JSON.stringify(selectors.messageRow)}));
+    return msgEls.flatMap((el) => extractRowsFromMessage(el));
 })()`;
     const rows = await page.evaluate<Array<Omit<ScrapedRow, "externalId"> & { externalId: string | null }>>(expr);
     return rows
@@ -388,11 +501,22 @@ async function scrollMessagePaneToTop(page: CdpPage): Promise<number | null> {
  * display name read fresh from `.conv-item.selected` at the moment the row
  * renders — the caller must use this (not any previously-remembered "open
  * thread" state) to decide which thread a row belongs to.
+ *
+ * One known gap: `extractRowsFromMessage` reads every `[data-qid]` present
+ * inside a `.chat-message` row at the moment that row is added to the DOM —
+ * an album whose photos render progressively (row added first, individual
+ * `[data-qid]` photos appended into it afterward, rather than all at once)
+ * could be under-captured here, since only the *row's own* insertion is
+ * observed, not each photo's. Not a practical concern today: photo content
+ * for a live-arriving message already comes from the realtime WS source
+ * (history/realtimeListener.ts), not this observer — this path mainly
+ * matters for plain text in the currently-focused thread.
  */
 export async function installLiveMessageObserver(page: CdpPage, bindingName: string): Promise<boolean> {
     const expr = `
 (() => {
     ${readMsgIdentitySrc}
+    ${extractRowsFromMessageSrc}
     const msg = document.querySelector(${JSON.stringify(selectors.messageRow)});
     if (!msg) return false;
     let container = msg.parentElement;
@@ -402,29 +526,8 @@ export async function installLiveMessageObserver(page: CdpPage, bindingName: str
     if (window.__zalobotLiveObserver) window.__zalobotLiveObserver.disconnect();
     window.__zalobotLiveSeen = window.__zalobotLiveSeen || new Set();
 
-    const idPrefix = ${JSON.stringify(messageIdPrefix)};
     const rowSelector = ${JSON.stringify(selectors.messageRow)};
     const activeTitleSelector = ${JSON.stringify(selectors.activeConversationTitle)};
-    const extractRow = (el) => {
-        const senderEl = el.querySelector(${JSON.stringify(selectors.senderName)});
-        const contentEl = el.querySelector(${JSON.stringify(selectors.messageContent)});
-        const id = el.id || "";
-        const tsPart = id.startsWith(idPrefix) ? id.slice(idPrefix.length).split("_")[0] : null;
-        const ts = tsPart && /^\\d+$/.test(tsPart) ? Number(tsPart) : null;
-        const isSelf = / me /.test(" " + el.className + " ");
-        const identity = readMsgIdentity(el, isSelf);
-        return {
-            externalId: id || null,
-            senderId: identity.senderId,
-            senderName: senderEl ? senderEl.textContent.trim() : "",
-            content: contentEl ? contentEl.textContent.trim() : "",
-            ts,
-            isSelf,
-            groupId: identity.groupId,
-            groupName: identity.groupName,
-            isGroup: identity.isGroup,
-        };
-    };
 
     const observer = new MutationObserver((mutations) => {
         const activeTitleEl = document.querySelector(activeTitleSelector);
@@ -432,12 +535,14 @@ export async function installLiveMessageObserver(page: CdpPage, bindingName: str
         for (const m of mutations) {
             for (const node of m.addedNodes) {
                 if (node.nodeType !== 1) continue;
-                const rows = node.matches(rowSelector) ? [node] : Array.from(node.querySelectorAll(rowSelector));
-                for (const row of rows) {
-                    const id = row.id || "";
-                    if (id && window.__zalobotLiveSeen.has(id)) continue;
-                    if (id) window.__zalobotLiveSeen.add(id);
-                    window.${bindingName}(JSON.stringify({ ...extractRow(row), activeTarget }));
+                const msgEls = node.matches(rowSelector) ? [node] : Array.from(node.querySelectorAll(rowSelector));
+                for (const msgEl of msgEls) {
+                    for (const row of extractRowsFromMessage(msgEl)) {
+                        const id = row.externalId;
+                        if (id && window.__zalobotLiveSeen.has(id)) continue;
+                        if (id) window.__zalobotLiveSeen.add(id);
+                        window.${bindingName}(JSON.stringify({ ...row, activeTarget }));
+                    }
                 }
             }
         }
@@ -449,7 +554,7 @@ export async function installLiveMessageObserver(page: CdpPage, bindingName: str
     return page.evaluate<boolean>(expr);
 }
 
-export function toNormalizedMessage(row: ScrapedRow, groupId: string, groupName: string, isGroup: boolean, source: "history" | "realtime"): NormalizedMessage {
+export function toNormalizedMessage(row: ScrapedRow, groupId: string, groupName: string, isGroup: boolean): NormalizedMessage {
     return {
         msgId: row.externalId,
         groupId,
@@ -461,7 +566,6 @@ export function toNormalizedMessage(row: ScrapedRow, groupId: string, groupName:
         ts: row.ts ?? Date.now(),
         msgType: "desktop.text",
         content: row.content,
-        source,
     };
 }
 
