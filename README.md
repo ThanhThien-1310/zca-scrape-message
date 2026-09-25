@@ -215,9 +215,14 @@ Luồng: `bot:scrape` → `sync:db -- --apply` → `extract:reports -- --buoi <s
 `output/review.json` (sửa qua `output/overrides.json`) → `fill:report -- output/output.json` →
 `mark:messages -- output/marks.json`. Mỗi lần chỉ xử lý một buổi của một ngày và tạo file
 `data/export/baocaobuoi<buoi>_<ddMMyy>.xlsm`.
-Chi tiết trong `Teach-lesson-skills-V2/SKILL.md` và
-`docs/superpowers/specs/2026-09-24-teacher-lesson-report-extraction-design.md`.
+Chi tiết từng bước: [docs/QUY-TRINH.md](docs/QUY-TRINH.md). Cài đặt và chạy tự động với agent:
+[docs/GUIDE.md](docs/GUIDE.md). Quy tắc trích xuất trong `Teach-lesson-skills-V2/SKILL.md`; bản thiết kế
+gốc ở `docs/superpowers/specs/2026-09-24-teacher-lesson-report-extraction-design.md`.
 Mã trích xuất nằm trong `lesson/` và có test (`npm test`); `fill:report` cần Microsoft Excel.
+
+`bot:watch` ghi nhịp tim và các khoảng gián đoạn (`data/.watch-state.json`, `data/.watch-gaps.json`). Xem
+tình trạng bằng `npm run watch:status`; khi nó từng chết, `npm run recover:missing` chỉ cào lại các nhóm còn thiếu
+báo cáo và cho biết những tin đã bị lỡ (bước 1b trong QUY-TRINH.md).
 
 ## Cấu trúc dự án
 

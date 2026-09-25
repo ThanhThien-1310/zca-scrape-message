@@ -30,6 +30,8 @@ npm test                                       # unit tests for the lesson-repor
 npm run extract:reports -- [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--no-db]   # extract one session's start/end-of-lesson reports -> output/{output,marks,review,meta}.json
 npm run fill:report -- output/output.json      # fill templates/Temp_RoomFacility_rpt.xlsm, run its macro -> data/export/baocaobuoi<buoi>_<ddMMyy>.xlsm (needs Excel)
 npm run mark:messages -- output/marks.json     # set StatusId/HasRead on Zalo_CrawlMessage rows
+npm run watch:status                           # is bot:watch alive? when did it last beat, which sources are up, recent gaps
+npm run recover:missing -- [--day D] [--buoi B] [--dry-run]   # only if bot:watch had a gap: re-scrape just the groups missing a report, list what was missed
 ```
 
 The only tests are the unit tests under tests/ (`npm test`) for the lesson-report code in lesson/; there is no lint script. `curl http://127.0.0.1:9222/json/version`

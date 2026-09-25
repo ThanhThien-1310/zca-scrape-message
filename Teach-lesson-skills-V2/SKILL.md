@@ -5,7 +5,7 @@ description: Trích xuất thông tin báo cáo buổi dạy từ tin nhắn tro
 
 # Skill teacher-lesson-report-extraction V2
 
-Ngày: 2026-09-24
+Ngày: 2026-09-24 (cập nhật 2026-09-25)
 
 ## Điều kiện kích hoạt
 
@@ -22,6 +22,10 @@ Skill này giữ nguyên điều kiện kích hoạt và mục tiêu của skill
 - Mọi lệnh chạy trong thư mục `zca-scrape-message/`.
 - Cần cài Microsoft Excel (bước 5) và có `.env` cấu hình kết nối DB (bước 2, 3, 6).
 - Không sửa `templates/Temp_RoomFacility_rpt.xlsm`; script luôn làm việc trên bản sao.
+- Khi chạy tự động, **luôn truyền tường minh** `--buoi` (lấy từ yêu cầu của người dùng: "buổi sáng" → `sang`, "buổi chiều" → `chieu`, "buổi tối" → `toi`) và `--day` nếu không phải hôm nay. Không dựa vào giá trị mặc định (buổi của thời điểm chạy).
+- Không dùng `--no-db` khi chạy thật: không có `maPhong` thì không báo cáo nào vào được file Excel.
+- Bước 2 (`sync:db --apply`) và bước 6 (`mark:messages`) **ghi vào DB dùng chung**.
+- Không chạy hai lần song song: mọi lần chạy dùng chung thư mục `output/` và ghi đè lẫn nhau.
 
 ## Luồng chạy
 
@@ -32,6 +36,7 @@ Hai bot phối hợp: `bot:watch` chỉ theo dõi và ghi tên nhóm có tin m�
 | Bước | Việc | Lệnh |
 |---|---|---|
 | 1 | Cào tin nhắn của các nhóm đang trong hàng chờ | `npm run bot:scrape` |
+| 1b | Khôi phục nếu `bot:watch` từng gián đoạn (không làm gì nếu không có gián đoạn) | `npm run recover:missing -- --day YYYY-MM-DD --buoi sang\|chieu\|toi` |
 | 2 | Đưa lên DB | `npm run sync:db -- --apply` |
 | 3 | Trích xuất bằng script (chỉ tin nhắn của một buổi) | `npm run extract:reports -- [--day YYYY-MM-DD] [--buoi sang\|chieu\|toi]` |
 | 4 | Agent giám sát: đọc kết quả và `output/review.json`, sửa nếu cần rồi chạy lại bước 3 | agent ghi `output/overrides.json` |
@@ -39,7 +44,19 @@ Hai bot phối hợp: `bot:watch` chỉ theo dõi và ghi tên nhóm có tin m�
 | 6 | Cập nhật DB | `npm run mark:messages -- output/marks.json` |
 | 7 | Thông báo | `"xong"` nếu thành công, ngược lại báo lỗi chi tiết |
 
-Nếu bước 1 hoặc 2 lỗi thì dừng và báo lỗi. Nếu bước 1 in `hàng chờ rỗng` thì dừng và báo "không có tin mới". Nếu không có tin nhắn báo cáo hợp lệ (`output.json` là `[]`) thì bước 5 tự bỏ qua, vẫn chạy bước 6 để đánh dấu các tin nhắn còn lại là `-1`. Chi tiết bước 3, 4, 5, 6 ở các mục "Script trích xuất và agent giám sát", "Điền file Excel mẫu" và "`markMessages.ts`" bên dưới.
+Nếu bất kỳ bước nào (trừ bước 1b, xem mục "Khôi phục khi `bot:watch` bị gián đoạn") lỗi thì dừng và báo lỗi, **không chạy tiếp các bước sau**; đặc biệt không chạy bước 6 khi bước 3 hoặc 5 lỗi, vì bước 6 đánh dấu tin nhắn đã đọc dù chưa có kết quả. Nếu bước 1 in `hàng chờ rỗng` thì **không dừng**: chỉ có nghĩa là không có nhóm nào cần cào thêm (dữ liệu có thể đã được cào trước đó, ví dụ ai đó đã chạy `bot:scrape` tay); cứ tiếp tục bước 2–6 với dữ liệu đã có. Chỉ khi bước 3 in `xét 0 tin` thì dừng và báo "không có tin nhắn trong buổi này". Đọc kỹ output của bước 1: dòng `sidebar item ... not found` hoặc `no messages found` nghĩa là nhóm đó có thể **chưa được cào** dù lệnh vẫn thoát mã 0; nêu tên nhóm đó trong thông báo cuối. Nếu không có tin nhắn báo cáo hợp lệ (`output.json` là `[]`) thì bước 5 tự bỏ qua, vẫn chạy bước 6 để đánh dấu các tin nhắn còn lại là `-1`. Chi tiết bước 3, 4, 5, 6 ở các mục "Script trích xuất và agent giám sát", "Điền file Excel mẫu" và "`markMessages.ts`" bên dưới.
+
+## Khôi phục khi `bot:watch` bị gián đoạn (bước 1b)
+
+`bot:watch` là thứ duy nhất báo cho hàng chờ biết nhóm nào có tin mới. Nó ghi nhịp tim vào `data/.watch-state.json` (mỗi 30 giây, kèm trạng thái hai nguồn phát hiện: WebSocket và thông báo) và ghi mọi khoảng thời gian nó không lắng nghe vào `data/.watch-gaps.json` (chết đột ngột, dừng có chủ ý, hoặc còn sống nhưng mất cả hai nguồn). Bước 1b dùng các file này:
+
+- Lệnh: `npm run recover:missing -- --day YYYY-MM-DD --buoi <sang|chieu|toi>` (truyền cùng `--day` và `--buoi` với bước 3). Thêm `--dry-run` để chỉ xem kế hoạch.
+- Nếu không có khoảng gián đoạn nào chồng lên buổi: lệnh in "không cần khôi phục" và không làm gì. Đây là trường hợp bình thường.
+- Nếu có: chỉ cào lại các nhóm còn **thiếu báo cáo đầu buổi hoặc cuối buổi** (nhóm trong `config.recoveryIgnoreTargets` được bỏ qua), từ trước khoảng gián đoạn 5 phút. Lệnh in các khoảng gián đoạn, các tin nhắn bị lỡ đã khôi phục và các nhóm vẫn thiếu, đồng thời ghi `output/recovery.json`.
+- Chưa có dữ liệu nhịp tim (chưa từng chạy `bot:watch` bản mới) được coi là gián đoạn "không rõ": lệnh sẽ cào lại các nhóm đang thiếu báo cáo.
+- Trong thông báo cuối, nêu: có khoảng gián đoạn nào (khi nào, vì sao), đã khôi phục bao nhiêu tin (nêu tiêu đề các báo cáo), và các nhóm **vẫn thiếu** báo cáo sau khi cào lại (người phụ trách cần nhắc; cũng có thể là nhóm không có lớp buổi đó).
+- Lệnh thoát mã 1 nghĩa là có nhóm không cào được: nêu tên nhóm đó nhưng **vẫn tiếp tục** bước 2–6.
+- Xem nhanh tình trạng `bot:watch` bất cứ lúc nào: `npm run watch:status` (còn sống hay đã chết lúc nào, nguồn nào đang hoạt động, các khoảng gián đoạn 24 giờ qua).
 
 ## Đối chiếu tên trường
 
@@ -313,9 +330,11 @@ Với từng mục, **đối chiếu `draft` với `raw`** rồi quyết định
 ]
 ```
 
+Khi ghi `overrides.json`, ghi **cả mảng**: các mục đã có cộng mục mới. Ghi đè chỉ bằng mục mới sẽ làm mất các sửa trước đó và lần chạy lại sẽ trả kết quả về như chưa sửa. Mỗi mục gắn với một tin nhắn cụ thể nên giữ lại không ảnh hưởng buổi khác.
+
 Chỉ ghi các trường **thô** cần sửa; script luôn tự tính lại `xepLoai` của máy tính và `maTrangThai` theo đúng các quy tắc ở trên, nên bạn **không được ghi hai giá trị này**. Các trường được phép trong `sua`: `loaiBo` (true để loại tin nhắn khỏi báo cáo, gán `-1`), `loaiBaoCao` (`DauBuoi` hoặc `CuoiBuoi`), `phongMay`, `giaoVien`, `truong` (`{ "capHoc", "tenRieng", "coSo" }`), `khuVuc`, `thieu`, `loi` (số), `ghiChuLoi`, `amThanh`, `netSupport`, `mayLanh`, `internet` (`T`, `B` hoặc `K`). Mục có `key` không tồn tại trong dữ liệu bị script bỏ qua và cảnh báo.
 
-Ngoài các mục trong `review.json`, hãy kiểm tra nhanh vài báo cáo trong `output.json` so với tin nhắn gốc trong `data/<groupId>.json` để chắc script không sai âm thầm.
+Ngoài các mục trong `review.json`, hãy kiểm tra nhanh vài báo cáo trong `output.json` so với tin nhắn gốc trong `data/<groupId>.json` để chắc script không sai âm thầm. Đừng sửa để "làm cho đầy đủ": nếu tin nhắn gốc thật sự không có số máy lỗi thì để trống (`maTrangThai = 2`), không tự điền.
 
 ## Bảng mã
 
@@ -370,11 +389,24 @@ Việc làm: với mỗi phần tử, cập nhật `StatusId = <maTrangThai>` v�
 ## Xử lý lỗi
 
 - Lỗi cào hoặc kết nối DB ở bước 1, 2: dừng và báo.
-- Hàng chờ rỗng (bước 1 in `hàng chờ rỗng`): dừng và báo "không có tin mới".
+- Hàng chờ rỗng (bước 1 in `hàng chờ rỗng`): không phải lỗi; tiếp tục bước 2–6 với dữ liệu đã có. Bước 3 in `xét 0 tin` thì dừng và báo "không có tin nhắn trong buổi này".
+- Bước 1 in `sidebar item ... not found` hoặc `no messages found`: nhóm đó có thể chưa được cào (lệnh vẫn thoát mã 0). Nêu trong thông báo cuối; không tự coi là đã đủ dữ liệu.
 - Không có tin nhắn báo cáo hợp lệ: `output.json` là `[]`, không tạo Excel, vẫn đánh dấu các tin nhắn khác là `-1`.
 - `output/overrides.json` sai định dạng: script báo lỗi kèm tên file, sửa lại file rồi chạy lại bước 3.
 - Excel không cài, macro bị chặn hoặc file đích đang mở: bước 5 thoát với lỗi và in nguyên nhân; đóng file rồi chạy lại.
 - `markMessages` không tìm thấy dòng cho một `maNhom` + `maTinNhan`: cảnh báo, các dòng khác vẫn cập nhật.
+
+## Giới hạn đã biết
+
+Nêu cho người dùng khi liên quan:
+
+- Bảng báo cáo chỉ hiện báo cáo **mới nhất** của mỗi phòng trong ngày và thay thế hoàn toàn báo cáo cũ (không gộp): báo cáo cuối buổi ghi `IT bảo trì` sẽ để trống xếp loại máy tính dù báo cáo đầu buổi có số. Sheet `data` vẫn giữ đủ mọi báo cáo.
+- Tin nhắn được **sửa hoặc thu hồi** sau khi đã cào không được cập nhật (dữ liệu khử trùng theo `msgId`, chưa theo dõi thu hồi).
+- Chỉ tin từ mốc `config.sinceTs` (mặc định 06:00 hôm nay) mới được cào; tin trước mốc đó hoặc của ngày trước lần cào không có trong dữ liệu.
+- Buổi tính theo **giờ gửi tin**: báo cáo cuối buổi sáng gửi sau 12:00 thuộc buổi chiều.
+- Báo cáo có `maPhong = null` không vào Excel (chỉ vào `review.json`).
+- Nhịp tim chỉ chứng minh `bot:watch` còn sống và hai nguồn phát hiện còn kết nối; nó không biết được tin nào đã lỡ. Việc khôi phục chỉ cào lại nhóm đang **thiếu** báo cáo trong buổi có gián đoạn, nên một nhóm đã có báo cáo đầu buổi mà báo cáo thứ hai của cùng loại bị lỡ thì không được phát hiện.
+- Kết quả chỉ nằm trong file Excel và `Zalo_CrawlMessage`; không ghi vào các bảng báo cáo `Technical_*`.
 
 ## Kiểm thử
 
