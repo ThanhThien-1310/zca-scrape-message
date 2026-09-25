@@ -186,23 +186,38 @@ const extractRowsFromMessageSrc = `
  * same way a person using it normally would be. See ensureZaloReady for why
  * that sometimes means restarting the app first.
  */
-export async function runScrape(store: MessageStore): Promise<void> {
-    if (config.targets.length === 0) {
-        console.log("[scrape] config.targets is empty — nothing to do. Add conversation names to bot/config.ts.");
-        return;
+export type TargetOutcome = { target: string; error?: string };
+
+/**
+ * Scrapes the given conversations (default: everything in `config.targets`)
+ * one after another. An error in one conversation is recorded in its outcome
+ * and does not stop the rest; a failure to start (Zalo Desktop / CDP) throws.
+ */
+export async function runScrape(store: MessageStore, targets: string[] = config.targets): Promise<TargetOutcome[]> {
+    if (targets.length === 0) {
+        console.log("[scrape] no targets to scrape.");
+        return [];
     }
 
     await ensureZaloReady();
     const page = await connectToZaloMainPage(config.cdpUrl);
 
+    const outcomes: TargetOutcome[] = [];
     try {
         await waitForSidebarLoaded(page, 30_000);
-        for (const target of config.targets) {
-            await scrapeAndSaveTarget(page, store, target);
+        for (const target of targets) {
+            try {
+                await scrapeAndSaveTarget(page, store, target);
+                outcomes.push({ target });
+            } catch (err) {
+                console.error(`[scrape] "${target}": failed —`, err);
+                outcomes.push({ target, error: (err as Error).message });
+            }
         }
     } finally {
         page.close();
     }
+    return outcomes;
 }
 
 export type ScrapeTargetResult = { scraped: number; written: number };
