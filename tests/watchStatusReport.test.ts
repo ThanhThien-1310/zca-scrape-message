@@ -58,3 +58,9 @@ test("recent gaps are listed, with open ones marked as ongoing", () => {
 test("no gaps in the last 24 hours says so", () => {
     assert.match(text(state()), /không có khoảng gián đoạn nào trong 24 giờ qua/);
 });
+
+test("an unknown gap has no start time to show", () => {
+    const t = text(null, [{ from: 0, to: null, reason: "unknown" }]);
+    assert.match(t, /không rõ → đang diễn ra \(chưa có dữ liệu nhịp tim\)/);
+    assert.doesNotMatch(t, /07:00/);
+});

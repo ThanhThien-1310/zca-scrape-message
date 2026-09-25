@@ -60,7 +60,7 @@ export function formatWatchStatus(state: WatchState | null, gaps: Gap[], now: nu
         lines.push("[watch] không có khoảng gián đoạn nào trong 24 giờ qua.");
     } else {
         lines.push("[watch] khoảng gián đoạn trong 24 giờ qua:");
-        for (const g of recent) lines.push(`  - ${hhmm(g.from)} → ${g.to === null ? "đang diễn ra" : hhmm(g.to)} (${GAP_REASON_TEXT[g.reason]})`);
+        for (const g of recent) lines.push(`  - ${g.from === 0 ? "không rõ" : hhmm(g.from)} → ${g.to === null ? "đang diễn ra" : hhmm(g.to)} (${GAP_REASON_TEXT[g.reason]})`);
     }
     return lines;
 }
