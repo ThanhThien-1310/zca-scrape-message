@@ -2,10 +2,14 @@ import type { TargetOutcome } from "./desktopScraper.js";
 
 export interface QueueRunDeps {
     readQueue(): string[];
-    /** Must re-read the queue itself, so targets queued during the scrape survive. */
-    removeFromQueue(handled: string[]): void;
+    /**
+     * Must re-read the queue itself, so targets queued during the scrape survive. `scrapeStartedAt` is when
+     * the snapshot was taken: a handled target that got another message since then must stay queued.
+     */
+    removeFromQueue(handled: string[], scrapeStartedAt: number): void;
     scrape(targets: string[]): Promise<TargetOutcome[]>;
     log(message: string): void;
+    now?(): number;
 }
 
 export type QueueRunResult = { status: "empty" } | { status: "done"; targets: string[]; failed: string[] };
@@ -24,8 +28,9 @@ export async function runQueuedScrape(deps: QueueRunDeps): Promise<QueueRunResul
     }
 
     deps.log(`[scrape] hàng chờ có ${snapshot.length} nhóm: ${snapshot.join(", ")}`);
+    const startedAt = deps.now?.() ?? Date.now();
     const outcomes = await deps.scrape(snapshot);
-    deps.removeFromQueue(snapshot);
+    deps.removeFromQueue(snapshot, startedAt);
 
     const failed = outcomes.filter((o) => o.error !== undefined).map((o) => o.target);
     for (const target of failed) deps.log(`[scrape] "${target}" lỗi, đã bỏ khỏi hàng chờ — chạy lại nếu cần cào lại.`);

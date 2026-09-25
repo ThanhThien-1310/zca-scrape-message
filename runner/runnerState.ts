@@ -10,7 +10,7 @@ import type { SessionKey } from "./affectedSessions.js";
  * what its last cycle did, and which sessions still owe a rebuild:
  *  - `data/.runner-state.json`   heartbeat, phase, consecutive failures, last cycle
  *  - `output/runner-log.jsonl`   one JSON line per cycle (and per `runner:once` rebuild)
- *  - `data/.runner-pending.json` sessions whose Excel must still be rebuilt (survives a crash)
+ *  - `data/.runner-built.json`   keys of the reports already built into an Excel (see builtReports.ts)
  */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -29,7 +29,10 @@ export interface CycleSummary {
     /** Excel files written (a `_moi` path means the real one was open). */
     excel: string[];
     warnings: string[];
+    /** Failures that stop the cycle (scrape or sync); they count toward the 3-strike `error` state. */
     errors: string[];
+    /** Sessions whose build failed; retried later, reported, but they do not stop the runner. */
+    buildErrors: string[];
 }
 
 export type RunnerPhase = "idle" | "waiting" | "running" | "error" | "stopped";
@@ -46,13 +49,13 @@ export interface RunnerState {
 export interface RunnerFiles {
     state: string;
     log: string;
-    pending: string;
+    built: string;
 }
 
 export const DEFAULT_RUNNER_FILES: RunnerFiles = {
     state: path.join(config.dataDir, ".runner-state.json"),
     log: path.join(repoRoot, "output", "runner-log.jsonl"),
-    pending: path.join(config.dataDir, ".runner-pending.json"),
+    built: path.join(config.dataDir, ".runner-built.json"),
 };
 
 function writeAtomic(file: string, value: unknown): void {
@@ -130,21 +133,6 @@ export function stopRunner(now: number, files: RunnerFiles = DEFAULT_RUNNER_FILE
     s.state = "stopped";
     s.lastBeat = now;
     writeAtomic(files.state, s);
-}
-
-/** Entries that are not `{ day: string, buoi: "sang"|"chieu"|"toi" }` are dropped; a bad file reads as empty. */
-export function readPending(files: RunnerFiles = DEFAULT_RUNNER_FILES): SessionKey[] {
-    try {
-        const v: unknown = JSON.parse(fs.readFileSync(files.pending, "utf8"));
-        if (!Array.isArray(v)) return [];
-        return v.filter((s): s is SessionKey => !!s && typeof s.day === "string" && (s.buoi === "sang" || s.buoi === "chieu" || s.buoi === "toi"));
-    } catch {
-        return [];
-    }
-}
-
-export function writePending(list: SessionKey[], files: RunnerFiles = DEFAULT_RUNNER_FILES): void {
-    writeAtomic(files.pending, list);
 }
 
 export type Health = "none" | "stopped" | "dead" | "error" | "alive";

@@ -7,9 +7,9 @@ import { at, DAY } from "./fixtures.js";
 
 const NOW = at(10, 0);
 const state = (over: Partial<RunnerState> = {}): RunnerState => ({ pid: 777, startedAt: at(7, 0), lastBeat: NOW - 5_000, state: "idle", consecutiveFailures: 0, ...over });
-const cycle = (over: Partial<CycleSummary> = {}): CycleSummary => ({ kind: "cycle", at: at(9, 40), ok: true, groups: ["LC_HoaSen1_TĐ"], sessions: [{ day: DAY, buoi: "sang" }], reviewCount: 2, excel: ["data/export/baocaobuoisang_240926.xlsm"], warnings: [], errors: [], ...over });
+const cycle = (over: Partial<CycleSummary> = {}): CycleSummary => ({ kind: "cycle", at: at(9, 40), ok: true, groups: ["LC_HoaSen1_TĐ"], sessions: [{ day: DAY, buoi: "sang" }], reviewCount: 2, buildErrors: [], excel: ["data/export/baocaobuoisang_240926.xlsm"], warnings: [], errors: [], ...over });
 const text = (input: Partial<Parameters<typeof formatRunnerStatus>[0]> = {}) =>
-    formatRunnerStatus({ state: state(), queue: [], firstQueuedAt: null, pending: [], now: NOW, ...input }).join("\n");
+    formatRunnerStatus({ state: state(), queue: [], firstQueuedAt: null, dirty: [], now: NOW, ...input }).join("\n");
 
 test("no state says the runner never ran", () => {
     assert.match(text({ state: null }), /chưa có dữ liệu.*bot:runner chưa từng chạy/);
@@ -58,5 +58,11 @@ test("a failed cycle lists its errors and warnings", () => {
 });
 
 test("sessions still owing a rebuild are listed", () => {
-    assert.match(text({ pending: [{ day: DAY, buoi: "chieu" }] }), /buổi chưa dựng xong: chieu 2026-09-24/);
+    assert.match(text({ dirty: [{ day: DAY, buoi: "chieu" }] }), /buổi chưa dựng xong: chieu 2026-09-24/);
+});
+
+test("a build error is shown apart from cycle errors", () => {
+    const t = text({ state: state({ lastCycle: cycle({ buildErrors: ["2026-09-24 sang: template missing"] }) }) });
+    assert.match(t, /vòng gần nhất lúc 09:40: OK/);
+    assert.match(t, /lỗi dựng: 2026-09-24 sang: template missing/);
 });

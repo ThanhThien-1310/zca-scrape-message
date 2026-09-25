@@ -1,4 +1,6 @@
-import type { Gap } from "../history/watchState.js";
+import type { Gap, WatchState } from "../history/watchState.js";
+import { sessionWindow } from "../lesson/recovery.js";
+import { vietnamDay } from "../lesson/time.js";
 
 /** The queue must be quiet this long before a cycle runs (bursts of reports arrive together). */
 export const QUIET_MS = 2 * 60_000;
@@ -24,16 +26,36 @@ export function decide(q: QueueTimes, now: number, quietMs: number = QUIET_MS, m
 }
 
 /** Times of the queued groups from the sidecar `meta` file; a group without a recorded time counts as queued at `fallback`. */
-export function toQueueTimes(queue: string[], meta: Record<string, number>, fallback: number): QueueTimes {
+export function toQueueTimes(queue: string[], meta: Record<string, number>, fallback: number, seen: Record<string, number> = {}): QueueTimes {
     if (queue.length === 0) return { count: 0, firstQueuedAt: fallback, lastQueuedAt: fallback };
-    const times = queue.map((t) => (typeof meta[t] === "number" ? meta[t] : fallback));
-    return { count: queue.length, firstQueuedAt: Math.min(...times), lastQueuedAt: Math.max(...times) };
+    const first = queue.map((t) => (typeof meta[t] === "number" ? meta[t] : fallback));
+    const last = queue.map((t, i) => Math.max(first[i], typeof seen[t] === "number" ? seen[t] : first[i]));
+    return { count: queue.length, firstQueuedAt: Math.min(...first), lastQueuedAt: Math.max(...last) };
 }
 
 /**
- * Keys of the gaps (already restricted to the current session) that no recovery has covered yet.
- * A gap that was open and later closes gets a new key, so it is recovered once more.
+ * Keys of the gaps (already restricted to the session `scope`, e.g. `2026-09-24|sang`) that no recovery has
+ * covered yet. The scope is part of the key, so a gap that stays open into the next session is recovered
+ * again for it; a gap that was open and later closes gets a new key too.
  */
-export function newRecoveryKeys(gaps: Gap[], done: ReadonlySet<string>): string[] {
-    return gaps.map((g) => `${g.from}|${g.to ?? "open"}`).filter((key) => !done.has(key));
+export function newRecoveryKeys(gaps: Gap[], done: ReadonlySet<string>, scope: string): string[] {
+    return gaps.map((g) => `${scope}|${g.from}|${g.to ?? "open"}`).filter((key) => !done.has(key));
+}
+
+/** Scrape back to the start of the Vietnam day of `now`, so the scroll-back does not grow with the runner's uptime. */
+export function scrapeSinceTs(now: number): number {
+    return sessionWindow(vietnamDay(now), "sang").from;
+}
+
+const WARMUP_MS = 90_000;
+const MIN_BLIND_MS = 60_000;
+
+/** `bot:watch` restarts Zalo Desktop when it starts; the runner must not touch Zalo until that has settled. */
+export function watchWarmingUp(state: WatchState | null, now: number): boolean {
+    return !!state && state.state === "running" && now - state.startedAt < WARMUP_MS;
+}
+
+/** Drops an open blind spell younger than a minute (`bot:watch` start-up noise); every other gap is kept. */
+export function settledGaps(gaps: Gap[], now: number): Gap[] {
+    return gaps.filter((g) => !(g.to === null && g.reason === "blind" && now - g.from < MIN_BLIND_MS));
 }

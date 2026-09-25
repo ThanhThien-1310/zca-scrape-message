@@ -15,18 +15,28 @@ export interface ReplaceResult {
  * If `target` is open in Excel the rename is refused, and the result is kept as
  * `<name>_moi<ext>` instead, leaving the old file intact; the next successful replace removes it.
  */
+/** Cleanup that must never fail a build: a file Excel still holds open stays behind and is retried next time. */
+function tryRemove(io: FsLike, file: string): void {
+    try {
+        io.rmSync(file, { force: true });
+    } catch {
+        /* stays behind */
+    }
+}
+
 export async function safeReplace(target: string, produce: (tmp: string) => void | Promise<void>, io: FsLike = fs): Promise<ReplaceResult> {
     const dir = path.dirname(target);
     const ext = path.extname(target);
     const base = path.basename(target, ext);
-    const tmp = path.join(dir, `.${base}.tmp${ext}`);
+    // Unique per process: a temp file left locked by an orphaned Excel of an earlier run must not block this one.
+    const tmp = path.join(dir, `.${base}.${process.pid}.tmp${ext}`);
     const fallback = path.join(dir, `${base}_moi${ext}`);
 
-    io.rmSync(tmp, { force: true });
+    tryRemove(io, tmp);
     try {
         await produce(tmp);
     } catch (err) {
-        io.rmSync(tmp, { force: true });
+        tryRemove(io, tmp);
         throw err;
     }
     if (!io.existsSync(tmp)) return { status: "nothing", path: null };
@@ -36,13 +46,13 @@ export async function safeReplace(target: string, produce: (tmp: string) => void
     } catch (err) {
         const code = (err as NodeJS.ErrnoException).code;
         if (code !== "EBUSY" && code !== "EPERM" && code !== "EACCES") {
-            io.rmSync(tmp, { force: true });
+            tryRemove(io, tmp);
             throw err;
         }
-        io.rmSync(fallback, { force: true });
+        tryRemove(io, fallback);
         io.renameSync(tmp, fallback);
         return { status: "fallback", path: fallback };
     }
-    io.rmSync(fallback, { force: true });
+    tryRemove(io, fallback);
     return { status: "replaced", path: target };
 }

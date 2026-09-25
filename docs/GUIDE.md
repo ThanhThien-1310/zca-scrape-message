@@ -169,7 +169,7 @@ schtasks /Create /TN "Zalo Runner" /SC ONLOGON /TR "cmd /c cd /d C:\Users\Admin\
 
 Sửa đường dẫn theo máy của bạn. Cách khác là PM2 chạy như dịch vụ Windows (tự khởi động lại khi tiến trình chết); mã không phụ thuộc vào cách bạn giữ tiến trình sống. Kiểm tra bằng `npm run watch:status` và `npm run runner:status` (mã thoát 2 nghĩa là tiến trình không sống, cần người khởi động lại).
 
-- Runner **không** khởi động lại Zalo Desktop hay `bot:watch`. Việc cào điều khiển giao diện Zalo Desktop nên có thể làm gián đoạn người đang gõ; debounce 2 phút chỉ giảm tần suất.
+- Runner không khởi động lại `bot:watch`. Việc cào điều khiển giao diện Zalo Desktop (như `bot:scrape`, và mở lại Zalo nếu cổng debug đóng) nên có thể làm gián đoạn người đang gõ; debounce 2 phút chỉ giảm tần suất. Khi `bot:watch` vừa khởi động (nó mở lại Zalo), runner đợi khoảng 90 giây mới làm gì.
 - Sau 3 vòng lỗi liên tiếp runner ngừng tự thử (`runner:status` báo `LỖI`, hàng chờ vẫn nguyên): xem `output/runner-log.jsonl`, sửa nguyên nhân rồi khởi động lại tay.
 - Khi runner chạy, lịch của agent chỉ còn là **giám sát**: nó đọc `runner:status`, xử lý `output/review.json` và chạy `runner:once` để dựng lại sau khi sửa; nó không cào hay đồng bộ nữa.
 

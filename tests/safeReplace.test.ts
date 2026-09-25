@@ -76,3 +76,39 @@ test("an unrelated rename error is not swallowed and cleans up the temp file", a
     await assert.rejects(safeReplace(target, (tmp) => write(tmp, "new"), broken), /disk full/);
     assert.deepEqual(fs.readdirSync(dir), []);
 });
+
+test("a leftover _moi that cannot be removed does not fail a build whose replace succeeded", async () => {
+    const dir = fresh();
+    const target = path.join(dir, "b.xlsm");
+    write(target, "old");
+    const stuck: FsLike = {
+        existsSync: fs.existsSync,
+        renameSync: fs.renameSync,
+        rmSync: (p, o) => {
+            if (String(p).endsWith("_moi.xlsm")) throw Object.assign(new Error("resource busy"), { code: "EBUSY" });
+            fs.rmSync(p, o);
+        },
+    };
+    const r = await safeReplace(target, (tmp) => write(tmp, "new"), stuck);
+    assert.deepEqual(r, { status: "replaced", path: target });
+    assert.equal(read(target), "new");
+});
+
+test("a temp file that is stuck open by a previous run does not block the next build", async () => {
+    const dir = fresh();
+    const target = path.join(dir, "b.xlsm");
+    write(target, "old");
+    let refuse = true;
+    const stuck: FsLike = {
+        existsSync: fs.existsSync,
+        renameSync: fs.renameSync,
+        rmSync: (p, o) => {
+            if (refuse && String(p).includes(".tmp")) throw Object.assign(new Error("resource busy"), { code: "EBUSY" });
+            fs.rmSync(p, o);
+        },
+    };
+    const r = await safeReplace(target, (tmp) => write(tmp, "new"), stuck);
+    refuse = false;
+    assert.deepEqual(r, { status: "replaced", path: target });
+    assert.equal(read(target), "new");
+});

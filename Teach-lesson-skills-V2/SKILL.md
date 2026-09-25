@@ -55,11 +55,11 @@ Nếu bất kỳ bước nào (trừ bước 0 và 1b, xem mục "Kiểm tra `bo
 
 1. `npm run runner:status`. Mã thoát `0`: runner sống, đọc dòng "vòng gần nhất", hàng chờ và "buổi chưa dựng xong". Mã `2` (chết, đã dừng, ở trạng thái `LỖI` hoặc chưa từng chạy): nêu trong thông báo cuối "bot:runner đang không hoạt động, cần khởi động lại `npm run bot:runner`". **Không tự khởi động lại.** Rồi dùng luồng chạy tay (bước 0 đến 7) nếu người dùng yêu cầu chạy.
 2. Đọc `output/runner-log.jsonl` (các dòng của buổi được yêu cầu). Có `errors` hoặc `warnings` thì nêu trong thông báo cuối (ví dụ nhóm không cào được, hoặc Excel phải lưu thành `_moi`).
-3. Đọc `output/review.json` và xử lý như mục "Cách sửa: `output/overrides.json`". Sau khi ghi `overrides.json`, chạy `npm run runner:once -- --day <ngày> --buoi <buổi>` để dựng lại Excel và `marks` **không cào**.
+3. Đọc `output/review_<ngày>_<buổi>.json` (bản của đúng buổi đó; `output/review.json` là của buổi dựng gần nhất nên đừng dùng nó cho buổi khác) và xử lý như mục "Cách sửa: `output/overrides.json`". Sau khi ghi `overrides.json`, chạy `npm run runner:once -- --day <ngày> --buoi <buổi>` để dựng lại Excel và `marks` **không cào**. Nếu nó báo đang có tiến trình khác chạy (mã thoát `2`), đợi vài phút rồi chạy lại.
 4. Kiểm Excel `data/export/baocaobuoi<buổi>_<ddMMyy>.xlsm`: có tệp; không còn `..._moi.xlsm` (nếu còn: nhắc người dùng đóng tệp gốc rồi chạy lại `runner:once`).
 5. Thông báo cuối nêu: trạng thái runner, các vòng trong buổi, số mục đã xem và sửa, đường dẫn Excel.
 
-Runner sống thì bạn không chạy `bot:scrape`, `sync:db`, `recover:missing`, `extract:reports`, `fill:report` hay `mark:messages` riêng lẻ: runner đang dùng chung thư mục `output/` và khóa `data/.scrape.lock`. Ngoại lệ duy nhất là `runner:once`.
+Runner sống thì bạn không chạy `bot:scrape`, `sync:db`, `recover:missing`, `extract:reports`, `fill:report` hay `mark:messages` riêng lẻ: runner đang dùng chung thư mục `output/` và khóa `data/.scrape.lock`. Ngoại lệ duy nhất là `runner:once` (nó tự từ chối khi có vòng đang chạy). Nếu bạn đang làm theo luồng chạy tay (runner chết) thì hoàn tất hoặc bỏ luồng đó trước khi người dùng khởi động lại runner, vì hai bên dùng chung `output/`.
 
 ## Kiểm tra `bot:watch` và khôi phục khi bị gián đoạn (bước 0 và 1b)
 

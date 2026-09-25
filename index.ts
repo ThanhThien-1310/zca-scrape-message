@@ -1,6 +1,6 @@
 import { runScrape } from "./history/desktopScraper.js";
 import { runQueuedScrape } from "./history/queueRun.js";
-import { readQueue, removeFromQueue } from "./history/scrapeQueue.js";
+import { DEFAULT_QUEUE_PATH, readQueue, removeFromQueue } from "./history/scrapeQueue.js";
 import { acquireScrapeLock, releaseScrapeLock } from "./history/scrapeLock.js";
 import { MessageStore } from "./store/messageStore.js";
 
@@ -24,7 +24,7 @@ async function main(): Promise<void> {
         const store = new MessageStore();
         const result = await runQueuedScrape({
             readQueue: () => readQueue(),
-            removeFromQueue: (handled) => removeFromQueue(handled),
+            removeFromQueue: (handled, startedAt) => removeFromQueue(handled, DEFAULT_QUEUE_PATH, startedAt),
             scrape: (targets) => runScrape(store, targets),
             log: (message) => console.log(message),
         });

@@ -28,7 +28,7 @@ Cờ "có việc" không lưu riêng: `pending = queue.length > 0`, tính ra m�
 
 - Sửa các phát hiện trong `REVIEW-QUY-TRINH-TAM.md` (F2 nhóm không tìm thấy vẫn bị bỏ khỏi hàng chờ, F3 tin bị sửa hoặc thu hồi, F4, F5). Chúng ảnh hưởng độ tin cậy nhưng là việc riêng.
 - Ảnh trong báo cáo (vẫn bỏ qua).
-- Tự khởi động lại Zalo Desktop; `bot:runner` không bao giờ khởi động lại Zalo.
+- Tự khởi động lại Zalo Desktop chủ động; `bot:runner` không có bước nào khởi động lại Zalo hay `bot:watch`. Lưu ý: một lần cào (như `bot:scrape`) vẫn mở lại Zalo nếu cổng debug đóng; xem mục 13.8.
 - Dựng dịch vụ Windows (PM2/Task Scheduler): chỉ hướng dẫn trong `docs/GUIDE.md`, không nằm trong mã.
 
 ## 4. Kiến trúc
@@ -137,9 +137,19 @@ Chỉ hàm thuần và `deps` tiêm được; không chạy Zalo hay Excel trong
 ## 13. Điều chỉnh khi lập kế hoạch
 
 1. Các bước `syncDb`, trích xuất, điền Excel, `markMessages` được gọi như **tiến trình con** (`node --import tsx <script>`), không refactor thành hàm: `syncDb.ts` và `markMessages.ts` là tệp của người dùng và chạy `main()` ngay khi nạp. `runScrape`, `runQueuedScrape`, `runRecovery` vẫn gọi trực tiếp.
-2. **Danh sách buổi chờ dựng** `data/.runner-pending.json`: lưu trước khi đồng bộ DB, chỉ xóa sau khi dựng thành công, để runner chết giữa vòng không làm mất buổi cần dựng. Đồng bộ DB chạy mỗi vòng vì idempotent.
+2. **Tập báo cáo đã dựng** `data/.runner-built.json` thay cho so sánh trước/sau của từng vòng: buổi cần dựng là buổi có báo cáo trên đĩa mà chưa có trong tập, và báo cáo chỉ được thêm vào sau khi buổi dựng thành công. Nhờ đó runner chết giữa vòng, cào tay hay `recover:missing` đều không làm mất buổi cần dựng; buổi chưa dựng tự kích hoạt một vòng (kiểm mỗi phút, 5 phút sau lỗi dựng). Lần khởi động đầu, các báo cáo đã có được coi là đã dựng. Đồng bộ DB chạy mỗi vòng vì idempotent.
 3. Khi `bot:watch` chết và hàng chờ rỗng, runner **tự kích hoạt một vòng** khi có gián đoạn mới chồng lên buổi hiện tại (khóa `from|to` của gián đoạn), vì nếu không sẽ không ai kích hoạt khôi phục.
 4. `runner:once` chỉ dựng lại một buổi và không cào (không cần cờ `--rebuild`); `runner:status` thoát mã 2 khi runner không sống.
 5. Trạng thái `error` giữ đến khi khởi động lại (không có vòng thử lại để tự thoát).
 6. Khôi phục trong vòng chỉ xét buổi hiện tại; gián đoạn của buổi trước đó xử lý bằng `recover:missing` tay.
 7. Mốc thời điểm của hàng chờ nằm ở tệp phụ `data/.scrape-queue-meta.json`, nên `data/.scrape-queue.json` giữ nguyên định dạng (`bot:watch` và tệp test cũ không đổi).
+8. Sau đánh giá cuối (reviewer độc lập), các điều chỉnh thêm:
+   - Lỗi dựng của một buổi (`buildErrors`) không làm hỏng vòng và không tính vào 3 lần lỗi; chỉ lỗi cào hoặc đồng bộ (`errors`) mới tính. Buổi lỗi được thử lại sau 5 phút.
+   - Khóa `data/.scrape.lock` cũng do `recover:missing` (không phải `--dry-run`) và `runner:once` giữ, vì cả hai dùng chung `output/` hoặc điều khiển giao diện Zalo.
+   - Khóa kích hoạt khôi phục gồm cả buổi (`ngày|buổi|from|to`) và chỉ ghi nhận khi vòng thành công.
+   - Runner không làm gì trong 90 giây sau khi `bot:watch` khởi động (nó tự mở lại Zalo) và bỏ qua khoảng "mù" mở dưới 60 giây.
+   - Mỗi lần cào lùi tới đầu ngày hôm nay (không dùng `config.sinceTs` đóng băng lúc khởi động tiến trình).
+   - Hàng chờ ghi nhớ tin đến khi nhóm đang nằm trong hàng chờ (`.scrape-queue-seen.json`); nhóm có tin đến sau lúc bắt đầu cào thì không bị xóa khỏi hàng chờ.
+   - Mỗi buổi có bản `output/review_<ngày>_<buổi>.json`; `safeReplace` không để lỗi dọn tệp (Excel còn giữ) làm hỏng một lần dựng.
+   - Một lần cào của runner, giống `bot:scrape`, vẫn mở lại Zalo Desktop nếu cổng debug đóng; điều này được nêu rõ thay vì hứa "không bao giờ".
+   - Hoãn (Minor): M1 đến M9 trong sổ ghi của kế hoạch (nhật ký lặp khi bị khóa, race chiếm khóa cũ, ghi trạng thái có thể ném EPERM, SIGHUP/SIGBREAK, timeout cho tiến trình con, thứ tự ghi hàng chờ và meta, `now` của recover, Excel cũ im lặng khi dựng không ra dòng, ghi chú về luồng tay).

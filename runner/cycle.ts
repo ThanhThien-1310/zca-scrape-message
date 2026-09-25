@@ -1,7 +1,7 @@
 import type { QueueRunResult } from "../history/queueRun.js";
-import { messageKey } from "../lesson/recovery.js";
 import type { SourceMessage } from "../lesson/types.js";
-import { affectedSessions, mergeSessions, type SessionKey } from "./affectedSessions.js";
+import { type SessionKey } from "./affectedSessions.js";
+import { dirtySessions, sessionReportKeys } from "./builtReports.js";
 import type { CycleSummary } from "./runnerState.js";
 
 export interface BuildResult {
@@ -21,22 +21,21 @@ export interface CycleDeps {
     syncDb(): Promise<void>;
     /** Extract one session, write its Excel, mark its messages. */
     build(session: SessionKey): Promise<BuildResult>;
-    /** Sessions still owing a rebuild; kept on disk so a crash cannot lose them. */
-    pending: { read(): SessionKey[]; write(list: SessionKey[]): void };
+    /** Keys of the reports already built into an Excel; kept on disk (runner/builtReports.ts). */
+    built: { read(): Set<string>; write(keys: Set<string>): void };
 }
 
 /**
- * One runner cycle. A failure before the sessions are known (scrape cannot run) fails the cycle
- * and leaves the queue as it was. Once known, the sessions are saved as pending before anything
- * else, and each one is removed only after its build succeeded, so a crash or a failed build
- * is retried by the next cycle even if no new message arrives. Sync runs every cycle because it
- * is idempotent and an earlier crash may have left scraped rows out of the database.
+ * One runner cycle. A scrape or sync failure fails the cycle (`errors`) and leaves the queue as it was.
+ * Which sessions to build is not a diff of this cycle: it is every session with a report that is on disk
+ * but not yet in the built set, so a cycle that died after scraping, or messages scraped by hand, are
+ * built now. A session is added to the built set only after its build succeeded; a build failure is
+ * reported in `buildErrors`, does not fail the cycle, and is retried later. Sync runs every cycle because
+ * it is idempotent and an earlier crash may have left scraped rows out of the database.
  */
 export async function runCycle(deps: CycleDeps): Promise<CycleSummary> {
-    const summary: CycleSummary = { kind: "cycle", at: deps.now(), ok: true, groups: [], sessions: [], reviewCount: 0, excel: [], warnings: [], errors: [] };
+    const summary: CycleSummary = { kind: "cycle", at: deps.now(), ok: true, groups: [], sessions: [], reviewCount: 0, excel: [], warnings: [], errors: [], buildErrors: [] };
     try {
-        const before = new Set((await deps.loadMessages()).map(messageKey));
-
         const recovery = await deps.recover();
         for (const e of recovery.errors) summary.warnings.push(`khôi phục: ${e}`);
 
@@ -46,24 +45,23 @@ export async function runCycle(deps: CycleDeps): Promise<CycleSummary> {
             for (const t of scrape.failed) summary.warnings.push(`không cào được "${t}"`);
         }
 
-        const after = await deps.loadMessages();
-        let remaining = mergeSessions(deps.pending.read(), affectedSessions(before, after));
-        deps.pending.write(remaining);
-        summary.sessions = remaining;
+        const messages = await deps.loadMessages();
+        const built = deps.built.read();
+        const sessions = dirtySessions(messages, built);
+        summary.sessions = sessions;
 
         await deps.syncDb();
 
-        for (const session of remaining) {
+        for (const session of sessions) {
             try {
-                const built = await deps.build(session);
-                summary.reviewCount += built.reviewCount;
-                if (built.excel) summary.excel.push(built.excel);
-                summary.warnings.push(...built.warnings);
-                remaining = remaining.filter((s) => s.day !== session.day || s.buoi !== session.buoi);
-                deps.pending.write(remaining);
+                const result = await deps.build(session);
+                summary.reviewCount += result.reviewCount;
+                if (result.excel) summary.excel.push(result.excel);
+                summary.warnings.push(...result.warnings);
+                for (const key of sessionReportKeys(messages, session)) built.add(key);
+                deps.built.write(built);
             } catch (err) {
-                summary.ok = false;
-                summary.errors.push(`${session.day} ${session.buoi}: ${(err as Error).message}`);
+                summary.buildErrors.push(`${session.day} ${session.buoi}: ${(err as Error).message}`);
             }
         }
     } catch (err) {

@@ -214,12 +214,12 @@ Có kết quả JSON (không lỗi connection refused) nghĩa là CDP đã sẵn
 `bot:runner` là tiến trình thứ ba, chạy 24/24 cạnh `bot:watch`. Nó theo dõi hàng chờ; khi có nhóm và hàng chờ **yên lặng 2 phút** (trần 10 phút kể từ nhóm đầu tiên) thì chạy một vòng: khôi phục nếu `bot:watch` từng gián đoạn, cào các nhóm trong hàng chờ, đồng bộ DB, rồi với mỗi buổi có báo cáo đầu/cuối buổi mới thì trích xuất, ghi đè Excel `data/export/baocaobuoi<buổi>_<ddMMyy>.xlsm` (qua tệp tạm; nếu tệp đang mở thì lưu `..._moi.xlsm`) và đánh dấu tin. Sau 3 vòng lỗi liên tiếp nó ngừng tự thử cho đến khi được khởi động lại (hàng chờ vẫn nguyên).
 
 ```bash
-npm run bot:runner                                   # chạy nền, không tự khởi động lại Zalo hay bot:watch
+npm run bot:runner                                   # chạy nền; không khởi động lại bot:watch (một lần cào vẫn mở lại Zalo nếu cổng debug đóng, như bot:scrape)
 npm run runner:status                                # sống hay chết, vòng gần nhất, hàng chờ, buổi chưa dựng xong (thoát mã 2 nếu không sống)
 npm run runner:once -- [--day D] [--buoi B]          # dựng lại MỘT buổi, không cào (dùng sau khi sửa output/overrides.json)
 ```
 
-Tệp trạng thái: `data/.runner-state.json` (nhịp tim), `output/runner-log.jsonl` (mỗi vòng một dòng), `data/.runner-pending.json` (buổi chờ dựng, còn sau khi crash), `data/.scrape-queue-meta.json` (thời điểm nhóm vào hàng chờ), `data/.scrape.lock` (khóa chung: mọi thứ điều khiển giao diện Zalo, gồm `bot:scrape` chạy tay, không chạy cùng lúc). Giới hạn đã biết: cào điều khiển giao diện Zalo Desktop (nhấp, cuộn) nên có thể làm gián đoạn người đang gõ trong Zalo.
+Tệp trạng thái: `data/.runner-state.json` (nhịp tim), `output/runner-log.jsonl` (mỗi vòng một dòng), `data/.runner-built.json` (các báo cáo đã dựng vào Excel: báo cáo nằm trên đĩa mà chưa có ở đây sẽ được dựng, nên crash giữa vòng hay cào tay không làm mất buổi nào), `data/.scrape-queue-meta.json` và `data/.scrape-queue-seen.json` (thời điểm nhóm vào hàng chờ, và tin đến khi nhóm đang nằm trong hàng chờ nên không bị bỏ sót), `data/.scrape.lock` (khóa chung: mọi thứ điều khiển giao diện Zalo, gồm `bot:scrape` chạy tay, không chạy cùng lúc). Giới hạn đã biết: cào điều khiển giao diện Zalo Desktop (nhấp, cuộn) nên có thể làm gián đoạn người đang gõ trong Zalo.
 
 ## Báo cáo buổi dạy (skill Teach-lesson-skills-V2)
 

@@ -5,6 +5,7 @@ import { config } from "./config.js";
 import { runScrape } from "./history/desktopScraper.js";
 import { effectiveGaps } from "./history/watchState.js";
 import { formatRecovery } from "./lesson/recoveryReport.js";
+import { acquireScrapeLock, releaseScrapeLock } from "./history/scrapeLock.js";
 import { runRecovery } from "./lesson/recoveryRun.js";
 import { currentSession, isBuoi, todayVietnam, type Buoi } from "./lesson/time.js";
 import type { SourceMessage } from "./lesson/types.js";
@@ -41,6 +42,11 @@ async function main(): Promise<void> {
     const buoi: Buoi = buoiArg ?? currentSession();
     const dryRun = process.argv.includes("--dry-run");
 
+    // A real recovery drives Zalo Desktop's UI, so it must not overlap a bot:runner cycle or a bot:scrape.
+    if (!dryRun) {
+        const lock = acquireScrapeLock("recover:missing");
+        if (!lock.ok) throw new Error(`đang có "${lock.heldBy.owner}" (pid ${lock.heldBy.pid}) điều khiển Zalo Desktop — không chạy song song. Thử lại sau khi nó xong.`);
+    }
     const store = new MessageStore();
     const result = await runRecovery(
         { day, buoi, dryRun },
@@ -65,7 +71,9 @@ async function main(): Promise<void> {
     if (result.errors.length > 0) process.exitCode = 1;
 }
 
-main().catch((err) => {
-    console.error(err);
-    process.exit(1);
-});
+main()
+    .catch((err) => {
+        console.error(err instanceof Error ? err.message : err);
+        process.exitCode = 1;
+    })
+    .finally(() => releaseScrapeLock());

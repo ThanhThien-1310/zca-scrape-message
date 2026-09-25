@@ -221,13 +221,13 @@ Các bước 1, 1b, 2, 3, 5, 6 ở trên có thể do `bot:runner` tự làm; kh
 
 1. Khôi phục nếu `bot:watch` có gián đoạn trong buổi hiện tại (như `recover:missing`).
 2. Cào các nhóm trong hàng chờ. Không cào được (Zalo không kết nối) thì vòng lỗi, hàng chờ nguyên.
-3. Lưu danh sách buổi cần dựng (buổi của các báo cáo đầu/cuối buổi vừa xuất hiện, cộng buổi còn chờ từ vòng trước) vào `data/.runner-pending.json`, rồi đồng bộ DB.
+3. Xác định buổi cần dựng: mọi buổi có báo cáo đầu/cuối buổi nằm trên đĩa mà chưa có trong `data/.runner-built.json`; rồi đồng bộ DB.
 4. Với mỗi buổi: trích xuất (áp `output/overrides.json`), điền Excel vào tệp tạm rồi đổi tên đè lên `data/export/baocaobuoi<buổi>_<ddMMyy>.xlsm`, rồi `mark:messages`. Dựng thành công thì buổi đó bị xóa khỏi danh sách chờ.
 5. Ghi một dòng vào `output/runner-log.jsonl` và cập nhật `data/.runner-state.json`.
 
 **Ghi đè Excel.** Kết quả cuối luôn là một tệp. Nếu tệp đang mở trong Excel thì bản mới lưu thành `..._moi.xlsm`, bản cũ giữ nguyên; vòng sau tệp gốc đã đóng thì tự đè và xóa `_moi`.
 
-**Độ bền.** Runner chết giữa vòng thì buổi chưa dựng vẫn nằm trong danh sách chờ và được dựng ở vòng sau dù không có tin mới. Sau 3 vòng lỗi liên tiếp runner ngừng tự thử (`runner:status` báo `LỖI`), hàng chờ vẫn nguyên; sửa nguyên nhân rồi chạy lại `npm run bot:runner`.
+**Độ bền.** Runner chết giữa vòng (hoặc ai đó cào tay) thì báo cáo đã có trên đĩa nhưng chưa dựng vẫn được nhận ra ở lần kiểm tra kế tiếp (mỗi phút; 5 phút sau một lỗi dựng) và buổi đó được dựng dù không có tin mới. Một buổi dựng lỗi được báo (`lỗi dựng`) và thử lại, nhưng không làm runner ngừng cào. Sau 3 vòng lỗi liên tiếp runner ngừng tự thử (`runner:status` báo `LỖI`), hàng chờ vẫn nguyên; sửa nguyên nhân rồi chạy lại `npm run bot:runner`.
 
 **Xem trạng thái:** `npm run runner:status` (thoát mã 2 nếu runner không sống). **Dựng lại một buổi không cào** (sau khi sửa `overrides.json`): `npm run runner:once -- --day <ngày> --buoi <buổi>`.
 

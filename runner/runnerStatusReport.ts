@@ -24,14 +24,14 @@ export interface RunnerStatusInput {
     queue: string[];
     /** When the earliest queued group was queued; null when the queue is empty. */
     firstQueuedAt: number | null;
-    /** Sessions still owing an Excel rebuild. */
-    pending: SessionKey[];
+    /** Sessions that have a report not built into an Excel yet. */
+    dirty: SessionKey[];
     now: number;
 }
 
 /** Human-readable lines for `runner:status` (Vietnam time). */
 export function formatRunnerStatus(input: RunnerStatusInput): string[] {
-    const { state, queue, firstQueuedAt, pending, now } = input;
+    const { state, queue, firstQueuedAt, dirty, now } = input;
     const lines: string[] = [];
     const health = runnerHealth(state, now);
 
@@ -58,8 +58,9 @@ export function formatRunnerStatus(input: RunnerStatusInput): string[] {
         lines.push(`    buổi: ${c.sessions.length > 0 ? c.sessions.map(label).join(", ") : "(không dựng)"}, cần xem: ${c.reviewCount}`);
         for (const f of c.excel) lines.push(`    Excel: ${f}`);
         if (c.errors.length > 0) lines.push(`    lỗi: ${c.errors.join("; ")}`);
+        if (c.buildErrors.length > 0) lines.push(`    lỗi dựng: ${c.buildErrors.join("; ")}`);
         if (c.warnings.length > 0) lines.push(`    cảnh báo: ${c.warnings.join("; ")}`);
     }
-    if (pending.length > 0) lines.push(`  buổi chưa dựng xong: ${pending.map(label).join(", ")}`);
+    if (dirty.length > 0) lines.push(`  buổi chưa dựng xong: ${dirty.map(label).join(", ")}`);
     return lines;
 }

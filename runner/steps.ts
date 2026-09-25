@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
 import { runScrape } from "../history/desktopScraper.js";
 import { runQueuedScrape } from "../history/queueRun.js";
-import { readQueue, removeFromQueue } from "../history/scrapeQueue.js";
+import { DEFAULT_QUEUE_PATH, readQueue, removeFromQueue } from "../history/scrapeQueue.js";
 import { effectiveGaps } from "../history/watchState.js";
 import { runRecovery } from "../lesson/recoveryRun.js";
 import { currentSession, reportFileName, todayVietnam } from "../lesson/time.js";
@@ -13,8 +13,9 @@ import type { SourceMessage } from "../lesson/types.js";
 import { MessageStore } from "../store/messageStore.js";
 import type { SessionKey } from "./affectedSessions.js";
 import type { BuildResult, CycleDeps } from "./cycle.js";
-import { readPending, writePending } from "./runnerState.js";
+import { readBuilt, writeBuilt } from "./builtReports.js";
 import { safeReplace } from "./safeReplace.js";
+import { scrapeSinceTs } from "./schedule.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(repoRoot, "output");
@@ -50,6 +51,8 @@ export async function buildSession(session: SessionKey): Promise<BuildResult> {
     const warnings: string[] = [];
     await mustRun("extractLessonReports.ts", ["--day", session.day, "--buoi", session.buoi]);
     const review = JSON.parse(fs.readFileSync(path.join(outDir, "review.json"), "utf8")) as unknown[];
+    // output/review.json belongs to whichever session was built last; keep one per session for the agent.
+    fs.copyFileSync(path.join(outDir, "review.json"), path.join(outDir, `review_${session.day}_${session.buoi}.json`));
 
     const target = path.join(repoRoot, "data", "export", reportFileName(session.day, session.buoi));
     const result = await safeReplace(target, async (tmp) => {
@@ -83,14 +86,15 @@ export function realDeps(): CycleDeps {
         scrapeQueued: () =>
             runQueuedScrape({
                 readQueue: () => readQueue(),
-                removeFromQueue: (handled) => removeFromQueue(handled),
-                scrape: (targets) => runScrape(store, targets),
+                removeFromQueue: (handled, startedAt) => removeFromQueue(handled, DEFAULT_QUEUE_PATH, startedAt),
+                // Scroll back to the start of today only: the default `config.sinceTs` is fixed when the process starts.
+                scrape: (targets) => runScrape(store, targets, { sinceTs: scrapeSinceTs(Date.now()) }),
                 log: (m) => console.log(m),
             }),
         syncDb: async () => {
             await mustRun("syncDb.ts", ["--apply"]);
         },
         build: buildSession,
-        pending: { read: () => readPending(), write: (list) => writePending(list) },
+        built: { read: () => readBuilt() ?? new Set<string>(), write: (keys) => writeBuilt(keys) },
     };
 }

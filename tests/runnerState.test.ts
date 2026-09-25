@@ -8,23 +8,21 @@ import {
     appendLog,
     beatRunner,
     MAX_CONSECUTIVE_FAILURES,
-    readPending,
     readRunnerState,
     recordCycle,
     runnerHealth,
     setPhase,
     startRunner,
     stopRunner,
-    writePending,
     type CycleSummary,
     type RunnerFiles,
 } from "../runner/runnerState.js";
 
 function files(): RunnerFiles {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "runner-"));
-    return { state: path.join(dir, "data", ".runner-state.json"), log: path.join(dir, "output", "runner-log.jsonl"), pending: path.join(dir, "data", ".runner-pending.json") };
+    return { state: path.join(dir, "data", ".runner-state.json"), log: path.join(dir, "output", "runner-log.jsonl"), built: path.join(dir, "data", ".runner-built.json") };
 }
-const cycle = (ok: boolean, at = 1): CycleSummary => ({ kind: "cycle", at, ok, groups: ["A"], sessions: [], reviewCount: 0, excel: [], warnings: [], errors: ok ? [] : ["boom"] });
+const cycle = (ok: boolean, at = 1): CycleSummary => ({ kind: "cycle", at, ok, groups: ["A"], sessions: [], reviewCount: 0, excel: [], warnings: [], errors: ok ? [] : ["boom"], buildErrors: [] });
 const alive = () => true;
 const dead = () => false;
 
@@ -90,17 +88,6 @@ test("every cycle is appended to the log as one JSON line, and appendLog can add
     appendLog({ ...cycle(true, 3000), kind: "rebuild" }, f);
     const lines = fs.readFileSync(f.log, "utf8").trim().split("\n").map((l) => JSON.parse(l));
     assert.deepEqual(lines.map((l) => [l.kind, l.at]), [["cycle", 2000], ["rebuild", 3000]]);
-});
-
-test("pending sessions round-trip and a corrupt file reads as empty", () => {
-    const f = files();
-    assert.deepEqual(readPending(f), []);
-    writePending([{ day: "2026-09-24", buoi: "sang" }], f);
-    assert.deepEqual(readPending(f), [{ day: "2026-09-24", buoi: "sang" }]);
-    fs.writeFileSync(f.pending, JSON.stringify([{ day: 1 }, "x", { day: "2026-09-24", buoi: "chieu" }]), "utf8");
-    assert.deepEqual(readPending(f), [{ day: "2026-09-24", buoi: "chieu" }]);
-    fs.writeFileSync(f.pending, "{ nope", "utf8");
-    assert.deepEqual(readPending(f), []);
 });
 
 test("runnerHealth tells none, stopped, dead, error and alive apart", () => {

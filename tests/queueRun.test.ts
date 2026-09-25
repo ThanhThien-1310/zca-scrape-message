@@ -4,16 +4,19 @@ import { runQueuedScrape, type QueueRunDeps } from "../history/queueRun.js";
 
 function harness(initial: string[], scrape: QueueRunDeps["scrape"]) {
     let queue = [...initial];
+    const removedWith: number[] = [];
     const logs: string[] = [];
     const deps: QueueRunDeps = {
         readQueue: () => [...queue],
-        removeFromQueue: (handled) => {
+        removeFromQueue: (handled, startedAt) => {
+            removedWith.push(startedAt);
             queue = queue.filter((t) => !handled.includes(t));
         },
+        now: () => 777,
         scrape,
         log: (m) => logs.push(m),
     };
-    return { deps, logs, get queue() { return queue; }, push: (t: string) => queue.push(t) };
+    return { deps, logs, removedWith, get queue() { return queue; }, push: (t: string) => queue.push(t) };
 }
 
 test("an empty queue exits without scraping", async () => {
@@ -62,4 +65,10 @@ test("if the whole run cannot start nothing is removed and the error propagates"
     });
     await assert.rejects(runQueuedScrape(h.deps), /CDP not reachable/);
     assert.deepEqual(h.queue, ["A", "B"]);
+});
+
+test("the time the snapshot was taken is handed to the cleanup, so messages that arrive during the scrape can be told apart", async () => {
+    const h = harness(["A"], async (targets) => targets.map((target) => ({ target })));
+    await runQueuedScrape(h.deps);
+    assert.deepEqual(h.removedWith, [777]);
 });

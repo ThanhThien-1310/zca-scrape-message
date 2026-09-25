@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { enqueueTarget, readQueue, readQueueMeta, removeFromQueue } from "../history/scrapeQueue.js";
+import { enqueueTarget, readQueue, readQueueMeta, readQueueSeen, removeFromQueue } from "../history/scrapeQueue.js";
 
 const fresh = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "queue-")), "data", ".scrape-queue.json");
 
@@ -69,4 +69,30 @@ test("a missing or corrupt meta file reads as empty", () => {
         fs.writeFileSync(file.replace(/.json$/, "-meta.json"), content, "utf8");
         assert.deepEqual(readQueueMeta(file), content.includes('"B": 5') ? { B: 5 } : {}, content);
     }
+});
+
+test("a message for a group that is already queued is remembered, so a scrape that started before it does not drop the group", () => {
+    const file = fresh();
+    enqueueTarget("A", file, 1000);
+    assert.equal(enqueueTarget("A", file, 5000), false); // arrives while A is queued (its scrape is running)
+    removeFromQueue(["A"], file, 3000); // the scrape that finished had started at 3000
+    assert.deepEqual(readQueue(file), ["A"]);
+    assert.deepEqual(readQueueMeta(file), { A: 5000 }); // it counts as freshly queued at 5000
+    removeFromQueue(["A"], file, 6000); // a later scrape did see it
+    assert.deepEqual(readQueue(file), []);
+});
+
+test("a message that arrived before the scrape started does not keep the group queued", () => {
+    const file = fresh();
+    enqueueTarget("A", file, 1000);
+    enqueueTarget("A", file, 2000);
+    removeFromQueue(["A"], file, 3000);
+    assert.deepEqual(readQueue(file), []);
+});
+
+test("readQueueSeen reports the latest message time per queued group", () => {
+    const file = fresh();
+    enqueueTarget("A", file, 1000);
+    enqueueTarget("A", file, 2500);
+    assert.deepEqual(readQueueSeen(file), { A: 2500 });
 });
