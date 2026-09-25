@@ -163,3 +163,18 @@ test("the morning/afternoon boundary is 12:00 Vietnam time", async () => {
     assert.deepEqual(sang.reports.map((x) => x.maTinNhan), [lastMorning.msgId]);
     assert.deepEqual(chieu.reports.map((x) => x.maTinNhan), [firstAfternoon.msgId]);
 });
+
+test("an override whose key matches no scraped message is reported, one for another session is not", async () => {
+    const morning = msg(COMPLETE, at(8));
+    const afternoon = msg(COMPLETE, at(14));
+    const r = await extractAll([morning, afternoon], {
+        day: DAY,
+        buoi: "sang",
+        lookupRoomIds: lookup,
+        overrides: [
+            { key: { maNhom: "g1", maTinNhan: afternoon.msgId }, sua: { loi: 1 } },
+            { key: { maNhom: "g1", maTinNhan: "typo-id" }, sua: { loi: 1 } },
+        ],
+    });
+    assert.deepEqual(r.unknownOverrides, [{ maNhom: "g1", maTinNhan: "typo-id" }]);
+});

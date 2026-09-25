@@ -2,7 +2,7 @@ import { applyOverride, deriveReport, extractRaw, type RawFields } from "./build
 import { classifyTitle } from "./parseReport.js";
 import { roomKeyString, roomLookupName, type RoomLookup } from "./roomKey.js";
 import { sessionOf, vietnamDay, type Buoi } from "./time.js";
-import type { LyDo, Mark, Override, Report, ReviewItem, RoomKey, SourceMessage } from "./types.js";
+import type { LyDo, Mark, MessageKey, Override, Report, ReviewItem, RoomKey, SourceMessage } from "./types.js";
 
 export interface ExtractOptions {
     /** `YYYY-MM-DD` on the Vietnam calendar; only messages sent that day are considered. */
@@ -18,6 +18,8 @@ export interface ExtractResult {
     reports: Report[];
     marks: Mark[];
     review: ReviewItem[];
+    /** Override keys that match no scraped message at all (typos); ones for another day or session are fine. */
+    unknownOverrides: MessageKey[];
     summary: { xet: number; baoCao: number; boQua: number; canXem: number; theoLyDo: Partial<Record<LyDo, number>> };
 }
 
@@ -58,6 +60,8 @@ interface Pending {
 
 export async function extractAll(messages: SourceMessage[], opts: ExtractOptions): Promise<ExtractResult> {
     const overrides = new Map((opts.overrides ?? []).map((o) => [keyOf(o.key.maNhom, o.key.maTinNhan), o]));
+    const known = new Set(messages.map((m) => keyOf(m.groupId, m.msgId)));
+    const unknownOverrides = (opts.overrides ?? []).filter((o) => !known.has(keyOf(o.key.maNhom, o.key.maTinNhan))).map((o) => o.key);
     const dayMessages = messages
         .filter((m) => vietnamDay(m.ts) === opts.day && (opts.buoi === undefined || sessionOf(m.ts) === opts.buoi))
         .sort((a, b) => a.ts - b.ts);
@@ -128,6 +132,7 @@ export async function extractAll(messages: SourceMessage[], opts: ExtractOptions
         reports,
         marks,
         review,
+        unknownOverrides,
         summary: { xet: dayMessages.length, baoCao: reports.length, boQua: marks.filter((x) => x.maTrangThai === -1).length, canXem: review.length, theoLyDo },
     };
 }

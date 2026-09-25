@@ -62,6 +62,7 @@ async function main(): Promise<void> {
     const s = result.summary;
     console.log(`[extract] ngày ${day}, buổi ${buoi}: xét ${s.xet} tin, ${s.baoCao} báo cáo, ${s.boQua} tin bỏ qua (-1), ${s.canXem} mục cần xem${noDb ? " (không tra DB)" : ""}`);
     for (const [lyDo, n] of Object.entries(s.theoLyDo)) console.log(`  ${lyDo}: ${n}`);
+    for (const k of result.unknownOverrides) console.warn(`[extract] CẢNH BÁO: override cho maNhom=${k.maNhom} maTinNhan=${k.maTinNhan} không khớp tin nhắn nào — kiểm tra lại key trong output/overrides.json.`);
     if (s.canXem > 0) console.log(`[extract] xem output/review.json, sửa bằng output/overrides.json rồi chạy lại lệnh này.`);
 }
 
