@@ -15,6 +15,7 @@
         "test": "node --import tsx --test \"tests/**/*.test.ts\"",
         "extract:reports": "tsx extractLessonReports.ts",
         "fill:report": "tsx fillRoomFacilityReport.ts",
+        "recover:missing": "tsx recoverMissing.ts",
         "export:lesson-report": "tsx exportLessonReport.ts",
         "mark:messages": "tsx markMessages.ts"
     },

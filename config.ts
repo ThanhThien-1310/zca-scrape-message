@@ -75,6 +75,12 @@ export const config = {
     targets: ["bot test", "LC_ChuVănAn_BTAN", "LC_HoaSen1_TĐ", "LC_TríTuệViệt_BTAN", "LC_QuangTrungNguyễnHuệ_Q5"] as string[],
 
     /**
+     * Conversations in `targets` that never send lesson reports (test groups...).
+     * `recover:missing` does not treat them as "missing a report" and never re-scrapes them.
+     */
+    recoveryIgnoreTargets: ["bot test"] as string[],
+
+    /**
      * Only keep messages at or after this time (unix ms) — scrolling stops
      * early once it scrolls past this point. null = no lower bound, only
      * targetMessageCount applies.

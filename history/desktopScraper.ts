@@ -193,7 +193,7 @@ export type TargetOutcome = { target: string; error?: string };
  * one after another. An error in one conversation is recorded in its outcome
  * and does not stop the rest; a failure to start (Zalo Desktop / CDP) throws.
  */
-export async function runScrape(store: MessageStore, targets: string[] = config.targets): Promise<TargetOutcome[]> {
+export async function runScrape(store: MessageStore, targets: string[] = config.targets, opts: { sinceTs?: number } = {}): Promise<TargetOutcome[]> {
     if (targets.length === 0) {
         console.log("[scrape] no targets to scrape.");
         return [];
@@ -207,7 +207,7 @@ export async function runScrape(store: MessageStore, targets: string[] = config.
         await waitForSidebarLoaded(page, 30_000);
         for (const target of targets) {
             try {
-                await scrapeAndSaveTarget(page, store, target);
+                await scrapeAndSaveTarget(page, store, target, opts.sinceTs);
                 outcomes.push({ target });
             } catch (err) {
                 console.error(`[scrape] "${target}": failed —`, err);
@@ -223,9 +223,9 @@ export async function runScrape(store: MessageStore, targets: string[] = config.
 export type ScrapeTargetResult = { scraped: number; written: number };
 
 /** Scrapes one target thread's full window (scrolls back to sinceTs) and writes it to the JSON store — used by the scheduled one-shot run (bot/index.ts) and by watch.ts's on-demand control server. */
-export async function scrapeAndSaveTarget(page: CdpPage, store: MessageStore, target: string): Promise<ScrapeTargetResult> {
+export async function scrapeAndSaveTarget(page: CdpPage, store: MessageStore, target: string, sinceTs?: number): Promise<ScrapeTargetResult> {
     console.log(`[scrape] scraping "${target}"...`);
-    const rows = await scrapeThreadHistory(page, target);
+    const rows = await scrapeThreadHistory(page, target, sinceTs);
     if (rows.length === 0) {
         console.log(`[scrape] "${target}": no messages found in this window, nothing to save.`);
         return { scraped: 0, written: 0 };
@@ -372,7 +372,9 @@ export async function waitForSidebarLoaded(page: CdpPage, timeoutMs: number): Pr
  * Opens a conversation by its display name and scrolls its message pane
  * upward repeatedly, collecting rows as they render.
  */
-async function scrapeThreadHistory(page: CdpPage, targetName: string): Promise<ScrapedRow[]> {
+async function scrapeThreadHistory(page: CdpPage, targetName: string, sinceOverride?: number): Promise<ScrapedRow[]> {
+    // `sinceOverride` (recover:missing) replaces config.sinceTs for this call only.
+    const sinceTs = sinceOverride ?? config.sinceTs;
     const opened = await clickConversationWithRetry(page, targetName, 15_000);
     if (!opened) return [];
     await delay(1_500);
@@ -392,7 +394,7 @@ async function scrapeThreadHistory(page: CdpPage, targetName: string): Promise<S
         // the cutoff (everything from the cutoff onward is then loaded), not
         // that *every* row is older (never true while today's messages are
         // still in the DOM, which made this scroll all the way to the top).
-        if (config.sinceTs != null && rows.some((r) => r.ts != null && r.ts < config.sinceTs!)) {
+        if (sinceTs != null && rows.some((r) => r.ts != null && r.ts < sinceTs)) {
             passedCutoff = true;
             break;
         }
@@ -409,7 +411,7 @@ async function scrapeThreadHistory(page: CdpPage, targetName: string): Promise<S
 
     return [...collected.values()].filter((r) => {
         if (r.ts == null) return true;
-        if (config.sinceTs != null && r.ts < config.sinceTs) return false;
+        if (sinceTs != null && r.ts < sinceTs) return false;
         if (config.untilTs != null && r.ts > config.untilTs) return false;
         return true;
     });

@@ -1,0 +1,71 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { config } from "./config.js";
+import { runScrape } from "./history/desktopScraper.js";
+import { effectiveGaps } from "./history/watchState.js";
+import { formatRecovery } from "./lesson/recoveryReport.js";
+import { runRecovery } from "./lesson/recoveryRun.js";
+import { currentSession, isBuoi, todayVietnam, type Buoi } from "./lesson/time.js";
+import type { SourceMessage } from "./lesson/types.js";
+import { MessageStore } from "./store/messageStore.js";
+
+/**
+ * Safety net for a `bot:watch` that died (or went blind) and missed messages.
+ *
+ * It does nothing unless the watcher's own records (data/.watch-state.json and
+ * data/.watch-gaps.json, see history/watchState.ts) show a gap that overlaps
+ * the session. When they do, it re-scrapes ONLY the groups that still lack a
+ * start or end report — from shortly before the gap — and says which messages
+ * that brought back (output/recovery.json). Groups in `config.recoveryIgnoreTargets`
+ * are never touched.
+ *
+ *   npm run recover:missing -- [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--dry-run]
+ *
+ * Exit code 1 when a re-scraped group failed; groups that are still missing
+ * afterwards are reported but are not an error.
+ */
+const repoRoot = path.dirname(fileURLToPath(import.meta.url));
+const outDir = path.join(repoRoot, "output");
+
+function option(name: string): string | undefined {
+    const i = process.argv.indexOf(name);
+    return i >= 0 ? process.argv[i + 1] : undefined;
+}
+
+async function main(): Promise<void> {
+    const day = option("--day") ?? todayVietnam();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error(`--day must be YYYY-MM-DD, got "${day}"`);
+    const buoiArg = option("--buoi");
+    if (buoiArg !== undefined && !isBuoi(buoiArg)) throw new Error(`--buoi must be sang, chieu or toi, got "${buoiArg}"`);
+    const buoi: Buoi = buoiArg ?? currentSession();
+    const dryRun = process.argv.includes("--dry-run");
+
+    const store = new MessageStore();
+    const result = await runRecovery(
+        { day, buoi, dryRun },
+        {
+            now: () => Date.now(),
+            targets: config.targets,
+            ignoreTargets: config.recoveryIgnoreTargets,
+            loadMessages: async () => {
+                const all: SourceMessage[] = [];
+                for (const groupId of store.listThreads()) all.push(...(await store.readThread(groupId)));
+                return all;
+            },
+            gaps: (now) => effectiveGaps(now),
+            scrape: (targets, sinceTs) => runScrape(store, targets, { sinceTs }),
+        },
+    );
+
+    for (const line of formatRecovery(result)) console.log(line);
+
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, "recovery.json"), JSON.stringify(result, null, 2), "utf8");
+    if (result.errors.length > 0) process.exitCode = 1;
+}
+
+main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+});

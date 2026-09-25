@@ -147,7 +147,7 @@ function buildPhotoMessage(msg: RawMessage): RealtimeMessageEvent["photoMessage"
  * will have already passed and no message frame will ever decode. See
  * history/watch.ts for how the caller guarantees this ordering.
  */
-export function installRealtimeListener(page: CdpPage, onMessage: (event: RealtimeMessageEvent) => void): void {
+export function installRealtimeListener(page: CdpPage, onMessage: (event: RealtimeMessageEvent) => void, onKeyCaptured?: () => void): void {
     let cipherKey: string | undefined;
 
     page.onWsFrameReceived((opcode, payloadBase64) => {
@@ -158,6 +158,7 @@ export function installRealtimeListener(page: CdpPage, onMessage: (event: Realti
         if (frame.header.cmd === CMD_KEY_EXCHANGE && frame.body && typeof frame.body === "object" && "key" in frame.body) {
             cipherKey = (frame.body as { key: string }).key;
             console.log("[watch] realtime-ws: cipher key captured, live message detection active");
+            onKeyCaptured?.();
             return;
         }
 
@@ -182,6 +183,17 @@ export function installRealtimeListener(page: CdpPage, onMessage: (event: Realti
                     // Recalled/undone message — recognized so it isn't
                     // mistaken for a photo below, but not acted on yet.
                     const isRecall = msg.msgType === "chat.undo" || (typeof msg.content === "object" && msg.content !== null && "deleteMsg" in msg.content);
+
+                    // Only text and photo messages are supported right now
+                    // — anything else (chat.voice, chat.sticker, chat.gif,
+                    // chat.video.msg, share.file, chat.location.new...)
+                    // is ignored outright: no trigger, no scrape, nothing
+                    // saved. A recall is still worth letting through even
+                    // though its own msgType is "chat.undo" (not in this
+                    // allow-list), since it's about an *existing* saved
+                    // message, not a new one of some unsupported type.
+                    const isSupportedType = isRecall || msg.msgType === "webchat" || msg.msgType === "chat.photo";
+                    if (!isSupportedType) continue;
 
                     // WS's idTo is the bare numeric id; the store's groupId
                     // (and this listener's lookup map, built from it) uses
