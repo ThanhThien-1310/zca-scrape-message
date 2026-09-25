@@ -83,6 +83,31 @@ async function decryptGroupMessagePayload(encData: string, cipherKey: string): P
     return JSON.parse(decompressed.toString("utf-8"));
 }
 
+/** A plain text message (msgType "webchat"): what `bot:chat` needs, straight from the WS frame. */
+export type TextMessage = {
+    msgId: string;
+    senderId: string;
+    senderName: string;
+    /** True for the account's own messages (the wire sends `uidFrom: "0"`); id and name are blank then. */
+    isSelf: boolean;
+    ts: number;
+    content: string;
+};
+
+function buildTextMessage(msg: RawMessage): TextMessage | undefined {
+    if (msg.msgType !== "webchat" || typeof msg.content !== "string" || !msg.msgId) return undefined;
+    const isSelf = msg.uidFrom === "0";
+    const ts = Number(msg.ts);
+    return {
+        msgId: msg.msgId,
+        senderId: isSelf ? "" : (msg.uidFrom ?? ""),
+        senderName: isSelf ? "" : (msg.dName ?? ""),
+        isSelf,
+        ts: Number.isFinite(ts) ? ts : Date.now(),
+        content: msg.content,
+    };
+}
+
 export type RealtimeMessageEvent = {
     groupId: string;
     isGroup: boolean;
@@ -109,6 +134,8 @@ export type RealtimeMessageEvent = {
         content: string;
         url: string;
     };
+    /** Present for a plain text message; the source of truth for text content stays the DOM scrape. */
+    textMessage?: TextMessage;
 };
 
 function buildPhotoMessage(msg: RawMessage): RealtimeMessageEvent["photoMessage"] | undefined {
@@ -202,7 +229,8 @@ export function installRealtimeListener(page: CdpPage, onMessage: (event: Realti
                     const groupId = isGroup ? `g${msg.idTo}` : msg.idTo;
 
                     const photoMessage = !isRecall && msg.msgType === "chat.photo" ? buildPhotoMessage(msg) : undefined;
-                    onMessage({ groupId, isGroup, photoMessage });
+                    const textMessage = !isRecall ? buildTextMessage(msg) : undefined;
+                    onMessage({ groupId, isGroup, photoMessage, textMessage });
                 }
             })
             .catch((err) => console.warn(`[watch] realtime-ws: failed to decode cmd=${frame.header.cmd} frame: ${(err as Error).message}`));

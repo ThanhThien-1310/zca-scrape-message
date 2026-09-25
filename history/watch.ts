@@ -2,6 +2,10 @@ import { config } from "../config.js";
 import { MessageStore } from "../store/messageStore.js";
 import { CdpPage, connectToZaloMainPageEarly, connectToZaloNotificationPage } from "./cdp.js";
 import { forceRestartZalo } from "./desktopScraper.js";
+import { routeMessage } from "../chat/fanout.js";
+import { appendInbox } from "../chat/inbox.js";
+import { makeGroupNameReader } from "../chat/rules.js";
+import { consumeEcho } from "../chat/state.js";
 import { installRealtimeListener } from "./realtimeListener.js";
 import { enqueueTarget } from "./scrapeQueue.js";
 import { beat, HEARTBEAT_INTERVAL_MS, startWatching, stopWatching as recordStop, type SourceStatus } from "./watchState.js";
@@ -19,6 +23,9 @@ const NOTIFY_BINDING = "__zalobotNotify";
  * Two independent detection sources, unchanged: Zalo Desktop's own WebSocket
  * connection to its chat backend (history/realtimeListener.ts, primary) and its
  * notification popup window (znotification.html, fallback).
+ *
+ * It also copies plain text messages of the groups listed in chat-rules.json into the chat inbox
+ * (chat/inbox.ts) for `bot:chat`, and ignores the replies `bot:chat` itself sent (chat/state.ts).
  *
  * Always restarts Zalo Desktop on startup (forceRestartZalo, not
  * ensureZaloReady) so the realtime WS source can observe its connection from
@@ -80,10 +87,25 @@ export async function watch(): Promise<void> {
     // every await before this line is a frame-loss window (this cost us
     // the cipher-key frame entirely in an earlier version of this file).
     let groupIdToTarget = new Map<string, string>();
-    installRealtimeListener(mainPage, ({ groupId }) => {
-        const target = groupIdToTarget.get(groupId);
-        if (!target) return;
-        console.log(`[watch] realtime-ws: new message detected for "${target}" (groupId=${groupId})`);
+    const chatGroups = makeGroupNameReader();
+    installRealtimeListener(mainPage, (event) => {
+        const target = groupIdToTarget.get(event.groupId);
+        const route = routeMessage({
+            event,
+            target,
+            allowedGroups: chatGroups(),
+            consumeEcho: (t, text) => consumeEcho(t, text, Date.now()),
+        });
+        if (route.inbox) {
+            try {
+                appendInbox(route.inbox);
+                console.log(`[watch] chat inbox: "${route.inbox.groupName}" message ${route.inbox.msgId}`);
+            } catch (err) {
+                console.warn(`[watch] could not write the chat inbox: ${(err as Error).message}`); // never let chat break detection
+            }
+        }
+        if (!route.queue || !target) return;
+        console.log(`[watch] realtime-ws: new message detected for "${target}" (groupId=${event.groupId})`);
         enqueue(target, "realtime-ws");
     }, () => setSource("ws", "active"));
 
