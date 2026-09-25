@@ -26,7 +26,15 @@ export type SendResult =
     | { status: "skipped"; reason: "draft" | "not-opened" }
     | { status: "failed"; reason: string; unconfirmed?: boolean };
 
-export interface SendDeps {
+/** Móc gọi đúng lúc, để người gọi ghi sổ TRƯỚC khi có gì đó ra ngoài. */
+export interface SendHooks {
+    /** Sau khi mọi chốt chặn đã qua và ô soạn tin trống, ngay trước khi gõ chữ đầu tiên. */
+    beforeType?(): void;
+    /** Chữ đã nằm đúng trong ô soạn tin, ngay trước khi bấm Enter. */
+    beforeEnter?(): void;
+}
+
+export interface SendDeps extends SendHooks {
     delay(ms: number): Promise<void>;
     log(message: string): void;
 }
@@ -88,6 +96,21 @@ async function open(page: SendPage, name: string, deps: SendDeps): Promise<void>
 
 const key = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 };
 
+/** Ô soạn tin chứa đúng dòng đầu của câu trả lời (so sau khi chuẩn hóa khoảng trắng, kể cả NBSP). */
+const holds = (composer: ComposerState, text: string): boolean => norm(composer.text ?? "").includes(norm(text.split("\n")[0]));
+
+/**
+ * Xóa bản nháp ta vừa gõ dở (Ctrl+A rồi Backspace), CHỈ khi chốt chặn vẫn xác nhận đang ở nhóm đích:
+ * nếu nhóm đã đổi thì ô soạn tin đang mở là của người khác và không được đụng vào.
+ */
+async function clearDraft(page: SendPage, guarded: () => Promise<ComposerState | null>): Promise<void> {
+    if (!(await guarded())) return;
+    await page.input("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
+    await page.input("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
+    await page.input("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 });
+    await page.input("Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 });
+}
+
 /**
  * Gửi một tin vào nhóm `target` qua giao diện Zalo Desktop. Người gọi phải giữ khóa `data/.scrape.lock`.
  * Trước MỖI thao tác gõ hoặc Enter đều đọc lại trạng thái và kiểm `chatIsTarget`; sai thì dừng, không gõ tiếp.
@@ -114,21 +137,32 @@ export async function sendReply(page: SendPage, target: string, text: string, de
         await deps.delay(300);
 
         if (!(await guarded())) return { status: "failed", reason: "nhóm đang mở đã đổi trước khi gõ" };
+        deps.beforeType?.();
         await page.input("Input.insertText", { text });
         await deps.delay(500);
 
         let after = await read();
-        if (!(after.text ?? "").includes(text.split("\n")[0])) {
+        // Chỉ thử gõ từng ký tự khi chưa có gì vào ô soạn tin. Chữ đã vào một phần (Zalo viết lại chữ) thì
+        // gõ chồng lên sẽ để lại hai bản trong ô, nên chuyển sang xóa bản nháp bên dưới.
+        if (!holds(after, text) && after.empty === true) {
             deps.log("[chat] insertText không vào ô soạn tin, thử gửi từng ký tự");
-            if (!(await guarded())) return { status: "failed", reason: "nhóm đang mở đã đổi trước khi gõ từng ký tự" };
-            for (const ch of text) await page.input("Input.dispatchKeyEvent", ch === "\n" ? { type: "char", text: "\n", key: "Enter", modifiers: 8 } : { type: "char", text: ch });
+            const chars = [...text];
+            for (let i = 0; i < chars.length; i++) {
+                if (i > 0 && i % 10 === 0 && !(await guarded())) return { status: "failed", reason: "nhóm đang mở đã đổi giữa lúc gõ từng ký tự" };
+                const ch = chars[i];
+                await page.input("Input.dispatchKeyEvent", ch === "\n" ? { type: "char", text: "\n", key: "Enter", modifiers: 8 } : { type: "char", text: ch });
+            }
             await deps.delay(500);
             after = await read();
         }
         if (!chatIsTarget(after, target)) return { status: "failed", reason: "nhóm đang mở đã đổi sau khi gõ; không gửi" };
-        if (!(after.text ?? "").includes(text.split("\n")[0])) return { status: "failed", reason: "không nhập được chữ vào ô soạn tin; chưa gửi gì" };
+        if (!holds(after, text)) {
+            await clearDraft(page, guarded);
+            return { status: "failed", reason: "chữ trong ô soạn tin không khớp câu trả lời; đã xóa bản nháp, chưa gửi gì" };
+        }
 
         if (!(await guarded())) return { status: "failed", reason: "nhóm đang mở đã đổi trước khi bấm Enter" };
+        deps.beforeEnter?.();
         await page.input("Input.dispatchKeyEvent", { type: "rawKeyDown", ...key });
         await page.input("Input.dispatchKeyEvent", { type: "char", text: "\r", ...key });
         await page.input("Input.dispatchKeyEvent", { type: "keyUp", ...key });

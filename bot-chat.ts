@@ -55,10 +55,17 @@ async function main(): Promise<void> {
     const beat = () => writeState({ pid: process.pid, startedAt, lastBeat: Date.now(), dryRun: rules.dryRun, groups: Object.keys(rules.groups), lastSummary });
     beat();
     setInterval(beat, HEARTBEAT_MS);
-    const stop = () => {
+    let inCycle = false;
+    let stopping = false;
+    const deferUntil = new Map<string, number>();
+    const finish = () => {
         writeState({ pid: process.pid, startedAt, lastBeat: Date.now(), stopped: true, dryRun: rules.dryRun });
         releaseScrapeLock();
         process.exit(0);
+    };
+    const stop = () => {
+        stopping = true;
+        if (!inCycle) finish(); // a send in flight is allowed to finish first (see the loop)
     };
     process.on("SIGINT", stop);
     process.on("SIGTERM", stop);
@@ -81,8 +88,10 @@ async function main(): Promise<void> {
         }
 
         const done = loadDone();
+        inCycle = true;
         const summary = await runChatCycle({
             now: () => Date.now(),
+            deferUntil,
             rules,
             limiter,
             readNew: () => readInbox(DEFAULT_INBOX_PATH, DEFAULT_CURSOR_PATH),
@@ -102,10 +111,10 @@ async function main(): Promise<void> {
                     releaseScrapeLock();
                 }
             },
-            send: async (group, text) => {
+            send: async (group, text, hooks) => {
                 const page = await connectToZaloMainPage(config.cdpUrl);
                 try {
-                    return await sendReply(toSendPage(page), group, text, { delay, log });
+                    return await sendReply(toSendPage(page), group, text, { delay, log, ...hooks });
                 } finally {
                     page.close();
                 }
@@ -113,6 +122,8 @@ async function main(): Promise<void> {
             off: () => fs.existsSync(OFF_PATH),
             log,
         });
+        inCycle = false;
+        if (stopping) finish(); // SIGINT/SIGTERM arrived during the cycle: exit only now, never in the middle of a send
         if (summary.sent + summary.dryRun + summary.failed + summary.deferred > 0) {
             lastSummary = { at: Date.now(), ...summary };
             log(`[chat] vòng xong: ${JSON.stringify(summary)}`);

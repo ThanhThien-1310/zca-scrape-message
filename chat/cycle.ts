@@ -2,10 +2,15 @@ import type { InboxItem } from "./inbox.js";
 import { isStale, type Limiter } from "./limits.js";
 import { pickRule, renderReply } from "./match.js";
 import type { ChatRules } from "./rules.js";
-import type { SendResult } from "./send.js";
+import type { SendHooks, SendResult } from "./send.js";
+
+/** Sau một lần gửi bị hoãn (ô soạn tin đang có chữ, chưa mở được nhóm) không chạm vào Zalo lại trong khoảng này. */
+export const SKIP_BACKOFF_MS = 45_000;
 
 export interface ChatDeps {
     now(): number;
+    /** Từ `msgId` tới thời điểm sớm nhất được thử gửi lại; do người gọi giữ trong bộ nhớ giữa các vòng. */
+    deferUntil: Map<string, number>;
     rules: ChatRules;
     limiter: Limiter;
     /** Các dòng hộp thư chưa xử lý, theo thứ tự. */
@@ -14,11 +19,12 @@ export interface ChatDeps {
     commit(end: number): void;
     isDone(msgId: string): boolean;
     markDone(msgId: string): void;
-    /** Ghi câu sắp gửi vào sổ tin dội lại; gọi TRƯỚC khi gửi. */
+    /** Ghi câu sắp gửi vào sổ tin dội lại; được gọi (qua `hooks.beforeType`) sau khi chốt chặn đã qua, trước khi gõ. */
     recordSent(group: string, text: string, at: number): void;
     /** Chạy `fn` khi giữ khóa giao diện Zalo; `acquired: false` khi người khác đang giữ. */
     withLock(fn: () => Promise<SendResult>): Promise<{ acquired: true; result: SendResult } | { acquired: false }>;
-    send(group: string, text: string): Promise<SendResult>;
+    /** Gửi thật; phải gọi `hooks.beforeType` và `hooks.beforeEnter` đúng lúc. */
+    send(group: string, text: string, hooks: SendHooks): Promise<SendResult>;
     /** Công tắc dừng nhanh (tệp `data/.chat-off`). */
     off(): boolean;
     log(message: string): void;
@@ -49,6 +55,11 @@ export async function runChatCycle(deps: ChatDeps): Promise<ChatSummary> {
         if (deps.isDone(entry.msgId)) {
             advanceTo = end;
             continue;
+        }
+        const retryAt = deps.deferUntil.get(entry.msgId);
+        if (retryAt !== undefined && now < retryAt) {
+            summary.deferred++; // vừa bị hoãn: đừng giật giao diện Zalo của người dùng mỗi vòng
+            break;
         }
         const group = deps.rules.groups[entry.groupName];
         if (!group) {
@@ -98,10 +109,15 @@ export async function runChatCycle(deps: ChatDeps): Promise<ChatSummary> {
             continue;
         }
 
-        deps.recordSent(entry.groupName, text, now);
+        const hooks: SendHooks = {
+            // Sổ tin dội lại chỉ được ghi khi chắc chắn sắp gõ (chốt chặn đã qua), và tin được đánh dấu xong TRƯỚC
+            // Enter: chết ngay sau Enter thì mất một câu trả lời, không bao giờ gửi trùng.
+            beforeType: () => deps.recordSent(entry.groupName, text, now),
+            beforeEnter: () => deps.markDone(entry.msgId),
+        };
         let outcome: { acquired: true; result: SendResult } | { acquired: false };
         try {
-            outcome = await deps.withLock(() => deps.send(entry.groupName, text));
+            outcome = await deps.withLock(() => deps.send(entry.groupName, text, hooks));
         } catch (err) {
             outcome = { acquired: true, result: { status: "failed", reason: (err as Error).message } };
         }
@@ -118,7 +134,8 @@ export async function runChatCycle(deps: ChatDeps): Promise<ChatSummary> {
             summary.sent++;
             advanceTo = end;
         } else if (result.status === "skipped") {
-            deps.log(`[chat] chưa gửi được vào "${entry.groupName}" (${result.reason}): hoãn`);
+            deps.log(`[chat] chưa gửi được vào "${entry.groupName}" (${result.reason}): hoãn ${SKIP_BACKOFF_MS / 1000} giây`);
+            deps.deferUntil.set(entry.msgId, now + SKIP_BACKOFF_MS);
             summary.deferred++;
             break;
         } else {

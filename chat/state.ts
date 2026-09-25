@@ -10,7 +10,8 @@ const ECHO_WINDOW_MS = 2 * 60_000;
 
 function writeAtomic(file: string, value: unknown): void {
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    const tmp = `${file}.tmp`;
+    // Tên tạm riêng cho từng tiến trình: `bot:watch` và `bot:chat` cùng ghi sổ tin đã gửi và không được dẫm lên tệp tạm của nhau.
+    const tmp = `${file}.${process.pid}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(value, null, 2), "utf8");
     fs.renameSync(tmp, file);
 }

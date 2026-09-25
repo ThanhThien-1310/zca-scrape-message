@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { MessageStore } from "../store/messageStore.js";
 import { CdpPage, connectToZaloMainPageEarly, connectToZaloNotificationPage } from "./cdp.js";
 import { forceRestartZalo } from "./desktopScraper.js";
-import { routeMessage } from "../chat/fanout.js";
+import { routeMessageSafe } from "../chat/fanout.js";
 import { appendInbox } from "../chat/inbox.js";
 import { makeGroupNameReader } from "../chat/rules.js";
 import { consumeEcho } from "../chat/state.js";
@@ -90,12 +90,15 @@ export async function watch(): Promise<void> {
     const chatGroups = makeGroupNameReader();
     installRealtimeListener(mainPage, (event) => {
         const target = groupIdToTarget.get(event.groupId);
-        const route = routeMessage({
-            event,
-            target,
-            allowedGroups: chatGroups(),
-            consumeEcho: (t, text) => consumeEcho(t, text, Date.now()),
-        });
+        const route = routeMessageSafe(
+            {
+                event,
+                target,
+                allowedGroups: chatGroups(),
+                consumeEcho: (t, text) => consumeEcho(t, text, Date.now()),
+            },
+            (err) => console.warn(`[watch] chat routing failed, the group is still queued for scraping: ${err.message}`),
+        );
         if (route.inbox) {
             try {
                 appendInbox(route.inbox);

@@ -18,11 +18,13 @@ interface Script {
     enterWorks: boolean;
     /** The open chat silently changes right after the text is inserted. */
     switchAfterInsert: boolean;
+    /** Input.insertText lands text that is not what was inserted (Zalo rewrote it). */
+    insertMangles: boolean;
 }
 
 function fake(target: string, over: Partial<Script> = {}) {
-    const s: Script = { startTitle: "LC_KhacNhom", opens: true, draft: false, insertWorks: true, charWorks: true, enterWorks: true, switchAfterInsert: false, ...over };
-    const st = { title: s.startTitle as string | null, empty: true, text: "", lastRow: "" };
+    const s: Script = { startTitle: "LC_KhacNhom", opens: true, draft: false, insertWorks: true, charWorks: true, enterWorks: true, switchAfterInsert: false, insertMangles: false, ...over };
+    const st = { title: s.startTitle as string | null, empty: true, text: "", lastRow: "", selectAll: false };
     const inputs: Array<{ method: string; params: any }> = [];
     const searches: string[] = [];
     let pendingName = "";
@@ -53,7 +55,7 @@ function fake(target: string, over: Partial<Script> = {}) {
         async input(method: string, params: any) {
             inputs.push({ method, params });
             if (method === "Input.insertText" && s.insertWorks) {
-                st.text += params.text;
+                st.text += s.insertMangles ? "###" : params.text;
                 st.empty = false;
                 if (s.switchAfterInsert) st.title = "LC_KhacNhom";
             }
@@ -65,6 +67,12 @@ function fake(target: string, over: Partial<Script> = {}) {
                 st.lastRow = st.text;
                 st.text = "";
                 st.empty = true;
+            }
+            if (method === "Input.dispatchKeyEvent" && params.type === "rawKeyDown" && params.key === "a" && params.modifiers === 2) st.selectAll = true;
+            if (method === "Input.dispatchKeyEvent" && params.type === "rawKeyDown" && params.key === "Backspace" && st.selectAll) {
+                st.text = "";
+                st.empty = true;
+                st.selectAll = false;
             }
         },
     };
@@ -142,4 +150,47 @@ test("multi-line replies are confirmed regardless of whitespace differences", as
     const r = await sendReply(f.page, "bot test", "Dòng 1\nDòng 2", deps);
     assert.deepEqual(r, { status: "sent" });
     assert.equal(norm(f.st.lastRow), "Dòng 1 Dòng 2");
+});
+
+test("text that landed but does not match is never typed over again: the draft is cleared and nothing is sent", async () => {
+    const f = fake("bot test", { insertMangles: true });
+    const r = await sendReply(f.page, "bot test", "Đã nhận thông tin có máy lỗi.", deps);
+    assert.equal(r.status, "failed");
+    assert.equal(typed(f.inputs).length, 1); // only the one insertText, no per-character retry on top of it
+    assert.equal(enters(f.inputs), 0);
+    assert.equal(f.st.text, ""); // cleared
+    assert.equal(f.st.empty, true);
+});
+
+test("when the open chat changed after typing, nothing is cleared (it would erase someone else's draft)", async () => {
+    const f = fake("bot test", { switchAfterInsert: true });
+    await sendReply(f.page, "bot test", "x", deps);
+    assert.equal(f.inputs.filter((i) => i.params.key === "Backspace").length, 0);
+});
+
+test("whitespace differences (a non-breaking space) do not make a correct insertion look like a mismatch", async () => {
+    const f = fake("bot test");
+    const r = await sendReply(f.page, "bot test", "Cảm ơn Cô Lan", deps);
+    assert.deepEqual(r, { status: "sent" });
+});
+
+test("hooks: beforeType runs after the guards and before any typing; beforeEnter runs after the text is in and before Enter", async () => {
+    const f = fake("bot test");
+    const seen: string[] = [];
+    await sendReply(f.page, "bot test", "ok", {
+        ...deps,
+        beforeType: () => seen.push(`beforeType inputs=${f.inputs.length}`),
+        beforeEnter: () => seen.push(`beforeEnter typed=${typed(f.inputs).length} enters=${enters(f.inputs)}`),
+    });
+    assert.deepEqual(seen, ["beforeType inputs=0", "beforeEnter typed=1 enters=0"]);
+});
+
+test("hooks are not called when the send is skipped or the guard fails", async () => {
+    for (const over of [{ opens: false }, { draft: true }, { switchAfterInsert: true }]) {
+        const f = fake("bot test", over);
+        const seen: string[] = [];
+        await sendReply(f.page, "bot test", "x", { ...deps, beforeType: () => seen.push("t"), beforeEnter: () => seen.push("e") });
+        assert.equal(seen.includes("e"), false, JSON.stringify(over));
+        if ("opens" in over || "draft" in over) assert.deepEqual(seen, [], JSON.stringify(over));
+    }
 });

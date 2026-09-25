@@ -4,7 +4,7 @@ import { runChatCycle, type ChatDeps } from "../chat/cycle.js";
 import type { InboxEntry, InboxItem } from "../chat/inbox.js";
 import { createLimiter } from "../chat/limits.js";
 import { parseRules } from "../chat/rules.js";
-import type { SendResult } from "../chat/send.js";
+import type { SendHooks, SendResult } from "../chat/send.js";
 import { COMPLETE, FAULTY_WITH_NOTE } from "./fixtures.js";
 
 const NOW = 1_000_000;
@@ -21,14 +21,15 @@ const rules = (over: Record<string, unknown> = {}) =>
     );
 const item = (n: number, text: string, over: Partial<InboxEntry> = {}): InboxItem => ({ entry: { groupName: "bot test", groupId: "g1", msgId: `m${n}`, senderId: "u", senderName: "Cô Lan", ts: NOW - 5_000, text, ...over }, end: n * 100 });
 
-function harness(items: InboxItem[], opts: { rules?: ReturnType<typeof rules>; send?: (g: string, t: string) => Promise<SendResult>; locked?: boolean; off?: boolean; done?: string[] } = {}) {
+function harness(items: InboxItem[], opts: { rules?: ReturnType<typeof rules>; send?: (g: string, t: string, hooks: SendHooks) => Promise<SendResult>; locked?: boolean; off?: boolean; done?: string[]; clock?: { now: number } } = {}) {
     const r = opts.rules ?? rules();
     const calls: string[] = [];
     const done = new Set(opts.done ?? []);
     let committed: number | null = null;
     const sentLedger: Array<[string, string]> = [];
     const deps: ChatDeps = {
-        now: () => NOW,
+        now: () => (opts.clock ? opts.clock.now : NOW),
+        deferUntil: new Map<string, number>(),
         rules: r,
         limiter: createLimiter(r.limits),
         readNew: () => items,
@@ -39,8 +40,10 @@ function harness(items: InboxItem[], opts: { rules?: ReturnType<typeof rules>; s
         withLock: async (fn) => (opts.locked ? { acquired: false } : { acquired: true, result: await fn() }),
         send:
             opts.send ??
-            (async (g, t) => {
+            (async (g, t, hooks) => {
+                hooks.beforeType?.();
                 calls.push(`send:${g}:${t}`);
+                hooks.beforeEnter?.();
                 return { status: "sent" };
             }),
         off: () => !!opts.off,
@@ -151,4 +154,44 @@ test("the kill switch stops all sending and consumes the messages", async () => 
     assert.deepEqual(h.calls, []);
     assert.equal(s.ignored, 1);
     assert.equal(h.committed, 100);
+});
+
+test("the ledger is written by the sender only after its guards passed: a skipped send leaves no ledger entry", async () => {
+    const h = harness([item(1, "máy hỏng")], { send: async () => ({ status: "skipped", reason: "draft" }) });
+    await runChatCycle(h.deps);
+    assert.deepEqual(h.sentLedger, []);
+});
+
+test("a message is marked done BEFORE Enter is pressed, so a crash right after Enter cannot cause a second reply", async () => {
+    let doneAtEnter: boolean | null = null;
+    const h = harness([item(1, "máy hỏng")], {
+        send: async (_g, _t, hooks) => {
+            hooks.beforeType?.();
+            hooks.beforeEnter?.();
+            doneAtEnter = h.done.has("m1");
+            return { status: "sent" };
+        },
+    });
+    await runChatCycle(h.deps);
+    assert.equal(doneAtEnter, true);
+});
+
+test("a skipped send backs off: the next cycles do not touch Zalo again until the delay has passed", async () => {
+    const clock = { now: NOW };
+    let attempts = 0;
+    const h = harness([item(1, "máy hỏng")], {
+        clock,
+        send: async () => {
+            attempts++;
+            return { status: "skipped", reason: "draft" };
+        },
+    });
+    await runChatCycle(h.deps);
+    assert.equal(attempts, 1);
+    clock.now = NOW + 10_000;
+    await runChatCycle(h.deps);
+    assert.equal(attempts, 1); // still backing off
+    clock.now = NOW + 46_000;
+    await runChatCycle(h.deps);
+    assert.equal(attempts, 2);
 });
