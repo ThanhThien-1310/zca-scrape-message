@@ -20,6 +20,8 @@
         "bot:runner": "tsx bot-runner.ts",
         "runner:once": "tsx runnerOnce.ts",
         "runner:status": "tsx runnerStatus.ts",
+        "bot:chat": "tsx bot-chat.ts",
+        "chat:status": "tsx chatStatus.ts",
         "export:lesson-report": "tsx exportLessonReport.ts",
         "mark:messages": "tsx markMessages.ts"
     },
