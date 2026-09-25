@@ -93,6 +93,11 @@ export class CdpPage {
         await this.send("Runtime.enable");
     }
 
+    /** Sends a raw CDP `Input.*` command (typing into the page); used by `bot:chat`. */
+    async dispatchInput(method: string, params: Record<string, unknown> = {}): Promise<void> {
+        await this.send(method, params);
+    }
+
     /** Evaluate an expression in the page and return its structured-cloned value. */
     async evaluate<T>(expression: string): Promise<T> {
         const result = await this.send("Runtime.evaluate", {
