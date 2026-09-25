@@ -34,6 +34,8 @@ npm run watch:status                           # is bot:watch alive? when did it
 npm run bot:runner                             # long-running orchestrator: queue has groups + quiet for 2 min -> scrape, sync DB, extract, refresh the session's Excel
 npm run runner:status                          # is bot:runner alive? last cycle, queue, sessions still owing a rebuild (exit 2 when not alive)
 npm run runner:once -- [--day D] [--buoi B]    # rebuild ONE session's outputs without scraping (after editing output/overrides.json)
+npm run bot:chat                               # auto-reply from chat-rules.json: reads data/.chat-inbox.jsonl (written by bot:watch), sends via Zalo Desktop's UI
+npm run chat:status                            # is bot:chat alive? dry-run or live, groups, pending inbox (exit 2 when not alive)
 npm run recover:missing -- [--day D] [--buoi B] [--dry-run]   # only if bot:watch had a gap: re-scrape just the groups missing a report, list what was missed
 ```
 
@@ -50,6 +52,8 @@ drives Zalo Desktop's UI, so running both at once is safe. See README "Hàng ch�
 giữa `bot:watch` và `bot:scrape`".
 
 **`bot:runner` is the third process** (runner/, `bot-runner.ts`): it reads the queue, waits until it has been quiet for 2 minutes (10 minutes at most from the first group), then runs a cycle (`runner/cycle.ts`): recover a `bot:watch` gap, scrape the queue, sync the DB, and for every session that got a new start/end report extract, replace the Excel via a temp file (`runner/safeReplace.ts`) and mark the messages. Everything that drives Zalo Desktop's UI (manual `bot:scrape` and each runner cycle) holds `data/.scrape.lock` (`history/scrapeLock.ts`). Which sessions to build is derived from `data/.runner-built.json` (keys of reports already built): a report on disk that is not in it makes its session dirty, so a crash mid-cycle or a manual scrape loses nothing. The runner never restarts `bot:watch`; like `bot:scrape`, a scrape relaunches Zalo Desktop if its debug port is closed, so the runner does nothing while `bot:watch` is still starting. Design: `docs/superpowers/specs/2026-09-25-bot-runner-design.md`.
+
+**`bot:chat` is the fourth process** (chat/, `bot-chat.ts`): `bot:watch` stays the only listener (only it holds the WS cipher key) and splits each message into two independent lanes via `chat/fanout.ts`: the scrape queue (for `bot:runner`) and the chat inbox `data/.chat-inbox.jsonl` (for `bot:chat`; only text messages of the groups named in `chat-rules.json`, never the account's own). `bot:chat` reads the inbox, matches `chat-rules.json` (`chat/match.ts`; `mayLoi` is derived from the report parser, not a keyword, so "Tổng số máy bị lỗi: 0" never matches), limits rate (`chat/limits.ts`) and sends through the UI (`chat/send.ts`: before every keystroke it re-checks that both the selected sidebar title and the composer placeholder name the target group). Sent replies are written to `data/.chat-sent.json` BEFORE sending so `bot:watch` drops their echo from both lanes. Sending holds `data/.scrape.lock`. Design: `docs/superpowers/specs/2026-09-25-bot-chat-design.md`.
 
 ## Architecture
 

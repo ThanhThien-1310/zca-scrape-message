@@ -221,6 +221,19 @@ npm run runner:once -- [--day D] [--buoi B]          # dựng lại MỘT buổi
 
 Tệp trạng thái: `data/.runner-state.json` (nhịp tim), `output/runner-log.jsonl` (mỗi vòng một dòng), `data/.runner-built.json` (các báo cáo đã dựng vào Excel: báo cáo nằm trên đĩa mà chưa có ở đây sẽ được dựng, nên crash giữa vòng hay cào tay không làm mất buổi nào), `data/.scrape-queue-meta.json` và `data/.scrape-queue-seen.json` (thời điểm nhóm vào hàng chờ, và tin đến khi nhóm đang nằm trong hàng chờ nên không bị bỏ sót), `data/.scrape.lock` (khóa chung: mọi thứ điều khiển giao diện Zalo, gồm `bot:scrape` chạy tay, không chạy cùng lúc). Giới hạn đã biết: cào điều khiển giao diện Zalo Desktop (nhấp, cuộn) nên có thể làm gián đoạn người đang gõ trong Zalo.
 
+### `bot:chat`: tự động trả lời theo kịch bản
+
+`bot:chat` đọc tin chữ mới trong các nhóm liệt kê ở `chat-rules.json` và trả lời bằng câu có sẵn theo tình huống (ví dụ báo cáo có máy lỗi). `bot:watch` vẫn là nơi duy nhất nghe tin (WebSocket) và chia mỗi tin thành hai luồng độc lập: hàng chờ cào (cho `bot:runner`) và hộp thư chat `data/.chat-inbox.jsonl` (cho `bot:chat`). Câu bot gửi ra được ghi vào sổ để `bot:watch` bỏ qua khi nó dội lại (không cào thừa, không tự trả lời chính mình). Gửi qua giao diện Zalo Desktop (CDP) và giữ khóa `data/.scrape.lock` chung với `bot:runner`.
+
+```bash
+npm run bot:chat        # chạy nền; nạp lại chat-rules.json khi tệp đổi (tệp sai thì giữ bản cũ)
+npm run chat:status     # còn sống không, gửi thật hay dry-run, nhóm nào, còn bao nhiêu tin chờ (thoát mã 2 nếu không sống)
+```
+
+`chat-rules.json` (mẫu: `docs/superpowers/specs/2026-09-25-bot-chat-rules.sample.json`): `dryRun`; `limits` (`maxRepliesPerMinute`, `maxReplyDelaySeconds`, `cooldownSecondsPerRule`); `groups` với tên nhóm (bắt buộc thuộc `config.targets`) và `rules` xét theo thứ tự, tình huống đầu tiên khớp thì trả lời. `when`: `loaiBaoCao` (`DauBuoi`/`CuoiBuoi`), `mayLoi: true` (số máy lỗi > 0 hoặc có ghi chú như "IT bảo trì"; số 0 thì không), `keywords` (không phân biệt dấu và hoa thường). `reply` có thể chèn `{senderName}`.
+
+Tệp trạng thái: `data/.chat-inbox.jsonl` và `data/.chat-inbox.cursor` (hộp thư và vị trí đã đọc), `data/.chat-done.json` (tin đã xử lý), `data/.chat-sent.json` (câu vừa gửi, để nhận ra tin dội lại), `data/.chat-state.json` (nhịp tim). Tạo tệp `data/.chat-off` để dừng gửi ngay. Giới hạn đã biết: chỉ tin chữ; chưa trả lời dạng trích dẫn; mỗi lần gửi chiếm giao diện Zalo (nên dành riêng một bản Zalo cho bot khi có nhiều nhóm); nội dung chỉ lấy từ WebSocket của `bot:watch`, mất WebSocket thì bot không trả lời; tự động gửi tin có thể bị Zalo coi là bất thường.
+
 ## Báo cáo buổi dạy (skill Teach-lesson-skills-V2)
 
 Luồng: `bot:scrape` → `sync:db -- --apply` → `extract:reports -- --buoi <sang|chieu|toi>` → agent xem

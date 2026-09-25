@@ -173,6 +173,19 @@ Sửa đường dẫn theo máy của bạn. Cách khác là PM2 chạy như d�
 - Sau 3 vòng lỗi liên tiếp runner ngừng tự thử (`runner:status` báo `LỖI`, hàng chờ vẫn nguyên): xem `output/runner-log.jsonl`, sửa nguyên nhân rồi khởi động lại tay.
 - Khi runner chạy, lịch của agent chỉ còn là **giám sát**: nó đọc `runner:status`, xử lý `output/review.json` và chạy `runner:once` để dựng lại sau khi sửa; nó không cào hay đồng bộ nữa.
 
+### 8.1c. `bot:chat` trả lời tự động
+
+`bot:chat` trả lời tin trong các nhóm liệt kê ở `chat-rules.json` theo tình huống bạn viết sẵn. Thứ tự bật:
+
+1. **Khởi động lại `bot:watch`** để nạp mã chia tin vào hộp thư chat (việc này tắt và mở lại Zalo Desktop, làm lúc không dùng Zalo). Không khởi động lại thì `bot:chat` không nhận được tin nào.
+2. Sửa `chat-rules.json`. Nên đặt `"dryRun": true` trước để xem log "sẽ trả lời gì" mà chưa gửi thật; nhóm `bot test` là nơi thử gửi thật đầu tiên. Tên nhóm phải có trong `config.targets`.
+3. `npm run bot:chat` (cửa sổ riêng), rồi `npm run chat:status` để xem trạng thái.
+4. Giữ chạy nền bằng tác vụ Windows tương tự runner: `schtasks /Create /TN "Zalo Chat" /SC ONLOGON /TR "cmd /c cd /d <đường dẫn>\zca-scrape-message && npm run bot:chat >> data\chat.log 2>&1" /F`.
+
+- **Dừng khẩn cấp:** tạo tệp `data/.chat-off` (bot vẫn đọc hộp thư nhưng không gửi gì); xóa tệp để gửi lại.
+- Bot không trả lời tin quá `maxReplyDelaySeconds`, không lặp lại cùng một tình huống trong `cooldownSecondsPerRule`, và không gửi quá `maxRepliesPerMinute` tin mỗi phút. Ô soạn tin đang có chữ dở (bạn đang gõ) thì bot hoãn, không gõ đè.
+- Tài khoản dùng cho bot nên dành riêng: việc tự động gửi tin có thể bị Zalo coi là bất thường, và mỗi lần gửi bot chuyển cuộc trò chuyện đang mở.
+
 ### 8.2. Gateway OpenClaw
 
 Lịch chạy của agent do gateway OpenClaw quản lý. Cấu hình hiện tại chạy gateway cục bộ ở cổng 18789 (tác vụ Windows `OpenClaw Gateway`, script `~\.openclaw\gateway.cmd`). Kiểm tra gateway đang chạy:
