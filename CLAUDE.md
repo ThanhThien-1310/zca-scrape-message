@@ -26,15 +26,22 @@ npm run zalo:debug                             # just relaunch Zalo Desktop with
 npx tsx history/exportExcelCli.ts <threadId> [senderName]   # export already-scraped thread to .xlsx (npm run export:excel -- <threadId> [senderName])
 npm run mcp                                    # start the read-only MCP server over stdio
 npm run typecheck                              # tsc --noEmit
+npm test                                       # unit tests for the lesson-report extractor (node:test)
+npm run extract:reports -- [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--no-db]   # extract one session's start/end-of-lesson reports -> output/{output,marks,review,meta}.json
+npm run fill:report -- output/output.json      # fill templates/Temp_RoomFacility_rpt.xlsm, run its macro -> data/export/baocaobuoi<buoi>_<ddMMyy>.xlsm (needs Excel)
+npm run mark:messages -- output/marks.json     # set StatusId/HasRead on Zalo_CrawlMessage rows
 ```
 
-There is no test suite and no lint script configured. `curl http://127.0.0.1:9222/json/version`
+The only tests are the unit tests under tests/ (`npm test`) for the lesson-report code in lesson/; there is no lint script. `curl http://127.0.0.1:9222/json/version`
 checks whether the CDP debug port is currently open (should return JSON, not
 connection-refused).
 
-**Never run `bot:scrape` and `bot:watch` at the same time** — both call
-`ensureZaloReady()`, which may kill/relaunch `Zalo.exe`; doing so while the
-other mode has an active CDP connection will sever it.
+**Running `bot:scrape` and `bot:watch` at the same time is safe** — `bot:scrape`
+(`index.ts`) auto-detects `bot:watch`'s localhost-only control server
+(`config.watchControlPort`, default 8765) and delegates to it (`POST /scrape`,
+routed through `watch.ts`'s own serialized queue) instead of opening a second
+CDP connection; if that server isn't reachable, it falls back to running
+standalone as before. See README "Chạy song song `bot:scrape` và `bot:watch`".
 
 ## Architecture
 

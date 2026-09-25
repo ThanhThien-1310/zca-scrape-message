@@ -44,9 +44,11 @@ WebSocket thô (`Runtime.evaluate`) thay vì dùng Playwright.
 
 Cả 2 chế độ quét đều ghi vào cùng 1 kho `data/<groupId>.json` (1 file JSON
 dạng mảng cho mỗi cuộc trò chuyện, dedupe theo `msgId`), nên chạy xen kẽ giữa
-2 chế độ ở các thời điểm khác nhau không tạo dữ liệu trùng — chỉ lưu ý
-**không chạy đồng thời cùng lúc** (xem cảnh báo ở mục [Theo dõi thời gian
-thực](#chế-độ-theo-dõi-thời-gian-thực-watch)).
+2 chế độ ở các thời điểm khác nhau không tạo dữ liệu trùng. **Chạy đồng thời
+cũng an toàn**: nếu `bot:watch` đang chạy sẵn, `bot:scrape` tự động **uỷ
+quyền** cho nó qua 1 control server nội bộ (`127.0.0.1`) thay vì tự mở kết
+nối CDP riêng — xem mục [Theo dõi thời gian
+thực](#chế-độ-theo-dõi-thời-gian-thực-watch).
 
 ## Bắt đầu nhanh
 
@@ -163,14 +165,27 @@ theo nguồn nào kích hoạt:
    tự tay chuyển sang xem nhóm khác trong lúc watcher đang chạy, tin nhắn
    của nhóm đó vẫn được gán đúng `groupId`, không bị lẫn vào nhóm trước đó.
 
-> [!WARNING]
-> **Không chạy đồng thời `bot:scrape` (qua Task Scheduler) và `bot:watch`.**
-> `bot:watch` luôn tắt/mở lại Zalo Desktop lúc khởi động (không chỉ khi
-> debug port chưa mở, khác với `bot:scrape`); `bot:scrape` cũng có thể
-> tắt/mở lại nếu thấy debug port chưa mở. Nếu 1 trong 2 làm vậy giữa lúc
-> bên kia đang chạy, toàn bộ kết nối CDP của bên đó sẽ bị đứt theo (và
-> `bot:watch` sẽ mất luôn cipher key WS đang có, phải bắt lại từ đầu ở lần
-> chạy sau). Chọn 1 trong 2 chế độ vận hành trên cùng 1 máy.
+### Chạy song song `bot:scrape` và `bot:watch`
+
+An toàn — không cần chọn 1 trong 2. `bot:watch` mở thêm 1 **control server
+nội bộ** (`127.0.0.1:config.watchControlPort`, mặc định `8765`, không mở ra
+mạng ngoài) ngay khi khởi động xong. Khi chạy `npm run bot:scrape` (hoặc
+`npx tsx index.ts`), script tự kiểm tra: nếu control server đó phản hồi được
+(tức `bot:watch` đang chạy sẵn) → gửi yêu cầu `POST /scrape` sang đó, để
+chính `bot:watch` cào giúp bằng `mainPage` nó đang có, đẩy vào **chung hàng
+đợi debounce** đang xử lý các trigger WS/notification — không bao giờ có 2
+kết nối CDP cùng lúc điều khiển 1 cửa sổ Zalo Desktop. Nếu `bot:watch`
+**không** chạy, `bot:scrape` tự làm như cũ (tự mở kết nối riêng) — không
+bắt buộc phải có `bot:watch` chạy nền mới dùng được `bot:scrape`.
+
+> [!NOTE]
+> Rủi ro thật của việc chạy 2 tiến trình riêng biệt không phải là chuyện
+> Zalo Desktop bị tắt/mở lại (an toàn, không mất dữ liệu) — mà là **2 tiến
+> trình cùng thao tác lên 1 giao diện Zalo Desktop thật** (gõ ô tìm kiếm,
+> click sidebar, cuộn màn hình) cùng lúc, dễ đọc sai nhóm/sai dữ liệu. Cơ
+> chế uỷ quyền qua control server ở trên giải quyết đúng vấn đề này bằng
+> cách đảm bảo luôn chỉ có 1 tiến trình thật sự điều khiển UI tại một thời
+> điểm.
 
 > [!NOTE]
 > Watcher hiện chỉ là 1 tiến trình Node bình thường — đóng terminal là nó
@@ -218,6 +233,16 @@ curl http://127.0.0.1:9222/json/version
 Có kết quả JSON (không lỗi connection refused) nghĩa là CDP đã sẵn sàng.
 Đổi `9222` nếu bạn đã đổi `config.cdpPort`.
 
+## Báo cáo buổi dạy (skill Teach-lesson-skills-V2)
+
+Luồng: `bot:scrape` → `sync:db -- --apply` → `extract:reports -- --buoi <sang|chieu|toi>` → agent xem
+`output/review.json` (sửa qua `output/overrides.json`) → `fill:report -- output/output.json` →
+`mark:messages -- output/marks.json`. Mỗi lần chỉ xử lý một buổi của một ngày và tạo file
+`data/export/baocaobuoi<buoi>_<ddMMyy>.xlsm`.
+Chi tiết trong `Teach-lesson-skills-V2/SKILL.md` và
+`docs/superpowers/specs/2026-09-24-teacher-lesson-report-extraction-design.md`.
+Mã trích xuất nằm trong `lesson/` và có test (`npm test`); `fill:report` cần Microsoft Excel.
+
 ## Cấu trúc dự án
 
 ```
@@ -236,7 +261,8 @@ history/
                                   domain (best-effort, xem mục Bảo trì)
   cdp.ts                         client CDP thô (WebSocket) thay Playwright
   scrapeSelectors.ts             CSS selector DOM Zalo Desktop
-  exportExcel.ts / exportExcelCli.ts   xuất .xlsx từ dữ liệu đã cào
+  exportExcel.ts / exportExc
+  elCli.ts   xuất .xlsx từ dữ liệu đã cào
 
 store/
   messageStore.ts                ghi/đọc data/<groupId>.json (mảng JSON), dedupe
