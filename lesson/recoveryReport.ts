@@ -1,22 +1,7 @@
-import type { GapReason } from "../history/watchState.js";
+import { GAP_REASON_TEXT, hhmm } from "../history/watchStatusReport.js";
 import type { RecoveryResult } from "./recoveryRun.js";
 import type { LoaiBaoCao } from "./types.js";
 
-const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
-const pad = (n: number) => String(n).padStart(2, "0");
-
-function hhmm(ts: number): string {
-    const d = new Date(ts + VN_OFFSET_MS);
-    return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-}
-
-const REASON_TEXT: Record<GapReason, string> = {
-    crash: "chết đột ngột",
-    stopped: "dừng có chủ ý",
-    blind: "mất cả hai nguồn phát hiện",
-    fatal: "dừng vì lỗi nghiêm trọng",
-    unknown: "chưa có dữ liệu nhịp tim",
-};
 const KIND_TEXT: Record<LoaiBaoCao, string> = { DauBuoi: "đầu buổi", CuoiBuoi: "cuối buổi" };
 
 const missingText = (m: { target: string; missing: LoaiBaoCao[] }) => `${m.target} (thiếu: ${m.missing.map((k) => KIND_TEXT[k]).join(", ")})`;
@@ -33,7 +18,7 @@ export function formatRecovery(r: RecoveryResult): string[] {
     for (const g of r.gaps) {
         const from = g.from < r.window.from ? "trước buổi" : hhmm(g.from);
         const to = g.to === null ? "đang diễn ra" : hhmm(g.to);
-        lines.push(`[recover] gián đoạn: ${from} → ${to} (${REASON_TEXT[g.reason]})`);
+        lines.push(`[recover] gián đoạn: ${from} → ${to} (${GAP_REASON_TEXT[g.reason]})`);
     }
 
     if (r.status === "nothing-missing") {
