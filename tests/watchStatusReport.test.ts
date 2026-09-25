@@ -64,3 +64,16 @@ test("an unknown gap has no start time to show", () => {
     assert.match(t, /không rõ → đang diễn ra \(chưa có dữ liệu nhịp tim\)/);
     assert.doesNotMatch(t, /07:00/);
 });
+
+test("with a session, the last line says whether recovery is needed", () => {
+    const gap: Gap = { from: at(8, 0), to: at(8, 30), reason: "crash" };
+    const needed = formatWatchStatus(state(), [gap], NOW, { day: "2026-09-24", buoi: "sang", overlapping: [gap] }).join("\n");
+    assert.match(needed, /buổi sang ngày 2026-09-24: có 1 khoảng gián đoạn chồng lên buổi → CẦN chạy recover:missing/);
+
+    const fine = formatWatchStatus(state(), [], NOW, { day: "2026-09-24", buoi: "chieu", overlapping: [] }).join("\n");
+    assert.match(fine, /buổi chieu ngày 2026-09-24: không có gián đoạn chồng lên buổi → không cần khôi phục/);
+});
+
+test("without a session no verdict line is added", () => {
+    assert.doesNotMatch(text(state()), /CẦN chạy recover|không cần khôi phục/);
+});

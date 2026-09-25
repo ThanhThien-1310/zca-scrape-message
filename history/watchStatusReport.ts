@@ -29,8 +29,11 @@ function ago(ms: number): string {
     return `${Math.floor(m / 60)} giờ ${m % 60} phút`;
 }
 
-/** Human-readable lines for `watch:status` (Vietnam time). */
-export function formatWatchStatus(state: WatchState | null, gaps: Gap[], now: number): string[] {
+/**
+ * Human-readable lines for `watch:status` (Vietnam time). With `session`, ends with the
+ * verdict an agent acts on: does a gap overlap that session (so `recover:missing` is needed)?
+ */
+export function formatWatchStatus(state: WatchState | null, gaps: Gap[], now: number, session?: { day: string; buoi: string; overlapping: Gap[] }): string[] {
     const lines: string[] = [];
 
     if (!state) {
@@ -61,6 +64,15 @@ export function formatWatchStatus(state: WatchState | null, gaps: Gap[], now: nu
     } else {
         lines.push("[watch] khoảng gián đoạn trong 24 giờ qua:");
         for (const g of recent) lines.push(`  - ${g.from === 0 ? "không rõ" : hhmm(g.from)} → ${g.to === null ? "đang diễn ra" : hhmm(g.to)} (${GAP_REASON_TEXT[g.reason]})`);
+    }
+
+    if (session) {
+        const head = `[watch] buổi ${session.buoi} ngày ${session.day}:`;
+        lines.push(
+            session.overlapping.length > 0
+                ? `${head} có ${session.overlapping.length} khoảng gián đoạn chồng lên buổi → CẦN chạy recover:missing`
+                : `${head} không có gián đoạn chồng lên buổi → không cần khôi phục`,
+        );
     }
     return lines;
 }

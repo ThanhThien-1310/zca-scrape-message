@@ -35,8 +35,9 @@ Hai bot phối hợp: `bot:watch` chỉ theo dõi và ghi tên nhóm có tin m�
 
 | Bước | Việc | Lệnh |
 |---|---|---|
+| 0 | Kiểm tra `bot:watch` qua log nhịp tim (chỉ đọc). Mã thoát `0` = bình thường, `2` = có gián đoạn trong buổi | `npm run watch:status -- --day YYYY-MM-DD --buoi sang\|chieu\|toi` |
 | 1 | Cào tin nhắn của các nhóm đang trong hàng chờ | `npm run bot:scrape` |
-| 1b | Khôi phục nếu `bot:watch` từng gián đoạn (không làm gì nếu không có gián đoạn) | `npm run recover:missing -- --day YYYY-MM-DD --buoi sang\|chieu\|toi` |
+| 1b | Khôi phục tin bị lỡ. **Bắt buộc khi bước 0 trả mã `2`**, bỏ qua khi mã `0` | `npm run recover:missing -- --day YYYY-MM-DD --buoi sang\|chieu\|toi` |
 | 2 | Đưa lên DB | `npm run sync:db -- --apply` |
 | 3 | Trích xuất bằng script (chỉ tin nhắn của một buổi) | `npm run extract:reports -- [--day YYYY-MM-DD] [--buoi sang\|chieu\|toi]` |
 | 4 | Agent giám sát: đọc kết quả và `output/review.json`, sửa nếu cần rồi chạy lại bước 3 | agent ghi `output/overrides.json` |
@@ -44,19 +45,32 @@ Hai bot phối hợp: `bot:watch` chỉ theo dõi và ghi tên nhóm có tin m�
 | 6 | Cập nhật DB | `npm run mark:messages -- output/marks.json` |
 | 7 | Thông báo | `"xong"` nếu thành công, ngược lại báo lỗi chi tiết |
 
-Nếu bất kỳ bước nào (trừ bước 1b, xem mục "Khôi phục khi `bot:watch` bị gián đoạn") lỗi thì dừng và báo lỗi, **không chạy tiếp các bước sau**; đặc biệt không chạy bước 6 khi bước 3 hoặc 5 lỗi, vì bước 6 đánh dấu tin nhắn đã đọc dù chưa có kết quả. Nếu bước 1 in `hàng chờ rỗng` thì **không dừng**: chỉ có nghĩa là không có nhóm nào cần cào thêm (dữ liệu có thể đã được cào trước đó, ví dụ ai đó đã chạy `bot:scrape` tay); cứ tiếp tục bước 2–6 với dữ liệu đã có. Chỉ khi bước 3 in `xét 0 tin` thì dừng và báo "không có tin nhắn trong buổi này". Đọc kỹ output của bước 1: dòng `sidebar item ... not found` hoặc `no messages found` nghĩa là nhóm đó có thể **chưa được cào** dù lệnh vẫn thoát mã 0; nêu tên nhóm đó trong thông báo cuối. Nếu không có tin nhắn báo cáo hợp lệ (`output.json` là `[]`) thì bước 5 tự bỏ qua, vẫn chạy bước 6 để đánh dấu các tin nhắn còn lại là `-1`. Chi tiết bước 3, 4, 5, 6 ở các mục "Script trích xuất và agent giám sát", "Điền file Excel mẫu" và "`markMessages.ts`" bên dưới.
+Nếu bất kỳ bước nào (trừ bước 0 và 1b, xem mục "Kiểm tra `bot:watch` và khôi phục khi bị gián đoạn") lỗi thì dừng và báo lỗi, **không chạy tiếp các bước sau**; đặc biệt không chạy bước 6 khi bước 3 hoặc 5 lỗi, vì bước 6 đánh dấu tin nhắn đã đọc dù chưa có kết quả. Nếu bước 1 in `hàng chờ rỗng` thì **không dừng**: chỉ có nghĩa là không có nhóm nào cần cào thêm (dữ liệu có thể đã được cào trước đó, ví dụ ai đó đã chạy `bot:scrape` tay); cứ tiếp tục bước 2–6 với dữ liệu đã có. Chỉ khi bước 3 in `xét 0 tin` thì dừng và báo "không có tin nhắn trong buổi này". Đọc kỹ output của bước 1: dòng `sidebar item ... not found` hoặc `no messages found` nghĩa là nhóm đó có thể **chưa được cào** dù lệnh vẫn thoát mã 0; nêu tên nhóm đó trong thông báo cuối. Nếu không có tin nhắn báo cáo hợp lệ (`output.json` là `[]`) thì bước 5 tự bỏ qua, vẫn chạy bước 6 để đánh dấu các tin nhắn còn lại là `-1`. Chi tiết bước 3, 4, 5, 6 ở các mục "Script trích xuất và agent giám sát", "Điền file Excel mẫu" và "`markMessages.ts`" bên dưới.
 
-## Khôi phục khi `bot:watch` bị gián đoạn (bước 1b)
+## Kiểm tra `bot:watch` và khôi phục khi bị gián đoạn (bước 0 và 1b)
 
-`bot:watch` là thứ duy nhất báo cho hàng chờ biết nhóm nào có tin mới. Nó ghi nhịp tim vào `data/.watch-state.json` (mỗi 30 giây, kèm trạng thái hai nguồn phát hiện: WebSocket và thông báo) và ghi mọi khoảng thời gian nó không lắng nghe vào `data/.watch-gaps.json` (chết đột ngột, dừng có chủ ý, hoặc còn sống nhưng mất cả hai nguồn). Bước 1b dùng các file này:
+`bot:watch` là thứ duy nhất báo cho hàng chờ biết nhóm nào có tin mới. Nó ghi nhịp tim vào `data/.watch-state.json` (mỗi 30 giây, kèm trạng thái hai nguồn phát hiện: WebSocket và thông báo) và ghi mọi khoảng thời gian nó không lắng nghe vào `data/.watch-gaps.json` (chết đột ngột, dừng có chủ ý, hoặc còn sống nhưng mất cả hai nguồn). Các log này có để **bạn (agent) tự quyết định** có cần khôi phục hay không mỗi khi đến giờ chạy.
 
-- Lệnh: `npm run recover:missing -- --day YYYY-MM-DD --buoi <sang|chieu|toi>` (truyền cùng `--day` và `--buoi` với bước 3). Thêm `--dry-run` để chỉ xem kế hoạch.
-- Nếu không có khoảng gián đoạn nào chồng lên buổi: lệnh in "không cần khôi phục" và không làm gì. Đây là trường hợp bình thường.
-- Nếu có: chỉ cào lại các nhóm còn **thiếu báo cáo đầu buổi hoặc cuối buổi** (nhóm trong `config.recoveryIgnoreTargets` được bỏ qua), từ trước khoảng gián đoạn 5 phút. Lệnh in các khoảng gián đoạn, các tin nhắn bị lỡ đã khôi phục và các nhóm vẫn thiếu, đồng thời ghi `output/recovery.json`.
-- Chưa có dữ liệu nhịp tim (chưa từng chạy `bot:watch` bản mới) được coi là gián đoạn "không rõ": lệnh sẽ cào lại các nhóm đang thiếu báo cáo.
-- Trong thông báo cuối, nêu: có khoảng gián đoạn nào (khi nào, vì sao), đã khôi phục bao nhiêu tin (nêu tiêu đề các báo cáo), và các nhóm **vẫn thiếu** báo cáo sau khi cào lại (người phụ trách cần nhắc; cũng có thể là nhóm không có lớp buổi đó).
-- Lệnh thoát mã 1 nghĩa là có nhóm không cào được: nêu tên nhóm đó nhưng **vẫn tiếp tục** bước 2–6.
-- Xem nhanh tình trạng `bot:watch` bất cứ lúc nào: `npm run watch:status` (còn sống hay đã chết lúc nào, nguồn nào đang hoạt động, các khoảng gián đoạn 24 giờ qua).
+**Quy định bắt buộc.** Làm đúng thứ tự, không hỏi lại người dùng:
+
+1. **Bước 0 — luôn chạy đầu tiên**, trước cả bước 1: `npm run watch:status -- --day <ngày> --buoi <buổi>` (cùng `--day` và `--buoi` với bước 3). Lệnh chỉ đọc log nhịp tim; không cào, không ghi DB.
+2. Đọc **mã thoát** của bước 0:
+
+   | Mã thoát | Ý nghĩa | Việc bạn làm |
+   |---|---|---|
+   | `0` | Không có khoảng gián đoạn nào chồng lên buổi: `bot:watch` đã lắng nghe suốt buổi | Bỏ qua bước 1b |
+   | `2` | Log ghi nhận `bot:watch` chết, dừng hoặc mù trong buổi này | **Bắt buộc chạy bước 1b** sau bước 1, chạy thật (không `--dry-run`) |
+   | `1` hoặc mã khác | Lệnh lỗi (ví dụ sai tham số) | Sửa tham số và chạy lại một lần; vẫn lỗi thì coi như không xác định và **chạy bước 1b** |
+
+3. **Bước 1b** (khi cần): `npm run recover:missing -- --day <ngày> --buoi <buổi>`.
+4. Nếu bước 0 in `CÓ VẺ ĐÃ CHẾT`, `ĐÃ DỪNG` hoặc `ĐANG CHẠY NHƯNG MÙ` (tức `bot:watch` **đang** không hoạt động), nêu trong thông báo cuối: "bot:watch đang không hoạt động, cần khởi động lại `npm run bot:watch`". **Không tự khởi động lại**: nó tắt và mở lại Zalo Desktop và có thể làm gián đoạn người đang dùng.
+5. Thông báo cuối phải nêu: kết luận của bước 0 (khoảng gián đoạn nào, lúc mấy giờ, lý do), việc đã khôi phục (nếu có), số tin bị lỡ đã khôi phục kèm tiêu đề các báo cáo, và các nhóm **vẫn thiếu** báo cáo sau khi cào lại (người phụ trách cần nhắc; cũng có thể là nhóm không có lớp buổi đó).
+
+**Bước 1b làm gì.** `recover:missing` tự kiểm tra lại các khoảng gián đoạn chồng lên buổi; nếu không có thì in "không cần khôi phục" và không làm gì. Nếu có, nó chỉ cào lại các nhóm còn **thiếu báo cáo đầu buổi hoặc cuối buổi** (nhóm trong `config.recoveryIgnoreTargets` được bỏ qua), từ trước khoảng gián đoạn 5 phút; in các khoảng gián đoạn, các tin nhắn bị lỡ đã khôi phục và các nhóm vẫn thiếu; ghi `output/recovery.json`.
+
+- Chưa có dữ liệu nhịp tim (chưa từng chạy `bot:watch` bản mới) được coi là gián đoạn "không rõ": bước 0 trả mã `2` và bước 1b cào lại các nhóm đang thiếu báo cáo.
+- `recover:missing` thoát mã `1` nghĩa là có nhóm không cào được: nêu tên nhóm đó nhưng **vẫn tiếp tục** bước 2–6.
+- Xem tình trạng `bot:watch` bất cứ lúc nào (không cần `--buoi`): `npm run watch:status`.
 
 ## Đối chiếu tên trường
 
