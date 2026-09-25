@@ -87,9 +87,11 @@ Hàng chờ chưa lưu thời điểm thêm, nên `scrapeQueue.ts` cần ghi th�
 
 ## 8. Ghi đè Excel an toàn (`safeReplace`)
 
+Kết quả cuối luôn là **một tệp** `<tên>.xlsm`. Tệp tạm chỉ tồn tại trong lúc điền (script luôn điền từ mẫu và chạy macro nên sinh ra tệp mới hoàn chỉnh, không sửa tại chỗ), xong là đổi tên đè lên tệp chính.
+
 1. Điền vào `data/export/.<tên>.tmp.xlsm`.
-2. Đổi tên đè lên `<tên>.xlsm`.
-3. Nếu đổi tên lỗi vì tệp đang mở (`EBUSY`/`EPERM`), lưu thành `<tên>_moi.xlsm`, ghi cảnh báo vào nhật ký. Không xóa và không làm hỏng bản hiện có.
+2. Đổi tên đè lên `<tên>.xlsm`; tệp tạm biến mất. Nếu tồn tại `<tên>_moi.xlsm` từ vòng trước thì xóa nó.
+3. Chỉ khi đổi tên lỗi vì tệp chính đang mở (`EBUSY`/`EPERM`): lưu thành `<tên>_moi.xlsm`, ghi cảnh báo vào nhật ký. Không xóa và không làm hỏng bản hiện có.
 4. Nếu điền Excel lỗi (COM), bản cũ giữ nguyên; vòng ghi lỗi và tính vào `consecutiveFailures`.
 
 ## 9. Vai trò của agent (giám sát)
