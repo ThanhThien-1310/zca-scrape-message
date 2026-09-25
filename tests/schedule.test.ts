@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decide, MAX_WAIT_MS, QUIET_MS, toQueueTimes } from "../runner/schedule.js";
+import { decide, MAX_WAIT_MS, newRecoveryKeys, QUIET_MS, toQueueTimes } from "../runner/schedule.js";
 
 const NOW = 1_000_000_000_000;
 
@@ -33,4 +33,15 @@ test("toQueueTimes takes the earliest and latest recorded time, and falls back f
     assert.deepEqual(toQueueTimes(["A", "B"], { A: 100, B: 300 }, NOW), { count: 2, firstQueuedAt: 100, lastQueuedAt: 300 });
     assert.deepEqual(toQueueTimes(["A", "B"], { A: 100 }, NOW), { count: 2, firstQueuedAt: 100, lastQueuedAt: NOW });
     assert.deepEqual(toQueueTimes(["A"], { Z: 5 }, NOW), { count: 1, firstQueuedAt: NOW, lastQueuedAt: NOW });
+});
+
+test("newRecoveryKeys lists the gaps not yet recovered, keyed by their bounds; an open gap is keyed apart from its closed form", () => {
+    const gaps = [
+        { from: 100, to: 200, reason: "crash" as const },
+        { from: 300, to: null, reason: "stopped" as const },
+    ];
+    assert.deepEqual(newRecoveryKeys(gaps, new Set()), ["100|200", "300|open"]);
+    assert.deepEqual(newRecoveryKeys(gaps, new Set(["100|200"])), ["300|open"]);
+    assert.deepEqual(newRecoveryKeys([{ from: 300, to: 900, reason: "stopped" as const }], new Set(["300|open"])), ["300|900"]);
+    assert.deepEqual(newRecoveryKeys([], new Set()), []);
 });

@@ -1,3 +1,5 @@
+import type { Gap } from "../history/watchState.js";
+
 /** The queue must be quiet this long before a cycle runs (bursts of reports arrive together). */
 export const QUIET_MS = 2 * 60_000;
 /** A cycle runs at the latest this long after the earliest group was queued, however busy the queue stays. */
@@ -26,4 +28,12 @@ export function toQueueTimes(queue: string[], meta: Record<string, number>, fall
     if (queue.length === 0) return { count: 0, firstQueuedAt: fallback, lastQueuedAt: fallback };
     const times = queue.map((t) => (typeof meta[t] === "number" ? meta[t] : fallback));
     return { count: queue.length, firstQueuedAt: Math.min(...times), lastQueuedAt: Math.max(...times) };
+}
+
+/**
+ * Keys of the gaps (already restricted to the current session) that no recovery has covered yet.
+ * A gap that was open and later closes gets a new key, so it is recovered once more.
+ */
+export function newRecoveryKeys(gaps: Gap[], done: ReadonlySet<string>): string[] {
+    return gaps.map((g) => `${g.from}|${g.to ?? "open"}`).filter((key) => !done.has(key));
 }

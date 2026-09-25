@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { enqueueTarget, readQueue, removeFromQueue } from "../history/scrapeQueue.js";
+import { enqueueTarget, readQueue, readQueueMeta, removeFromQueue } from "../history/scrapeQueue.js";
 
 const fresh = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "queue-")), "data", ".scrape-queue.json");
 
@@ -43,4 +43,30 @@ test("removing from a missing queue is a no-op", () => {
     const file = fresh();
     removeFromQueue(["A"], file);
     assert.deepEqual(readQueue(file), []);
+});
+
+test("enqueue records when a group was queued, and re-queuing does not move that time", () => {
+    const file = fresh();
+    enqueueTarget("A", file, 1000);
+    enqueueTarget("B", file, 2000);
+    enqueueTarget("A", file, 3000);
+    assert.deepEqual(readQueueMeta(file), { A: 1000, B: 2000 });
+});
+
+test("removeFromQueue forgets the times of the handled groups only", () => {
+    const file = fresh();
+    enqueueTarget("A", file, 1000);
+    enqueueTarget("B", file, 2000);
+    removeFromQueue(["A"], file);
+    assert.deepEqual(readQueueMeta(file), { B: 2000 });
+});
+
+test("a missing or corrupt meta file reads as empty", () => {
+    const file = fresh();
+    assert.deepEqual(readQueueMeta(file), {});
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    for (const content of ["{ nope", "[]", '"x"', '{"A": "soon", "B": 5}']) {
+        fs.writeFileSync(file.replace(/.json$/, "-meta.json"), content, "utf8");
+        assert.deepEqual(readQueueMeta(file), content.includes('"B": 5') ? { B: 5 } : {}, content);
+    }
 });
