@@ -13,6 +13,7 @@
         "typecheck": "tsc --noEmit",
         "sync:db": "tsx syncDb.ts",
         "test": "node --import tsx --test \"tests/**/*.test.ts\"",
+        "extract:reports": "tsx extractLessonReports.ts",
         "export:lesson-report": "tsx exportLessonReport.ts",
         "mark:messages": "tsx markMessages.ts"
     },
