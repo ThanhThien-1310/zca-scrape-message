@@ -133,3 +133,13 @@ Chỉ hàm thuần và `deps` tiêm được; không chạy Zalo hay Excel trong
 - Trong lúc một vòng chạy, Zalo Desktop bị điều khiển (nhấp, cuộn). Debounce 2 phút giảm tần suất nhưng không loại bỏ; người dùng đang gõ trong Zalo có thể bị gián đoạn. Đây là giới hạn đã biết của cách cào bằng giao diện.
 - Ranh giới buổi chiều 12:00–18:00 (quyết định còn treo từ trước) không ảnh hưởng thiết kế này: runner không dùng giờ cron.
 - `safeReplace` không xử lý trường hợp người dùng vừa mở `_moi.xlsm` rồi lại mở tệp gốc; không cần thiết cho phiên bản đầu.
+
+## 13. Điều chỉnh khi lập kế hoạch
+
+1. Các bước `syncDb`, trích xuất, điền Excel, `markMessages` được gọi như **tiến trình con** (`node --import tsx <script>`), không refactor thành hàm: `syncDb.ts` và `markMessages.ts` là tệp của người dùng và chạy `main()` ngay khi nạp. `runScrape`, `runQueuedScrape`, `runRecovery` vẫn gọi trực tiếp.
+2. **Danh sách buổi chờ dựng** `data/.runner-pending.json`: lưu trước khi đồng bộ DB, chỉ xóa sau khi dựng thành công, để runner chết giữa vòng không làm mất buổi cần dựng. Đồng bộ DB chạy mỗi vòng vì idempotent.
+3. Khi `bot:watch` chết và hàng chờ rỗng, runner **tự kích hoạt một vòng** khi có gián đoạn mới chồng lên buổi hiện tại (khóa `from|to` của gián đoạn), vì nếu không sẽ không ai kích hoạt khôi phục.
+4. `runner:once` chỉ dựng lại một buổi và không cào (không cần cờ `--rebuild`); `runner:status` thoát mã 2 khi runner không sống.
+5. Trạng thái `error` giữ đến khi khởi động lại (không có vòng thử lại để tự thoát).
+6. Khôi phục trong vòng chỉ xét buổi hiện tại; gián đoạn của buổi trước đó xử lý bằng `recover:missing` tay.
+7. Mốc thời điểm của hàng chờ nằm ở tệp phụ `data/.scrape-queue-meta.json`, nên `data/.scrape-queue.json` giữ nguyên định dạng (`bot:watch` và tệp test cũ không đổi).

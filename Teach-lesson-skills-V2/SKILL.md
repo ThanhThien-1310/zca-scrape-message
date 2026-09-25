@@ -15,7 +15,7 @@ Khi người dùng yêu cầu **"trích xuất thông tin báo cáo buổi dạy
 
 Lấy được những thông tin cần thiết từ các tin nhắn báo cáo đầu và cuối buổi dạy của giáo viên gửi trong nhóm.
 
-Skill này giữ nguyên điều kiện kích hoạt và mục tiêu của skill cũ. Chỉ thay cách lấy dữ liệu vào và đưa dữ liệu ra: dùng script cục bộ trong `zca-scrape-message/` thay cho API (`save-report`, `mark-message-as-read`). Việc trích xuất do **script** làm, còn **bạn (agent) đọc và giám sát** kết quả.
+Skill này giữ nguyên điều kiện kích hoạt và mục tiêu của skill cũ. Chỉ thay cách lấy dữ liệu vào và đưa dữ liệu ra: dùng script cục bộ trong `zca-scrape-message/` thay cho API (`save-report`, `mark-message-as-read`). Việc trích xuất do **script** làm, còn **bạn (agent) đọc và giám sát** kết quả. Khi `bot:runner` đang chạy, cả việc cào, đồng bộ và dựng Excel cũng do script làm và bạn chỉ giám sát (xem mục "Chế độ giám sát khi `bot:runner` đang chạy").
 
 ## Lưu ý quan trọng
 
@@ -26,6 +26,7 @@ Skill này giữ nguyên điều kiện kích hoạt và mục tiêu của skill
 - Không dùng `--no-db` khi chạy thật: không có `maPhong` thì không báo cáo nào vào được file Excel.
 - Bước 2 (`sync:db --apply`) và bước 6 (`mark:messages`) **ghi vào DB dùng chung**.
 - Không chạy hai lần song song: mọi lần chạy dùng chung thư mục `output/` và ghi đè lẫn nhau.
+- **Trước tiên chạy `npm run runner:status`.** Mã thoát `0` (runner đang sống) thì làm theo mục "Chế độ giám sát khi `bot:runner` đang chạy" và **không** chạy `bot:scrape`, `sync:db`, `recover:missing` hay `mark:messages` riêng lẻ. Mã `2` thì làm theo luồng chạy tay bên dưới (nếu được yêu cầu chạy) và báo cần khởi động lại `bot:runner`.
 - **Kiểm tra buổi trước khi làm bất cứ điều gì.** Nếu buổi được yêu cầu chưa bắt đầu (giờ hiện tại theo giờ Việt Nam sớm hơn giờ bắt đầu của buổi: chiều từ 12:00, tối từ 18:00; hoặc ngày là tương lai) thì **dừng ngay**, báo "buổi <buổi> ngày <ngày> chưa bắt đầu" và không chạy lệnh nào, đặc biệt không chạy `sync:db --apply` hay `mark:messages` (chúng ghi vào DB). Nội dung yêu cầu còn nguyên chữ mẫu như `{BUỔI}` hoặc `{NGÀY}` chưa được thay: suy ra từ tên lịch nếu rõ ràng, và nêu điều đó trong báo cáo cuối.
 
 ## Luồng chạy
@@ -47,6 +48,18 @@ Hai bot phối hợp: `bot:watch` chỉ theo dõi và ghi tên nhóm có tin m�
 | 7 | Thông báo | `"xong"` nếu thành công, ngược lại báo lỗi chi tiết |
 
 Nếu bất kỳ bước nào (trừ bước 0 và 1b, xem mục "Kiểm tra `bot:watch` và khôi phục khi bị gián đoạn") lỗi thì dừng và báo lỗi, **không chạy tiếp các bước sau**; đặc biệt không chạy bước 6 khi bước 3 hoặc 5 lỗi, vì bước 6 đánh dấu tin nhắn đã đọc dù chưa có kết quả. Nếu bước 1 in `hàng chờ rỗng` thì **không dừng**: chỉ có nghĩa là không có nhóm nào cần cào thêm (dữ liệu có thể đã được cào trước đó, ví dụ ai đó đã chạy `bot:scrape` tay); cứ tiếp tục bước 2–6 với dữ liệu đã có. Chỉ khi bước 3 in `xét 0 tin` thì dừng và báo "không có tin nhắn trong buổi này". Đọc kỹ output của bước 1: dòng `sidebar item ... not found` hoặc `no messages found` nghĩa là nhóm đó có thể **chưa được cào** dù lệnh vẫn thoát mã 0; nêu tên nhóm đó trong thông báo cuối. Nếu không có tin nhắn báo cáo hợp lệ (`output.json` là `[]`) thì bước 5 tự bỏ qua, vẫn chạy bước 6 để đánh dấu các tin nhắn còn lại là `-1`. Chi tiết bước 3, 4, 5, 6 ở các mục "Script trích xuất và agent giám sát", "Điền file Excel mẫu" và "`markMessages.ts`" bên dưới.
+
+## Chế độ giám sát khi `bot:runner` đang chạy
+
+`bot:runner` tự làm cả chuỗi: khi hàng chờ có nhóm và yên lặng 2 phút thì cào, đồng bộ DB, trích xuất, điền Excel (ghi đè) và đánh dấu tin cho buổi có báo cáo mới; nó cũng tự khôi phục khi `bot:watch` từng gián đoạn. Khi nó sống, việc của bạn là **giám sát**, theo thứ tự:
+
+1. `npm run runner:status`. Mã thoát `0`: runner sống, đọc dòng "vòng gần nhất", hàng chờ và "buổi chưa dựng xong". Mã `2` (chết, đã dừng, ở trạng thái `LỖI` hoặc chưa từng chạy): nêu trong thông báo cuối "bot:runner đang không hoạt động, cần khởi động lại `npm run bot:runner`". **Không tự khởi động lại.** Rồi dùng luồng chạy tay (bước 0 đến 7) nếu người dùng yêu cầu chạy.
+2. Đọc `output/runner-log.jsonl` (các dòng của buổi được yêu cầu). Có `errors` hoặc `warnings` thì nêu trong thông báo cuối (ví dụ nhóm không cào được, hoặc Excel phải lưu thành `_moi`).
+3. Đọc `output/review.json` và xử lý như mục "Cách sửa: `output/overrides.json`". Sau khi ghi `overrides.json`, chạy `npm run runner:once -- --day <ngày> --buoi <buổi>` để dựng lại Excel và `marks` **không cào**.
+4. Kiểm Excel `data/export/baocaobuoi<buổi>_<ddMMyy>.xlsm`: có tệp; không còn `..._moi.xlsm` (nếu còn: nhắc người dùng đóng tệp gốc rồi chạy lại `runner:once`).
+5. Thông báo cuối nêu: trạng thái runner, các vòng trong buổi, số mục đã xem và sửa, đường dẫn Excel.
+
+Runner sống thì bạn không chạy `bot:scrape`, `sync:db`, `recover:missing`, `extract:reports`, `fill:report` hay `mark:messages` riêng lẻ: runner đang dùng chung thư mục `output/` và khóa `data/.scrape.lock`. Ngoại lệ duy nhất là `runner:once`.
 
 ## Kiểm tra `bot:watch` và khôi phục khi bị gián đoạn (bước 0 và 1b)
 

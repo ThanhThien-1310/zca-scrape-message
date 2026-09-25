@@ -31,6 +31,9 @@ npm run extract:reports -- [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--no-db] 
 npm run fill:report -- output/output.json      # fill templates/Temp_RoomFacility_rpt.xlsm, run its macro -> data/export/baocaobuoi<buoi>_<ddMMyy>.xlsm (needs Excel)
 npm run mark:messages -- output/marks.json     # set StatusId/HasRead on Zalo_CrawlMessage rows
 npm run watch:status                           # is bot:watch alive? when did it last beat, which sources are up, recent gaps
+npm run bot:runner                             # long-running orchestrator: queue has groups + quiet for 2 min -> scrape, sync DB, extract, refresh the session's Excel
+npm run runner:status                          # is bot:runner alive? last cycle, queue, sessions still owing a rebuild (exit 2 when not alive)
+npm run runner:once -- [--day D] [--buoi B]    # rebuild ONE session's outputs without scraping (after editing output/overrides.json)
 npm run recover:missing -- [--day D] [--buoi B] [--dry-run]   # only if bot:watch had a gap: re-scrape just the groups missing a report, list what was missed
 ```
 
@@ -45,6 +48,8 @@ queue, scrapes exactly those targets, then removes exactly those entries
 (`history/queueRun.ts`) — a target queued mid-scrape stays. `bot:watch` never
 drives Zalo Desktop's UI, so running both at once is safe. See README "Hàng chờ
 giữa `bot:watch` và `bot:scrape`".
+
+**`bot:runner` is the third process** (runner/, `bot-runner.ts`): it reads the queue, waits until it has been quiet for 2 minutes (10 minutes at most from the first group), then runs a cycle (`runner/cycle.ts`): recover a `bot:watch` gap, scrape the queue, sync the DB, and for every session that got a new start/end report extract, replace the Excel via a temp file (`runner/safeReplace.ts`) and mark the messages. Everything that drives Zalo Desktop's UI (manual `bot:scrape` and each runner cycle) holds `data/.scrape.lock` (`history/scrapeLock.ts`). Sessions still owing a rebuild live in `data/.runner-pending.json`, so a crash loses nothing. The runner never restarts Zalo Desktop or `bot:watch`. Design: `docs/superpowers/specs/2026-09-25-bot-runner-design.md`.
 
 ## Architecture
 
