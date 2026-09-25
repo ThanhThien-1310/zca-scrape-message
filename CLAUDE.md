@@ -20,8 +20,8 @@ anything not covered below.
 ## Commands
 
 ```bash
-npx tsx index.ts                              # one-shot scrape (npm run bot:scrape)
-npm run bot:watch                              # long-running, reacts to notifications in real time
+npx tsx index.ts                              # manual scrape of the queued targets only (npm run bot:scrape); empty queue exits at once
+npm run bot:watch                              # long-running detector: enqueues targets with new messages into data/.scrape-queue.json, never scrapes
 npm run zalo:debug                             # just relaunch Zalo Desktop with --remote-debugging-port open, then exit (for manual CDP probing)
 npx tsx history/exportExcelCli.ts <threadId> [senderName]   # export already-scraped thread to .xlsx (npm run export:excel -- <threadId> [senderName])
 npm run mcp                                    # start the read-only MCP server over stdio
@@ -36,21 +36,22 @@ The only tests are the unit tests under tests/ (`npm test`) for the lesson-repor
 checks whether the CDP debug port is currently open (should return JSON, not
 connection-refused).
 
-**Running `bot:scrape` and `bot:watch` at the same time is safe** — `bot:scrape`
-(`index.ts`) auto-detects `bot:watch`'s localhost-only control server
-(`config.watchControlPort`, default 8765) and delegates to it (`POST /scrape`,
-routed through `watch.ts`'s own serialized queue) instead of opening a second
-CDP connection; if that server isn't reachable, it falls back to running
-standalone as before. See README "Chạy song song `bot:scrape` và `bot:watch`".
+**`bot:watch` and `bot:scrape` cooperate through a queue, not by running the same UI code.**
+`bot:watch` only appends target names to `data/.scrape-queue.json` (see
+`history/scrapeQueue.ts`); `bot:scrape` (`index.ts`, manual) snapshots that
+queue, scrapes exactly those targets, then removes exactly those entries
+(`history/queueRun.ts`) — a target queued mid-scrape stays. `bot:watch` never
+drives Zalo Desktop's UI, so running both at once is safe. See README "Hàng chờ
+giữa `bot:watch` và `bot:scrape`".
 
 ## Architecture
 
 Two independent run modes share the same core scraping/storage layer:
 
-- **`index.ts`** — one-shot: scrape each `config.targets` conversation once, then exit. Meant for Task Scheduler.
-- **`watch.ts`** — long-running: reacts to new messages from two independent trigger sources (see `history/watch.ts`) — Zalo Desktop's own WebSocket connection to its chat backend (`history/realtimeListener.ts`, primary) and its toast-notification popup window (fallback, also covers the currently-open thread via a `MutationObserver` on the message pane, since Zalo suppresses toasts for it) — both funnel into the same debounced (2s) scrape trigger. Always restarts Zalo Desktop on startup so the WS source can observe its one-time cipher-key handshake.
+- **`index.ts`** — manual, queue-driven: read the scrape queue, scrape only those conversations, clear the ones handled, exit. Nothing runs on a schedule.
+- **`watch.ts`** — long-running detector, never scrapes: reacts to new messages from two independent sources (see `history/watch.ts`) — Zalo Desktop's own WebSocket connection to its chat backend (`history/realtimeListener.ts`, primary) and its toast-notification popup window (fallback) — and only enqueues the affected target via `history/scrapeQueue.ts`. Always restarts Zalo Desktop on startup so the WS source can observe its one-time cipher-key handshake.
 
-Both funnel through:
+Both share:
 
 - **`history/desktopScraper.ts`** — the core logic: `ensureZaloReady()` (checks/opens the CDP debug port, killing and relaunching `Zalo.exe` with `--remote-debugging-port` if needed — safe because the login session lives in the local profile, not the process), connects to the main window, finds/opens each target conversation in the sidebar, scrolls to load history until `targetMessageCount`, `sinceTs`, or a stalled scroll height stops it.
 - **`history/cdp.ts`** — a minimal hand-rolled CDP WebSocket client (`Runtime.evaluate`, `Runtime.addBinding`/`bindingCalled`). Exists because Playwright's `connectOverCDP` can't attach to Zalo Desktop's Electron build (old CDP version, `Browser.setDownloadBehavior` errors).

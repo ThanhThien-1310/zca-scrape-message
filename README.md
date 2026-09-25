@@ -37,18 +37,19 @@ WebSocket thô (`Runtime.evaluate`) thay vì dùng Playwright.
 
 | Chế độ | Script | Mô tả |
 |---|---|---|
-| Quét theo lịch | `npm run bot:scrape` | Chạy 1 lần: mở từng nhóm trong `config.targets`, cuộn lấy lịch sử theo khung giờ cấu hình, rồi thoát. Dùng với Task Scheduler. |
-| Theo dõi thời gian thực | `npm run bot:watch` | Đứng chạy liên tục, phản ứng ngay khi có tin mới — qua 2 nguồn song song: WebSocket nội bộ của Zalo Desktop (nhanh nhất, xem `history/realtimeListener.ts`) và popup thông báo (dự phòng) — không cần đợi tới giờ quét kế tiếp. |
+| Quét theo hàng chờ | `npm run bot:scrape` | Chạy tay: đọc hàng chờ `data/.scrape-queue.json`, chỉ mở các nhóm đang có trong đó, cuộn lấy lịch sử theo khung giờ cấu hình, rồi xóa các nhóm vừa xử lý khỏi hàng chờ và thoát. Hàng chờ rỗng thì thoát ngay, không đụng Zalo Desktop. |
+| Theo dõi thời gian thực | `npm run bot:watch` | Đứng chạy liên tục, **chỉ phát hiện** nhóm nào có tin mới (WebSocket nội bộ của Zalo Desktop — xem `history/realtimeListener.ts` — và popup thông báo) rồi ghi tên nhóm vào hàng chờ. Không cào, không ghi `data/`. |
 | Xuất Excel | `npm run export:excel` | Xuất tin đã cào sẵn của 1 nhóm ra file `.xlsx`, có thể lọc theo người gửi. |
 | MCP server | `npm run mcp` | Phơi dữ liệu đã cào ra cho Claude Code/Claude Desktop qua 3 tool chỉ-đọc. |
 
-Cả 2 chế độ quét đều ghi vào cùng 1 kho `data/<groupId>.json` (1 file JSON
-dạng mảng cho mỗi cuộc trò chuyện, dedupe theo `msgId`), nên chạy xen kẽ giữa
-2 chế độ ở các thời điểm khác nhau không tạo dữ liệu trùng. **Chạy đồng thời
-cũng an toàn**: nếu `bot:watch` đang chạy sẵn, `bot:scrape` tự động **uỷ
-quyền** cho nó qua 1 control server nội bộ (`127.0.0.1`) thay vì tự mở kết
-nối CDP riêng — xem mục [Theo dõi thời gian
-thực](#chế-độ-theo-dõi-thời-gian-thực-watch).
+Chỉ `bot:scrape` ghi vào kho `data/<groupId>.json` (1 file JSON dạng mảng cho
+mỗi cuộc trò chuyện, dedupe theo `msgId`). `bot:watch` và `bot:scrape` phối hợp
+qua **hàng chờ** `data/.scrape-queue.json` (danh sách tên nhóm, không trùng):
+`bot:watch` thêm vào, `bot:scrape` đọc, cào đúng các nhóm đó rồi xóa đúng các
+nhóm vừa xử lý (nhóm được thêm trong lúc đang cào vẫn còn). Vì `bot:watch`
+không bao giờ điều khiển giao diện Zalo Desktop nên chạy song song 2 script là
+an toàn — xem mục [Hàng chờ giữa `bot:watch` và
+`bot:scrape`](#hàng-chờ-giữa-botwatch-và-botscrape).
 
 ## Bắt đầu nhanh
 
@@ -132,11 +133,9 @@ Mỗi lần chạy `index.ts` (`bot:scrape`):
 
 ### Chế độ theo dõi thời gian thực (`watch`)
 
-`npm run bot:watch` đứng chạy liên tục và phản ứng ngay khi có tin mới, từ
-**3 nguồn trigger** độc lập (`history/watch.ts`), cả 3 đều đổ vào chung 1
-hàng đợi debounce 2 giây (gộp nhiều sự kiện dồn dập của cùng 1 nhóm thành 1
-lần quét) rồi gọi `scrapeAndSaveLatest` — logic đọc/lưu tin nhắn không đổi
-theo nguồn nào kích hoạt:
+`npm run bot:watch` đứng chạy liên tục và phát hiện ngay khi có tin mới, từ
+**2 nguồn** độc lập (`history/watch.ts`); mỗi lần phát hiện chỉ ghi tên nhóm
+vào hàng chờ (không mở giao diện, không cào, không lưu tin):
 
 1. **WebSocket nội bộ của Zalo Desktop (`history/realtimeListener.ts`,
    nhanh nhất)** — Zalo Desktop tự mở 1 kết nối WebSocket tới backend chat
@@ -144,48 +143,25 @@ theo nguồn nào kích hoạt:
    `Network` domain (không tạo kết nối riêng, không cần đăng nhập gì thêm).
    Giải mã frame `cmd=501`/`521` (tin nhắn mới) để lấy `idTo` (id hội thoại),
    so khớp với `groupId` đã biết của `config.targets` (học từ dữ liệu đã
-   cào trước đó trong `data/`), rồi kích hoạt quét đúng nhóm đó — kể cả khi
+   cào trước đó trong `data/`), rồi đưa đúng nhóm đó vào hàng chờ — kể cả khi
    nhóm đó đang là nhóm bạn mở/focus. Cần **key mã hoá trao đổi lúc kết nối
    mở** nên `bot:watch` luôn tắt/mở lại Zalo Desktop lúc khởi động (xem mục
    Bảo trì #4) để chắc chắn bắt được key này; nhóm chưa từng được cào lần
    nào thì chưa có `groupId` để so khớp, nguồn này sẽ bỏ qua nhóm đó cho tới
-   khi có ít nhất 1 lần quét (qua `bot:scrape` hoặc nguồn #2/#3 dưới đây).
+   khi có ít nhất 1 lần quét (qua `bot:scrape`).
 2. **Observer thông báo (toast, dự phòng)** — gắn CDP vào cửa sổ popup
    thông báo riêng của Zalo Desktop (`znotification.html`). Theo dõi bằng
    `MutationObserver`, mỗi khi đổi nội dung sẽ push sự kiện về Node qua CDP
    binding (không polling). Tên nhóm trong thông báo có dạng `"Nhóm: <tên>"`;
    chỉ những tên khớp `config.targets` mới kích hoạt.
-3. **Observer trong nhóm đang mở (dự phòng)** — sau khi nguồn #1 hoặc #2 mở
-   đúng nhóm và đọc dữ liệu hiện có, gắn thêm 1 `MutationObserver` thẳng vào
-   khung tin nhắn của nhóm đó, bắt từng tin mới render ra DOM ngay lập tức —
-   vì khi 1 nhóm đang mở/focus, Zalo thường không popup thông báo cho chính
-   nhóm đó nữa (nguồn #1 không bị giới hạn này). Mỗi tin nhắn nguồn #3 bắt
-   được đều kèm theo **tên nhóm đang thật sự mở, đọc tươi từ sidebar tại
-   đúng thời điểm đó** — không dùng biến nhớ "nhóm bot vừa mở" — nên nếu bạn
-   tự tay chuyển sang xem nhóm khác trong lúc watcher đang chạy, tin nhắn
-   của nhóm đó vẫn được gán đúng `groupId`, không bị lẫn vào nhóm trước đó.
 
-### Chạy song song `bot:scrape` và `bot:watch`
+### Hàng chờ giữa `bot:watch` và `bot:scrape`
 
-An toàn — không cần chọn 1 trong 2. `bot:watch` mở thêm 1 **control server
-nội bộ** (`127.0.0.1:config.watchControlPort`, mặc định `8765`, không mở ra
-mạng ngoài) ngay khi khởi động xong. Khi chạy `npm run bot:scrape` (hoặc
-`npx tsx index.ts`), script tự kiểm tra: nếu control server đó phản hồi được
-(tức `bot:watch` đang chạy sẵn) → gửi yêu cầu `POST /scrape` sang đó, để
-chính `bot:watch` cào giúp bằng `mainPage` nó đang có, đẩy vào **chung hàng
-đợi debounce** đang xử lý các trigger WS/notification — không bao giờ có 2
-kết nối CDP cùng lúc điều khiển 1 cửa sổ Zalo Desktop. Nếu `bot:watch`
-**không** chạy, `bot:scrape` tự làm như cũ (tự mở kết nối riêng) — không
-bắt buộc phải có `bot:watch` chạy nền mới dùng được `bot:scrape`.
-
-> [!NOTE]
-> Rủi ro thật của việc chạy 2 tiến trình riêng biệt không phải là chuyện
-> Zalo Desktop bị tắt/mở lại (an toàn, không mất dữ liệu) — mà là **2 tiến
-> trình cùng thao tác lên 1 giao diện Zalo Desktop thật** (gõ ô tìm kiếm,
-> click sidebar, cuộn màn hình) cùng lúc, dễ đọc sai nhóm/sai dữ liệu. Cơ
-> chế uỷ quyền qua control server ở trên giải quyết đúng vấn đề này bằng
-> cách đảm bảo luôn chỉ có 1 tiến trình thật sự điều khiển UI tại một thời
-> điểm.
+- File: `data/.scrape-queue.json` — mảng JSON tên nhóm đúng như `config.targets`, không trùng. Ghi nguyên tử (file tạm rồi đổi tên).
+- `bot:watch` chỉ **thêm** tên nhóm khi phát hiện tin mới. Không bao giờ chạm vào giao diện Zalo Desktop.
+- `bot:scrape` (chạy tay hoặc do skill gọi) chụp lại hàng chờ, cào đúng các nhóm đó rồi xóa đúng các nhóm vừa xử lý; nhóm `bot:watch` thêm trong lúc đang cào vẫn còn cho lần sau. Hàng chờ rỗng: thoát ngay, in `hàng chờ rỗng`.
+- Nhóm lỗi hoặc không có tin vẫn bị xóa khỏi hàng chờ và được ghi log; nếu không kết nối được Zalo Desktop thì không xóa gì.
+- Vì chỉ `bot:scrape` điều khiển giao diện nên không còn nguy cơ 2 tiến trình cùng click/cuộn 1 cửa sổ Zalo.
 
 > [!NOTE]
 > Watcher hiện chỉ là 1 tiến trình Node bình thường — đóng terminal là nó
@@ -197,8 +173,8 @@ bắt buộc phải có `bot:watch` chạy nền mới dùng được `bot:scrap
 ## Sử dụng
 
 ```bash
-npm run bot:scrape          # quét 1 lần theo config.targets
-npm run bot:watch           # theo dõi liên tục, phản ứng theo thông báo
+npm run bot:scrape          # cào các nhóm đang trong hàng chờ (rỗng thì thoát ngay)
+npm run bot:watch           # theo dõi liên tục, chỉ đưa nhóm có tin mới vào hàng chờ
 npm run export:excel <groupId> [senderName]    # xuất .xlsx từ dữ liệu đã cào
 npm run mcp                 # MCP server (stdio) cho Claude Code/Desktop
 npm run zalo:debug          # chỉ mở Zalo Desktop kèm cổng debug, không quét
