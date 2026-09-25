@@ -82,7 +82,7 @@ export function readGaps(file: string = DEFAULT_FILES.gaps): Gap[] {
     return v.filter((g): g is Gap => g && typeof g.from === "number" && (typeof g.to === "number" || g.to === null) && typeof g.reason === "string");
 }
 
-function pidAlive(pid: number): boolean {
+export function pidAlive(pid: number): boolean {
     try {
         process.kill(pid, 0);
         return true;
