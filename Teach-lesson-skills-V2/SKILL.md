@@ -26,6 +26,7 @@ Skill này giữ nguyên điều kiện kích hoạt và mục tiêu của skill
 - Không dùng `--no-db` khi chạy thật: không có `maPhong` thì không báo cáo nào vào được file Excel.
 - Bước 2 (`sync:db --apply`) và bước 6 (`mark:messages`) **ghi vào DB dùng chung**.
 - Không chạy hai lần song song: mọi lần chạy dùng chung thư mục `output/` và ghi đè lẫn nhau.
+- **Kiểm tra buổi trước khi làm bất cứ điều gì.** Nếu buổi được yêu cầu chưa bắt đầu (giờ hiện tại theo giờ Việt Nam sớm hơn giờ bắt đầu của buổi: chiều từ 12:00, tối từ 18:00; hoặc ngày là tương lai) thì **dừng ngay**, báo "buổi <buổi> ngày <ngày> chưa bắt đầu" và không chạy lệnh nào, đặc biệt không chạy `sync:db --apply` hay `mark:messages` (chúng ghi vào DB). Nội dung yêu cầu còn nguyên chữ mẫu như `{BUỔI}` hoặc `{NGÀY}` chưa được thay: suy ra từ tên lịch nếu rõ ràng, và nêu điều đó trong báo cáo cuối.
 
 ## Luồng chạy
 
