@@ -17,7 +17,7 @@ export type NormalizedMessage = {
     msgType: string;
     /** Message text. For `"chat.photo"`, this is the photo's caption (empty string if it has none) — the image itself is `url`, not `content`. */
     content: string;
-    /** Image URL — only present for `"chat.photo"` rows (see history/realtimeListener.ts). */
+    /** Path of the saved image file, relative to the data dir (`images/<groupId>/<msgId>.<ext>`, see store/imageStore.ts) — only present for `"chat.photo"` rows whose image could actually be saved. */
     url?: string;
 };
 
@@ -116,12 +116,44 @@ export class MessageStore {
         }
     }
 
-    /** Returns true if the message was new and got written, false if it was a duplicate. */
+    /**
+     * A duplicate msgId is normally skipped — except when the earlier copy
+     * is a photo row that's missing what this one has: the DOM scrape can
+     * only save an empty `"desktop.text"` placeholder for a photo it couldn't
+     * yet find a local file for, and a later pass (or the WS source) may
+     * have the image. Fills in `msgType`/`url`/`content` on the existing row
+     * in that case. Returns true if the existing row changed.
+     */
+    private enrichExisting(rows: NormalizedMessage[], incoming: NormalizedMessage): boolean {
+        if (incoming.msgType !== "chat.photo") return false;
+        const existing = rows.find((r) => r.msgId === incoming.msgId);
+        if (!existing) return false;
+
+        let changed = false;
+        if (existing.msgType !== "chat.photo") {
+            existing.msgType = "chat.photo";
+            changed = true;
+        }
+        if (!existing.url && incoming.url) {
+            existing.url = incoming.url;
+            changed = true;
+        }
+        if (!existing.content && incoming.content) {
+            existing.content = incoming.content;
+            changed = true;
+        }
+        return changed;
+    }
+
+    /** Returns true if the message was new and got written, false if it was a duplicate (a duplicate photo row may still get its missing url/msgType filled in — see enrichExisting). */
     save(message: NormalizedMessage): boolean {
         const rows = this.load(message.groupId);
         const seen = this.seenIds.get(message.groupId)!;
         this.backfillSenderName(message);
-        if (seen.has(message.msgId)) return false;
+        if (seen.has(message.msgId)) {
+            if (this.enrichExisting(rows, message)) this.writeToDisk(message.groupId);
+            return false;
+        }
 
         seen.add(message.msgId);
         rows.push(message);
@@ -146,7 +178,10 @@ export class MessageStore {
             const rows = this.load(m.groupId);
             const seen = this.seenIds.get(m.groupId)!;
             this.backfillSenderName(m);
-            if (seen.has(m.msgId)) continue;
+            if (seen.has(m.msgId)) {
+                if (this.enrichExisting(rows, m)) touchedGroupIds.add(m.groupId);
+                continue;
+            }
 
             seen.add(m.msgId);
             rows.push(m);
@@ -165,7 +200,7 @@ export class MessageStore {
         if (!fs.existsSync(this.dataDir)) return [];
         return fs
             .readdirSync(this.dataDir)
-            .filter((f) => f.endsWith(".json"))
+            .filter((f) => f.endsWith(".json") && !f.startsWith("."))
             .map((f) => f.slice(0, -".json".length));
     }
 
