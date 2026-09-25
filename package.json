@@ -17,6 +17,9 @@
         "fill:report": "tsx fillRoomFacilityReport.ts",
         "recover:missing": "tsx recoverMissing.ts",
         "watch:status": "tsx watchStatus.ts",
+        "bot:runner": "tsx bot-runner.ts",
+        "runner:once": "tsx runnerOnce.ts",
+        "runner:status": "tsx runnerStatus.ts",
         "export:lesson-report": "tsx exportLessonReport.ts",
         "mark:messages": "tsx markMessages.ts"
     },
