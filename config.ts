@@ -70,7 +70,9 @@ export const config = {
      *
      * Example: targets: ["IT Foundation", "Gia đình"],
      */
-    targets: ["bot test", "LC_ChuVănAn_BTAN", "LC_TríTuệViệt_BTAN"] as string[],
+
+    //"LC_QuangTrungNguyễnHuệ_Q5", "LC_HoaSen1_TĐ", "LC_TríTuệViệt_BTAN", "LC_QuangTrungNguyễnHuệ_Q5", "LC_HoaSen1_TĐ"
+    targets: ["bot test", "LC_ChuVănAn_BTAN", "LC_HoaSen1_TĐ", "LC_TríTuệViệt_BTAN", "LC_QuangTrungNguyễnHuệ_Q5"] as string[],
 
     /**
      * Only keep messages at or after this time (unix ms) — scrolling stops
