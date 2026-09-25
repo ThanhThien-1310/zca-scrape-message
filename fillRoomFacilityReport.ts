@@ -12,10 +12,11 @@ import type { Report } from "./lesson/types.js";
  * tables (MAY TINH, INTERNET, NETSUPPORT, LOA, MAY LANH) populate. Needs
  * Microsoft Excel on this machine. The template itself is never modified.
  *
- *   npm run fill:report -- output/output.json [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--template <path>]
+ *   npm run fill:report -- output/output.json [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--template <path>] [--out <path>]
  *
  * Day and session default to `meta.json` next to the input (written by
  * `extract:reports`); the output file is data/export/baocaobuoi<buoi>_<ddMMyy>.xlsm.
+ * `--out` overrides the output path (the runner writes a temp file with it, then swaps it in).
  */
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,7 +49,9 @@ function main(): void {
     const rowsFile = path.join(outDir, "rows.json");
     fs.writeFileSync(rowsFile, JSON.stringify(rows), "utf8");
 
-    const outFile = path.join(repoRoot, "data", "export", reportFileName(day, buoi));
+    const outArg = option("--out");
+    const outFile = outArg ? path.resolve(outArg) : path.join(repoRoot, "data", "export", reportFileName(day, buoi));
+    fs.mkdirSync(path.dirname(outFile), { recursive: true });
     const logFile = path.join(outDir, "fill.log");
     fs.rmSync(logFile, { force: true });
 
