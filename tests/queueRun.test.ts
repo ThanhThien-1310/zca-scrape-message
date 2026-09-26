@@ -40,7 +40,7 @@ test("only the queued targets are scraped and then marked as scraped", async () 
     });
     const r = await runQueuedScrape(h.deps);
     assert.deepEqual(seen, ["A", "B"]);
-    assert.deepEqual(r, { status: "done", targets: ["A", "B"], failed: [], gaveUp: [] });
+    assert.deepEqual(r, { status: "done", targets: ["A", "B"], failed: [], gaveUp: [], outcomes: [{ target: "A" }, { target: "B" }] });
     assert.deepEqual(h.queue, []);
 });
 
@@ -56,7 +56,7 @@ test("a target queued while the scrape runs survives the cleanup", async () => {
 test("a failed target is reported to the queue, logged, and stays queued while it has attempts left", async () => {
     const h = harness(["A", "B"], async () => [{ target: "A", error: "sidebar item not found" }, { target: "B" }], { retrying: ["A"], gaveUp: [] });
     const r = await runQueuedScrape(h.deps);
-    assert.deepEqual(r, { status: "done", targets: ["A", "B"], failed: ["A"], gaveUp: [] });
+    assert.deepEqual(r, { status: "done", targets: ["A", "B"], failed: ["A"], gaveUp: [], outcomes: [{ target: "A", error: "sidebar item not found" }, { target: "B" }] });
     assert.deepEqual(h.completed[0].failed, ["A"]);
     assert.deepEqual(h.queue, ["A"]);
     assert.ok(h.logs.some((l) => l.includes('"A"') && l.includes("lỗi") && l.includes("thử lại")));
@@ -65,7 +65,7 @@ test("a failed target is reported to the queue, logged, and stays queued while i
 test("a target whose attempts ran out is reported and logged loudly", async () => {
     const h = harness(["A"], async () => [{ target: "A", error: "sidebar item not found" }], { retrying: [], gaveUp: ["A"] });
     const r = await runQueuedScrape(h.deps);
-    assert.deepEqual(r, { status: "done", targets: ["A"], failed: ["A"], gaveUp: ["A"] });
+    assert.deepEqual(r, { status: "done", targets: ["A"], failed: ["A"], gaveUp: ["A"], outcomes: [{ target: "A", error: "sidebar item not found" }] });
     assert.ok(h.logs.some((l) => l.includes('"A"') && l.includes("hết số lần thử") && l.includes("scrape:add")));
 });
 

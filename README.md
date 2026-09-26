@@ -276,7 +276,8 @@ Có kết quả JSON (không lỗi connection refused) nghĩa là CDP đã sẵn
 
 ```bash
 npm run bot:runner                                   # chạy nền; không khởi động lại bot:watch (một lần cào vẫn mở lại Zalo nếu cổng debug đóng, như bot:scrape)
-npm run runner:status                                # sống hay chết, vòng gần nhất, hàng chờ, buổi chưa dựng xong (thoát mã 2 nếu không sống)
+npm run runner:status                                # sống hay chết, vòng gần nhất (kèm thời gian từng bước và từng nhóm), hàng chờ, buổi chưa dựng xong (thoát mã 2 nếu không sống)
+npm run runner:timing -- [--last N]                  # thống kê thời gian các vòng và thời gian cào từng nhóm (trung bình, p95, lâu nhất) từ output/runner-log.jsonl
 npm run runner:once -- [--day D] [--buoi B]          # dựng lại MỘT buổi, không cào (dùng sau khi sửa output/overrides.json)
 ```
 

@@ -2,7 +2,7 @@ import type { QueueRunResult } from "../history/queueRun.js";
 import type { SourceMessage } from "../lesson/types.js";
 import { type SessionKey } from "./affectedSessions.js";
 import { dirtySessions, sessionReportKeys } from "./builtReports.js";
-import type { CycleSummary } from "./runnerState.js";
+import type { CycleSummary, StepMs } from "./runnerState.js";
 
 export interface BuildResult {
     reviewCount: number;
@@ -34,14 +34,27 @@ export interface CycleDeps {
  * it is idempotent and an earlier crash may have left scraped rows out of the database.
  */
 export async function runCycle(deps: CycleDeps): Promise<CycleSummary> {
-    const summary: CycleSummary = { kind: "cycle", at: deps.now(), ok: true, groups: [], sessions: [], reviewCount: 0, excel: [], warnings: [], errors: [], buildErrors: [] };
+    const startedAt = deps.now();
+    const summary: CycleSummary = { kind: "cycle", at: startedAt, ok: true, groups: [], sessions: [], reviewCount: 0, excel: [], warnings: [], errors: [], buildErrors: [] };
+    const stepMs: StepMs = { recover: 0, scrape: 0, load: 0, sync: 0, build: 0 };
+    let mark = startedAt;
+    const lap = (step: keyof StepMs) => {
+        const t = deps.now();
+        stepMs[step] += t - mark;
+        mark = t;
+    };
     try {
         const recovery = await deps.recover();
+        lap("recover");
         for (const e of recovery.errors) summary.warnings.push(`khôi phục: ${e}`);
 
         const scrape = await deps.scrapeQueued();
+        lap("scrape");
         if (scrape.status === "done") {
             summary.groups = scrape.targets;
+            summary.timings = scrape.outcomes
+                .filter((o) => typeof o.ms === "number")
+                .map((o) => ({ target: o.target, ms: o.ms as number, ok: o.error === undefined, ...(o.scraped !== undefined ? { scraped: o.scraped } : {}), ...(o.written !== undefined ? { written: o.written } : {}) }));
             for (const t of scrape.failed) summary.warnings.push(`không cào được "${t}"`);
             for (const t of scrape.gaveUp) summary.warnings.push(`đã bỏ "${t}" khỏi hàng chờ sau nhiều lần lỗi; cào lại bằng: npm run scrape:add -- "${t}"`);
         }
@@ -50,8 +63,10 @@ export async function runCycle(deps: CycleDeps): Promise<CycleSummary> {
         const built = deps.built.read();
         const sessions = dirtySessions(messages, built);
         summary.sessions = sessions;
+        lap("load");
 
         await deps.syncDb();
+        lap("sync");
 
         for (const session of sessions) {
             try {
@@ -64,10 +79,13 @@ export async function runCycle(deps: CycleDeps): Promise<CycleSummary> {
             } catch (err) {
                 summary.buildErrors.push(`${session.day} ${session.buoi}: ${(err as Error).message}`);
             }
+            lap("build");
         }
     } catch (err) {
         summary.ok = false;
         summary.errors.push((err as Error).message);
     }
+    summary.durationMs = deps.now() - startedAt;
+    summary.stepMs = stepMs;
     return summary;
 }

@@ -183,7 +183,8 @@ Xem tình trạng bất cứ lúc nào:
 | Lệnh | Cho biết |
 |---|---|
 | `npm run watch:status` | `bot:watch` đang chạy, đã dừng hay có vẻ đã chết; hai nguồn phát hiện; các khoảng gián đoạn 24 giờ qua |
-| `npm run runner:status` | Runner sống hay chết, vòng gần nhất, hàng chờ, các buổi có báo cáo chưa dựng |
+| `npm run runner:status` | Runner sống hay chết, vòng gần nhất (thời gian từng bước, từng nhóm), hàng chờ, các buổi có báo cáo chưa dựng |
+| `npm run runner:timing -- --last 50` | Thống kê thời gian: mỗi vòng mất bao lâu, mỗi nhóm cào mất bao lâu (trung bình, p95, lâu nhất), ước tính cào 100 nhóm. Cho ra số thật để biết hệ thống chịu được bao nhiêu nhóm |
 | `npm run chat:status` | Bot chat sống hay chết, gửi thật hay dry-run, nhóm nào, số tin chờ |
 | `npm run config:show` | Toàn bộ cấu hình đang dùng |
 

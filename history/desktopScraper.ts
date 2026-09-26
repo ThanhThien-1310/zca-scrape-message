@@ -187,7 +187,8 @@ const extractRowsFromMessageSrc = `
  * same way a person using it normally would be. See ensureZaloReady for why
  * that sometimes means restarting the app first.
  */
-export type TargetOutcome = { target: string; error?: string };
+/** `ms` is how long the group took (opening it, scrolling back, saving); `scraped`/`written` are the messages read and the new ones saved. */
+export type TargetOutcome = { target: string; error?: string; ms?: number; scraped?: number; written?: number };
 
 /**
  * Scrapes the given conversations (default: everything in `config.targets`)
@@ -207,12 +208,16 @@ export async function runScrape(store: MessageStore, targets: string[] = config.
     try {
         await waitForSidebarLoaded(page, 30_000);
         for (const target of targets) {
+            const started = Date.now();
             try {
-                await scrapeAndSaveTarget(page, store, target, opts.sinceTs, opts.untilTs);
-                outcomes.push({ target });
+                const r = await scrapeAndSaveTarget(page, store, target, opts.sinceTs, opts.untilTs);
+                const ms = Date.now() - started;
+                console.log(`[scrape] "${target}": xong trong ${(ms / 1000).toFixed(1)} s (đọc ${r.scraped}, mới ${r.written}).`);
+                outcomes.push({ target, ms, scraped: r.scraped, written: r.written });
             } catch (err) {
-                console.error(`[scrape] "${target}": failed —`, err);
-                outcomes.push({ target, error: (err as Error).message });
+                const ms = Date.now() - started;
+                console.error(`[scrape] "${target}": failed sau ${(ms / 1000).toFixed(1)} s —`, err);
+                outcomes.push({ target, error: (err as Error).message, ms });
             }
         }
     } finally {

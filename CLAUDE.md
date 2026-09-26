@@ -32,7 +32,8 @@ npm run fill:report -- output/output.json      # fill templates/Temp_RoomFacilit
 npm run mark:messages -- output/marks.json     # set StatusId/HasRead on Zalo_CrawlMessage rows
 npm run watch:status                           # is bot:watch alive? when did it last beat, which sources are up, recent gaps
 npm run bot:runner                             # long-running orchestrator: queue has groups + quiet for 2 min -> scrape, sync DB, extract, refresh the session's Excel
-npm run runner:status                          # is bot:runner alive? last cycle, queue, sessions still owing a rebuild (exit 2 when not alive)
+npm run runner:status                          # is bot:runner alive? last cycle (with step and per-group timings), queue, sessions still owing a rebuild (exit 2 when not alive)
+npm run runner:timing -- [--last N]            # cycle and per-group scrape time statistics from output/runner-log.jsonl (avg, p95, max)
 npm run runner:once -- [--day D] [--buoi B]    # rebuild ONE session's outputs without scraping (after editing output/overrides.json)
 npm run bot:chat                               # auto-reply from chat-rules.json: reads data/.chat-inbox.jsonl (written by bot:watch), sends via Zalo Desktop's UI
 npm run chat:status                            # is bot:chat alive? dry-run or live, groups, pending inbox (exit 2 when not alive)

@@ -112,7 +112,7 @@ async function main(): Promise<void> {
             if (summary.ok) for (const key of freshGaps) recovered.add(key); // a failed recovery is tried again
             if (summary.buildErrors.length > 0) nextDirtyCheck = Date.now() + DIRTY_RETRY_MS;
             const state = recordCycle(Date.now(), summary);
-            log(`[runner] vòng xong: ${summary.ok ? "OK" : "LỖI"} — nhóm ${summary.groups.length}, buổi ${summary.sessions.length}, cần xem ${summary.reviewCount}${summary.errors.length > 0 ? `, lỗi: ${summary.errors.join("; ")}` : ""}${summary.buildErrors.length > 0 ? `, lỗi dựng: ${summary.buildErrors.join("; ")}` : ""}`);
+            log(`[runner] vòng xong sau ${((summary.durationMs ?? 0) / 1000).toFixed(1)} s: ${summary.ok ? "OK" : "LỖI"} — nhóm ${summary.groups.length}, buổi ${summary.sessions.length}, cần xem ${summary.reviewCount}${summary.errors.length > 0 ? `, lỗi: ${summary.errors.join("; ")}` : ""}${summary.buildErrors.length > 0 ? `, lỗi dựng: ${summary.buildErrors.join("; ")}` : ""}`);
             if (state.state === "error") log(`[runner] ${state.consecutiveFailures} vòng lỗi liên tiếp — ngừng tự thử. Sửa nguyên nhân rồi khởi động lại.`);
         } finally {
             plan.gaps = [];

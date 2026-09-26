@@ -1,6 +1,7 @@
 import { hhmm } from "../history/watchStatusReport.js";
 import type { SessionKey } from "./affectedSessions.js";
 import { runnerHealth, type RunnerState } from "./runnerState.js";
+import { seconds } from "./timingReport.js";
 
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -56,6 +57,12 @@ export function formatRunnerStatus(input: RunnerStatusInput): string[] {
         lines.push(`  vòng gần nhất lúc ${hhmm(c.at)}: ${c.ok ? "OK" : "LỖI"}`);
         lines.push(`    nhóm: ${c.groups.length > 0 ? c.groups.join(", ") : "(không có)"}`);
         lines.push(`    buổi: ${c.sessions.length > 0 ? c.sessions.map(label).join(", ") : "(không dựng)"}, cần xem: ${c.reviewCount}`);
+        if (typeof c.durationMs === "number") {
+            const s = c.stepMs;
+            const steps = s ? ` (khôi phục ${seconds(s.recover)}, cào ${seconds(s.scrape)}, nạp tin ${seconds(s.load)}, đồng bộ DB ${seconds(s.sync)}, dựng Excel ${seconds(s.build)})` : "";
+            lines.push(`    thời gian: ${seconds(c.durationMs)}${steps}`);
+        }
+        if (c.timings && c.timings.length > 0) lines.push(`    cào từng nhóm: ${c.timings.map((t) => `${t.target} ${seconds(t.ms)}${t.ok ? "" : " (lỗi)"}`).join(", ")}`);
         for (const f of c.excel) lines.push(`    Excel: ${f}`);
         if (c.errors.length > 0) lines.push(`    lỗi: ${c.errors.join("; ")}`);
         if (c.buildErrors.length > 0) lines.push(`    lỗi dựng: ${c.buildErrors.join("; ")}`);

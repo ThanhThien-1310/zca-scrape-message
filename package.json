@@ -20,6 +20,7 @@
         "bot:runner": "tsx bot-runner.ts",
         "runner:once": "tsx runnerOnce.ts",
         "runner:status": "tsx runnerStatus.ts",
+        "runner:timing": "tsx runnerTiming.ts",
         "bot:chat": "tsx bot-chat.ts",
         "chat:status": "tsx chatStatus.ts",
         "config:show": "tsx configShow.ts",

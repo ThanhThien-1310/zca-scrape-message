@@ -10,7 +10,7 @@ export interface QueueRunDeps {
     log(message: string): void;
 }
 
-export type QueueRunResult = { status: "empty" } | { status: "done"; targets: string[]; failed: string[]; gaveUp: string[] };
+export type QueueRunResult = { status: "empty" } | { status: "done"; targets: string[]; failed: string[]; gaveUp: string[]; outcomes: TargetOutcome[] };
 
 /**
  * Snapshot the queue, scrape exactly those targets, then mark exactly those as scraped. A failed target is not
@@ -32,5 +32,5 @@ export async function runQueuedScrape(deps: QueueRunDeps): Promise<QueueRunResul
 
     for (const target of retrying) deps.log(`[scrape] "${target}" lỗi, giữ lại trong hàng chờ để thử lại.`);
     for (const target of gaveUp) deps.log(`[scrape] "${target}" lỗi và đã hết số lần thử, bỏ khỏi hàng chờ — chạy lại nếu cần cào lại: npm run scrape:add -- "${target}"`);
-    return { status: "done", targets: snapshot.targets, failed, gaveUp };
+    return { status: "done", targets: snapshot.targets, failed, gaveUp, outcomes };
 }

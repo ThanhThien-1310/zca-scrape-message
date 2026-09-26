@@ -237,7 +237,7 @@ Các bước 1, 1b, 2, 3, 5, 6 ở trên do `bot:runner` tự làm; khi đó age
 
 **Độ bền.** Runner chết giữa vòng (hoặc ai đó cào tay) thì báo cáo đã có trên đĩa nhưng chưa dựng vẫn được nhận ra ở lần kiểm tra kế tiếp và buổi đó được dựng dù không có tin mới. Một buổi dựng lỗi được báo (`lỗi dựng`) và thử lại sau `config.runner.dirtyRetrySeconds` (300 giây), nhưng không làm runner ngừng cào. Sau `config.runner.maxConsecutiveFailures` (3) vòng lỗi liên tiếp (lỗi cào hoặc đồng bộ) runner ngừng tự thử (`runner:status` báo `LỖI`), hàng chờ vẫn nguyên; sửa nguyên nhân rồi chạy lại `npm run bot:runner`.
 
-**Xem trạng thái:** `npm run runner:status` (thoát mã 2 nếu runner không sống). **Dựng lại một buổi không cào** (sau khi sửa `overrides.json`): `npm run runner:once -- --day <ngày> --buoi <buổi>`. Mọi giá trị ở trên chỉnh trong `config.ts` (xem `npm run config:show`).
+**Xem trạng thái:** `npm run runner:status` (thoát mã 2 nếu runner không sống). **Xem thời gian:** mỗi dòng trong `output/runner-log.jsonl` có `durationMs`, `stepMs` (khôi phục, cào, nạp tin, đồng bộ DB, dựng) và `timings` (thời gian cào từng nhóm, tin mới đọc được); `npm run runner:timing -- --last 50` tổng hợp chúng thành trung bình, p95 và lâu nhất cho từng nhóm. Trong lúc một vòng chạy, khóa Zalo bị giữ nên bot chat không gửi được, vì vậy đây là con số cần theo dõi khi thêm nhóm. **Dựng lại một buổi không cào** (sau khi sửa `overrides.json`): `npm run runner:once -- --day <ngày> --buoi <buổi>`. Mọi giá trị ở trên chỉnh trong `config.ts` (xem `npm run config:show`).
 
 ## 3c. Bot chat (tùy chọn)
 
