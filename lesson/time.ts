@@ -1,3 +1,5 @@
+import { config } from "../config.js";
+
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -26,14 +28,23 @@ export function excelTimeFraction(ts: number): number {
 
 export type Buoi = "sang" | "chieu" | "toi";
 
-/** Session of the Vietnam day: sáng 00:00-11:59, chiều 12:00-17:59, tối 18:00-23:59. */
-export function sessionOf(ts: number): Buoi {
-    const hour = new Date(ts + VN_OFFSET_MS).getUTCHours();
-    return hour < 12 ? "sang" : hour < 18 ? "chieu" : "toi";
+/** Hours (Vietnam time) at which the afternoon and the evening start; the morning runs from 00:00 to `chieuFromHour`. */
+export interface SessionHours {
+    chieuFromHour: number;
+    toiFromHour: number;
 }
 
-export function currentSession(now: number = Date.now()): Buoi {
-    return sessionOf(now);
+/**
+ * Session of the Vietnam day. With the defaults (config.ts, mục 8): sáng 00:00-11:59, chiều 12:00-17:59, tối 18:00-23:59.
+ * `hours` defaults to `config.sessions`; tests pass fixed hours.
+ */
+export function sessionOf(ts: number, hours: SessionHours = config.sessions): Buoi {
+    const hour = new Date(ts + VN_OFFSET_MS).getUTCHours();
+    return hour < hours.chieuFromHour ? "sang" : hour < hours.toiFromHour ? "chieu" : "toi";
+}
+
+export function currentSession(now: number = Date.now(), hours: SessionHours = config.sessions): Buoi {
+    return sessionOf(now, hours);
 }
 
 export function isBuoi(value: string | undefined): value is Buoi {

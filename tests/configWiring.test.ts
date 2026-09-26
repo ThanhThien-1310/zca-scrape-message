@@ -33,3 +33,16 @@ return { poll: t.CHAT_POLL_MS, hb: t.CHAT_HEARTBEAT_MS, skip: t.SKIP_BACKOFF_MS,
     );
     assert.deepEqual(out, { poll: 4000, hb: 31000, skip: 46000, cycleSkip: 46000, keep: 660000, echo: 121000 });
 });
+
+test("session hours come from config.sessions", () => {
+    const out = probe(
+        `config.sessions.toiFromHour = 17;`,
+        `
+const t = await import("../lesson/time.js");
+const r = await import("../lesson/recovery.js");
+const at = (h) => Date.UTC(2026, 8, 24, h - 7, 0);
+return { at1659: t.sessionOf(at(17) - 1), at17: t.sessionOf(at(17)), toiFrom: r.sessionWindow("2026-09-24", "toi").from - Date.UTC(2026, 8, 23, 17) };
+`,
+    );
+    assert.deepEqual(out, { at1659: "chieu", at17: "toi", toiFrom: 17 * 3600_000 });
+});

@@ -1,6 +1,7 @@
+import { config } from "../config.js";
 import { gapOverlaps, type Gap } from "../history/watchState.js";
 import { classifyTitle } from "./parseReport.js";
-import type { Buoi } from "./time.js";
+import type { Buoi, SessionHours } from "./time.js";
 import type { LoaiBaoCao, SourceMessage } from "./types.js";
 
 /** A half-open range [from, to) of epoch milliseconds. */
@@ -11,14 +12,17 @@ export interface Window {
 
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
-// Must agree with `sessionOf` in ./time.ts (a test pins them together).
-const SESSION_HOURS: Record<Buoi, [number, number]> = { sang: [0, 12], chieu: [12, 18], toi: [18, 24] };
+
+/** [start, end) hours of each session; derived from the same hours `sessionOf` (./time.ts) uses, so the two always agree. */
+function sessionHours(hours: SessionHours): Record<Buoi, [number, number]> {
+    return { sang: [0, hours.chieuFromHour], chieu: [hours.chieuFromHour, hours.toiFromHour], toi: [hours.toiFromHour, 24] };
+}
 
 /** The session `buoi` of Vietnam calendar day `day` (`YYYY-MM-DD`) as an epoch-ms window. */
-export function sessionWindow(day: string, buoi: Buoi): Window {
+export function sessionWindow(day: string, buoi: Buoi, hours: SessionHours = config.sessions): Window {
     const [y, m, d] = day.split("-").map(Number);
     const midnight = Date.UTC(y, m - 1, d) - VN_OFFSET_MS;
-    const [startHour, endHour] = SESSION_HOURS[buoi];
+    const [startHour, endHour] = sessionHours(hours)[buoi];
     return { from: midnight + startHour * HOUR_MS, to: midnight + endHour * HOUR_MS };
 }
 
