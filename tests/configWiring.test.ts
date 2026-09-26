@@ -21,3 +21,15 @@ return { hb: w.HEARTBEAT_INTERVAL_MS, dead: w.STALE_AFTER_MS, blind: w.MIN_BLIND
     );
     assert.deepEqual(out, { hb: 11000, dead: 33000, blind: 22000, quiet: 31000, max: 301000, warm: 51000, sblind: 22000, poll: 7000, dc: 41000, dr: 61000, fails: 4, margin: 540000 });
 });
+
+test("chat timings come from config", () => {
+    const out = probe(
+        `config.chat.pollSeconds = 4; config.chat.heartbeatSeconds = 31; config.chat.skipBackoffSeconds = 46; config.chat.sentLedgerMinutes = 11; config.chat.echoWindowSeconds = 121;`,
+        `
+const t = await import("../chat/timing.js");
+const c = await import("../chat/cycle.js");
+return { poll: t.CHAT_POLL_MS, hb: t.CHAT_HEARTBEAT_MS, skip: t.SKIP_BACKOFF_MS, cycleSkip: c.SKIP_BACKOFF_MS, keep: t.KEEP_SENT_MS, echo: t.ECHO_WINDOW_MS };
+`,
+    );
+    assert.deepEqual(out, { poll: 4000, hb: 31000, skip: 46000, cycleSkip: 46000, keep: 660000, echo: 121000 });
+});

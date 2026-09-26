@@ -2,12 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.js";
 import { writeFileAtomic } from "../history/atomicWrite.js";
+import { ECHO_WINDOW_MS, KEEP_SENT_MS } from "./timing.js";
 
 export const DEFAULT_DONE_PATH = path.join(config.dataDir, ".chat-done.json");
 export const DEFAULT_SENT_PATH = path.join(config.dataDir, ".chat-sent.json");
 
-const KEEP_SENT_MS = 10 * 60_000;
-const ECHO_WINDOW_MS = 2 * 60_000;
 
 function writeAtomic(file: string, value: unknown): void {
     writeFileAtomic(file, JSON.stringify(value, null, 2));

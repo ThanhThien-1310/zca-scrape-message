@@ -3,9 +3,9 @@ import { isStale, type Limiter } from "./limits.js";
 import { pickRule, renderReply } from "./match.js";
 import type { ChatRules } from "./rules.js";
 import type { SendHooks, SendResult } from "./send.js";
+import { SKIP_BACKOFF_MS } from "./timing.js";
 
-/** Sau một lần gửi bị hoãn (ô soạn tin đang có chữ, chưa mở được nhóm) không chạm vào Zalo lại trong khoảng này. */
-export const SKIP_BACKOFF_MS = 45_000;
+export { SKIP_BACKOFF_MS };
 
 export interface ChatDeps {
     now(): number;

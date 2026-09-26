@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { runChatCycle } from "./chat/cycle.js";
+import { CHAT_HEARTBEAT_MS, CHAT_POLL_MS } from "./chat/timing.js";
 import { DEFAULT_CURSOR_PATH, DEFAULT_INBOX_PATH, readInbox, writeCursor } from "./chat/inbox.js";
 import { createLimiter } from "./chat/limits.js";
 import { DEFAULT_RULES_PATH, loadRules, type ChatRules } from "./chat/rules.js";
@@ -18,8 +19,6 @@ import { writeFileAtomic } from "./history/atomicWrite.js";
  *
  *   npm run bot:chat
  */
-const POLL_MS = 3_000;
-const HEARTBEAT_MS = 30_000;
 const STATE_PATH = path.join(config.dataDir, ".chat-state.json");
 const OFF_PATH = path.join(config.dataDir, ".chat-off");
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -52,7 +51,7 @@ async function main(): Promise<void> {
 
     const beat = () => writeState({ pid: process.pid, startedAt, lastBeat: Date.now(), dryRun: rules.dryRun, groups: Object.keys(rules.groups), lastSummary });
     beat();
-    setInterval(beat, HEARTBEAT_MS);
+    setInterval(beat, CHAT_HEARTBEAT_MS);
     let inCycle = false;
     let stopping = false;
     const deferUntil = new Map<string, number>();
@@ -71,7 +70,7 @@ async function main(): Promise<void> {
     log(`[chat] chạy: ${Object.keys(rules.groups).join(", ") || "(chưa có nhóm nào)"} | dryRun=${rules.dryRun}`);
 
     for (;;) {
-        await delay(POLL_MS);
+        await delay(CHAT_POLL_MS);
 
         const m = rulesMtime();
         if (m !== mtime) {
