@@ -27,7 +27,7 @@ Skill này giữ nguyên điều kiện kích hoạt và mục tiêu của skill
 - Bước 2 (`sync:db --apply`) và bước 6 (`mark:messages`) **ghi vào DB dùng chung**.
 - Không chạy hai lần song song: mọi lần chạy dùng chung thư mục `output/` và ghi đè lẫn nhau.
 - **Trước tiên chạy `npm run runner:status`.** Mã thoát `0` (runner đang sống) thì làm theo mục "Chế độ giám sát khi `bot:runner` đang chạy" và **không** chạy `bot:scrape`, `sync:db`, `recover:missing` hay `mark:messages` riêng lẻ. Mã `2` thì làm theo luồng chạy tay bên dưới (nếu được yêu cầu chạy) và báo cần khởi động lại `bot:runner`.
-- **Kiểm tra buổi trước khi làm bất cứ điều gì.** Nếu buổi được yêu cầu chưa bắt đầu (giờ hiện tại theo giờ Việt Nam sớm hơn giờ bắt đầu của buổi: chiều từ 12:00, tối từ 18:00; hoặc ngày là tương lai) thì **dừng ngay**, báo "buổi <buổi> ngày <ngày> chưa bắt đầu" và không chạy lệnh nào, đặc biệt không chạy `sync:db --apply` hay `mark:messages` (chúng ghi vào DB). Nội dung yêu cầu còn nguyên chữ mẫu như `{BUỔI}` hoặc `{NGÀY}` chưa được thay: suy ra từ tên lịch nếu rõ ràng, và nêu điều đó trong báo cáo cuối.
+- **Kiểm tra buổi trước khi làm bất cứ điều gì.** Nếu buổi được yêu cầu chưa bắt đầu (giờ hiện tại theo giờ Việt Nam sớm hơn giờ bắt đầu của buổi: chiều từ 12:00, tối từ 18:00 theo mặc định; giờ thật nằm ở `config.sessions` (`chieuFromHour`, `toiFromHour`), xem bằng `npm run config:show`; hoặc ngày là tương lai) thì **dừng ngay**, báo "buổi <buổi> ngày <ngày> chưa bắt đầu" và không chạy lệnh nào, đặc biệt không chạy `sync:db --apply` hay `mark:messages` (chúng ghi vào DB). Nội dung yêu cầu còn nguyên chữ mẫu như `{BUỔI}` hoặc `{NGÀY}` chưa được thay: suy ra từ tên lịch nếu rõ ràng, và nêu điều đó trong báo cáo cuối.
 
 ## Luồng chạy
 
@@ -51,7 +51,7 @@ Nếu bất kỳ bước nào (trừ bước 0 và 1b, xem mục "Kiểm tra `bo
 
 ## Chế độ giám sát khi `bot:runner` đang chạy
 
-`bot:runner` tự làm cả chuỗi: khi hàng chờ có nhóm và yên lặng 2 phút thì cào, đồng bộ DB, trích xuất, điền Excel (ghi đè) và đánh dấu tin cho buổi có báo cáo mới; nó cũng tự khôi phục khi `bot:watch` từng gián đoạn. Khi nó sống, việc của bạn là **giám sát**, theo thứ tự:
+`bot:runner` tự làm cả chuỗi: khi hàng chờ có nhóm và yên lặng `runner.quietSeconds` (mặc định 2 phút) thì cào, đồng bộ DB, trích xuất, điền Excel (ghi đè) và đánh dấu tin cho buổi có báo cáo mới; nó cũng tự khôi phục khi `bot:watch` từng gián đoạn. Khi nó sống, việc của bạn là **giám sát**, theo thứ tự:
 
 1. `npm run runner:status`. Mã thoát `0`: runner sống, đọc dòng "vòng gần nhất", hàng chờ và "buổi chưa dựng xong". Mã `2` (chết, đã dừng, ở trạng thái `LỖI` hoặc chưa từng chạy): nêu trong thông báo cuối "bot:runner đang không hoạt động, cần khởi động lại `npm run bot:runner`". **Không tự khởi động lại.** Rồi dùng luồng chạy tay (bước 0 đến 7) nếu người dùng yêu cầu chạy.
 2. Đọc `output/runner-log.jsonl` (các dòng của buổi được yêu cầu). Có `errors` hoặc `warnings` thì nêu trong thông báo cuối (ví dụ nhóm không cào được, hoặc Excel phải lưu thành `_moi`).
@@ -63,7 +63,7 @@ Runner sống thì bạn không chạy `bot:scrape`, `sync:db`, `recover:missing
 
 ## Kiểm tra `bot:watch` và khôi phục khi bị gián đoạn (bước 0 và 1b)
 
-`bot:watch` là thứ duy nhất báo cho hàng chờ biết nhóm nào có tin mới. Nó ghi nhịp tim vào `data/.watch-state.json` (mỗi 30 giây, kèm trạng thái hai nguồn phát hiện: WebSocket và thông báo) và ghi mọi khoảng thời gian nó không lắng nghe vào `data/.watch-gaps.json` (chết đột ngột, dừng có chủ ý, hoặc còn sống nhưng mất cả hai nguồn). Các log này có để **bạn (agent) tự quyết định** có cần khôi phục hay không mỗi khi đến giờ chạy.
+`bot:watch` là thứ duy nhất báo cho hàng chờ biết nhóm nào có tin mới. Nó ghi nhịp tim vào `data/.watch-state.json` (mặc định mỗi 30 giây, `watch.heartbeatSeconds`, kèm trạng thái hai nguồn phát hiện: WebSocket và thông báo) và ghi mọi khoảng thời gian nó không lắng nghe vào `data/.watch-gaps.json` (chết đột ngột, dừng có chủ ý, hoặc còn sống nhưng mất cả hai nguồn). Các log này có để **bạn (agent) tự quyết định** có cần khôi phục hay không mỗi khi đến giờ chạy.
 
 **Quy định bắt buộc.** Làm đúng thứ tự, không hỏi lại người dùng:
 
@@ -80,7 +80,7 @@ Runner sống thì bạn không chạy `bot:scrape`, `sync:db`, `recover:missing
 4. Nếu bước 0 in `CÓ VẺ ĐÃ CHẾT`, `ĐÃ DỪNG` hoặc `ĐANG CHẠY NHƯNG MÙ` (tức `bot:watch` **đang** không hoạt động), nêu trong thông báo cuối: "bot:watch đang không hoạt động, cần khởi động lại `npm run bot:watch`". **Không tự khởi động lại**: nó tắt và mở lại Zalo Desktop và có thể làm gián đoạn người đang dùng.
 5. Thông báo cuối phải nêu: kết luận của bước 0 (khoảng gián đoạn nào, lúc mấy giờ, lý do), việc đã khôi phục (nếu có), số tin bị lỡ đã khôi phục kèm tiêu đề các báo cáo, và các nhóm **vẫn thiếu** báo cáo sau khi cào lại (người phụ trách cần nhắc; cũng có thể là nhóm không có lớp buổi đó).
 
-**Bước 1b làm gì.** `recover:missing` tự kiểm tra lại các khoảng gián đoạn chồng lên buổi; nếu không có thì in "không cần khôi phục" và không làm gì. Nếu có, nó chỉ cào lại các nhóm còn **thiếu báo cáo đầu buổi hoặc cuối buổi** (nhóm trong `config.recoveryIgnoreTargets` được bỏ qua), từ trước khoảng gián đoạn 5 phút; in các khoảng gián đoạn, các tin nhắn bị lỡ đã khôi phục và các nhóm vẫn thiếu; ghi `output/recovery.json`.
+**Bước 1b làm gì.** `recover:missing` tự kiểm tra lại các khoảng gián đoạn chồng lên buổi; nếu không có thì in "không cần khôi phục" và không làm gì. Nếu có, nó chỉ cào lại các nhóm còn **thiếu báo cáo đầu buổi hoặc cuối buổi** (nhóm trong `config.recoveryIgnoreTargets` và các nhóm chỉ chat, tức `"scrape": false` trong `chat-rules.json`, được bỏ qua), từ trước khoảng gián đoạn `recovery.marginMinutes` (mặc định 5 phút); in các khoảng gián đoạn, các tin nhắn bị lỡ đã khôi phục và các nhóm vẫn thiếu; ghi `output/recovery.json`.
 
 - Chưa có dữ liệu nhịp tim (chưa từng chạy `bot:watch` bản mới) được coi là gián đoạn "không rõ": bước 0 trả mã `2` và bước 1b cào lại các nhóm đang thiếu báo cáo.
 - `recover:missing` thoát mã `1` nghĩa là có nhóm không cào được: nêu tên nhóm đó nhưng **vẫn tiếp tục** bước 2–6.
@@ -104,7 +104,7 @@ Chỉ xét tin nhắn có `msgType = desktop.text`. Các tin nhắn khác (ảnh
 
 Mặc định agent chỉ xử lý tin nhắn có `ts` trong ngày hiện tại (giờ Việt Nam), hoặc trong ngày người dùng chỉ định. Lý do: file JSON tích lũy nhiều ngày, xử lý lại tin nhắn cũ sẽ làm Excel bị trùng. Excel được tạo lại mỗi lần chạy và ghi đè file cùng ngày.
 
-Mỗi lần chạy chỉ xử lý **một buổi** của ngày đó, không gộp các buổi hay các ngày khác. Buổi tính theo giờ gửi tin (giờ Việt Nam): `sang` 00:00–11:59, `chieu` 12:00–17:59, `toi` 18:00–23:59. Người dùng nói "báo cáo buổi sáng" thì chạy `--buoi sang`; không nói thì mặc định là buổi của thời điểm chạy. Chỉ các tin nhắn trong buổi đó được xét và được ghi vào `marks.json`; tin nhắn ngoài buổi không bị đụng tới. Mỗi buổi tạo một file Excel riêng: `data/export/baocaobuoi<buoi>_<ddMMyy>.xlsm` (ví dụ buổi sáng 25/09/2026 là `baocaobuoisang_250926.xlsm`). Tạm thời không xử lý ảnh (`chat.photo`): chỉ đọc tin nhắn chữ.
+Mỗi lần chạy chỉ xử lý **một buổi** của ngày đó, không gộp các buổi hay các ngày khác. Buổi tính theo giờ gửi tin (giờ Việt Nam): `sang` 00:00–11:59, `chieu` 12:00–17:59, `toi` 18:00–23:59 (đây là mặc định của `config.sessions`; ranh giới thật xem bằng `npm run config:show`). Người dùng nói "báo cáo buổi sáng" thì chạy `--buoi sang`; không nói thì mặc định là buổi của thời điểm chạy. Chỉ các tin nhắn trong buổi đó được xét và được ghi vào `marks.json`; tin nhắn ngoài buổi không bị đụng tới. Mỗi buổi tạo một file Excel riêng: `data/export/baocaobuoi<buoi>_<ddMMyy>.xlsm` (ví dụ buổi sáng 25/09/2026 là `baocaobuoisang_250926.xlsm`). Tạm thời không xử lý ảnh (`chat.photo`): chỉ đọc tin nhắn chữ.
 
 ## Quy tắc trích xuất
 
@@ -431,7 +431,7 @@ Nêu cho người dùng khi liên quan:
 - Bảng báo cáo chỉ hiện báo cáo **mới nhất** của mỗi phòng trong ngày và thay thế hoàn toàn báo cáo cũ (không gộp): báo cáo cuối buổi ghi `IT bảo trì` sẽ để trống xếp loại máy tính dù báo cáo đầu buổi có số. Sheet `data` vẫn giữ đủ mọi báo cáo.
 - Tin nhắn được **sửa hoặc thu hồi** sau khi đã cào không được cập nhật (dữ liệu khử trùng theo `msgId`, chưa theo dõi thu hồi).
 - Chỉ tin từ mốc `config.sinceTs` (mặc định 06:00 hôm nay) mới được cào; tin trước mốc đó hoặc của ngày trước lần cào không có trong dữ liệu.
-- Buổi tính theo **giờ gửi tin**: báo cáo cuối buổi sáng gửi sau 12:00 thuộc buổi chiều.
+- Buổi tính theo **giờ gửi tin**: báo cáo cuối buổi sáng gửi sau giờ bắt đầu buổi chiều (mặc định 12:00, `config.sessions.chieuFromHour`) thuộc buổi chiều.
 - Báo cáo có `maPhong = null` không vào Excel (chỉ vào `review.json`).
 - Nhịp tim chỉ chứng minh `bot:watch` còn sống và hai nguồn phát hiện còn kết nối; nó không biết được tin nào đã lỡ. Việc khôi phục chỉ cào lại nhóm đang **thiếu** báo cáo trong buổi có gián đoạn, nên một nhóm đã có báo cáo đầu buổi mà báo cáo thứ hai của cùng loại bị lỡ thì không được phát hiện.
 - Kết quả chỉ nằm trong file Excel và `Zalo_CrawlMessage`; không ghi vào các bảng báo cáo `Technical_*`.
@@ -454,6 +454,6 @@ Nêu cho người dùng khi liên quan:
 ## Giả định còn lại
 
 1. Khoảng thời gian mặc định là ngày hiện tại (giờ Việt Nam).
-2. Ranh giới các buổi: sáng trước 12:00, chiều 12:00–17:59, tối từ 18:00 (chưa được người dùng xác nhận).
+2. Ranh giới các buổi mặc định: sáng trước 12:00, chiều 12:00–17:59, tối từ 18:00 (chưa được người dùng xác nhận; chỉnh ở `config.sessions`).
 3. `Area` điền mã khu vực như `TĐ`, `BTAN` (không đổi sang tên đầy đủ như "Thủ Đức").
 4. Báo cáo có phòng không tìm thấy trong DB (`maPhong = null`) bị loại khỏi Excel và có `maTrangThai = 2` (người dùng đã xác nhận).
