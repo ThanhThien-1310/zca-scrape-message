@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { recoveryIgnoreWith } from "./chat/rules.js";
 import { config } from "./config.js";
 import { runScrape } from "./history/desktopScraper.js";
 import { effectiveGaps } from "./history/watchState.js";
@@ -53,7 +54,7 @@ async function main(): Promise<void> {
         {
             now: () => Date.now(),
             targets: config.targets,
-            ignoreTargets: config.recoveryIgnoreTargets,
+            ignoreTargets: recoveryIgnoreWith(config.recoveryIgnoreTargets),
             loadMessages: async () => {
                 const all: SourceMessage[] = [];
                 for (const groupId of store.listThreads()) all.push(...(await store.readThread(groupId)));

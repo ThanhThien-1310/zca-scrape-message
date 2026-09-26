@@ -7,6 +7,8 @@ export interface RouteInput {
     target: string | undefined;
     /** Nhóm có trong `chat-rules.json`. */
     allowedGroups: ReadonlySet<string>;
+    /** Nhóm chỉ chat (`"scrape": false`): không bao giờ xếp vào hàng chờ cào. */
+    noScrapeGroups?: ReadonlySet<string>;
     /** Có phải câu bot vừa gửi quay về không (tiêu mục trong sổ nếu đúng). */
     consumeEcho: (target: string, text: string) => boolean;
 }
@@ -34,7 +36,7 @@ export function routeMessage(input: RouteInput): Route {
         t && !t.isSelf && t.content.trim() !== "" && allowedGroups.has(target)
             ? { groupName: target, groupId: event.groupId, msgId: t.msgId, senderId: t.senderId, senderName: t.senderName, ts: t.ts, text: t.content }
             : null;
-    return { queue: true, inbox };
+    return { queue: !input.noScrapeGroups?.has(target), inbox };
 }
 
 /**
@@ -46,6 +48,6 @@ export function routeMessageSafe(input: RouteInput, onError: (err: Error) => voi
         return routeMessage(input);
     } catch (err) {
         onError(err as Error);
-        return { queue: !!input.target, inbox: null };
+        return { queue: !!input.target && !input.noScrapeGroups?.has(input.target), inbox: null };
     }
 }

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DEFAULT_LIMITS, groupNamesFromFile, loadRules, makeGroupNameReader, parseRules } from "../chat/rules.js";
+import { DEFAULT_LIMITS, groupNamesFromFile, loadRules, makeChatGroupsReader, makeGroupNameReader, noScrapeGroupsFromFile, parseRules, recoveryIgnoreWith } from "../chat/rules.js";
 
 const TARGETS = ["bot test", "LC_HoaSen1_TĐ"];
 const valid = (): any => ({
@@ -97,4 +97,42 @@ test("makeGroupNameReader re-reads only when the file changed", () => {
     assert.deepEqual([...read()], ["B"]);
     fs.rmSync(file);
     assert.deepEqual([...read()], []);
+});
+
+test("a group scrapes by default; \"scrape\": false marks it chat-only; anything else is refused", () => {
+    assert.equal(parseRules(valid(), TARGETS).groups["bot test"].scrape, true);
+    const j = valid();
+    j.groups["bot test"].scrape = false;
+    assert.equal(parseRules(j, TARGETS).groups["bot test"].scrape, false);
+    assert.throws(failing((x) => (x.groups["bot test"].scrape = "no")), /"scrape" phải là true hoặc false/);
+    assert.throws(failing((x) => (x.groups["bot test"].scrape = 0)), /"scrape" phải là true hoặc false/);
+});
+
+test("noScrapeGroupsFromFile lists only the groups marked scrape:false, and never throws", () => {
+    const file = tmp();
+    assert.deepEqual(noScrapeGroupsFromFile(file), []);
+    fs.writeFileSync(file, "{ nope", "utf8");
+    assert.deepEqual(noScrapeGroupsFromFile(file), []);
+    fs.writeFileSync(file, JSON.stringify({ groups: { A: { scrape: false }, B: { scrape: true }, C: {}, D: 5 } }), "utf8");
+    assert.deepEqual(noScrapeGroupsFromFile(file), ["A"]);
+});
+
+test("makeChatGroupsReader returns both the chat groups and the chat-only ones, re-reading when the file changes", () => {
+    const file = tmp();
+    fs.writeFileSync(file, JSON.stringify({ groups: { A: { scrape: false }, B: {} } }), "utf8");
+    const read = makeChatGroupsReader(file);
+    assert.deepEqual([[...read().allowed].sort(), [...read().noScrape]], [["A", "B"], ["A"]]);
+    fs.writeFileSync(file, JSON.stringify({ groups: { B: { scrape: false } } }), "utf8");
+    const later = new Date(Date.now() + 5000);
+    fs.utimesSync(file, later, later);
+    assert.deepEqual([[...read().allowed], [...read().noScrape]], [["B"], ["B"]]);
+    fs.rmSync(file);
+    assert.deepEqual([[...read().allowed], [...read().noScrape]], [[], []]);
+});
+
+test("recoveryIgnoreWith adds the chat-only groups to the configured ignore list without duplicates", () => {
+    const file = tmp();
+    fs.writeFileSync(file, JSON.stringify({ groups: { "bot test": { scrape: false }, "LC_X": { scrape: false }, "LC_Y": {} } }), "utf8");
+    assert.deepEqual(recoveryIgnoreWith(["bot test"], file).sort(), ["LC_X", "bot test"]);
+    assert.deepEqual(recoveryIgnoreWith(["bot test"], path.join(path.dirname(file), "missing.json")), ["bot test"]);
 });

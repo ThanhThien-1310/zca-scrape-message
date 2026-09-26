@@ -8,6 +8,7 @@
     },
     "groups": {
         "bot test": {
+            "scrape": false,
             "rules": [
                 {
                     "id": "bao-cao-co-may-loi",
@@ -20,7 +21,7 @@
                 {
                     "id": "tu-khoa-may-loi",
                     "when": {
-                        "keywords": ["máy lỗi", "máy hỏng", "máy không lên"]
+                        "keywords": ["máy lỗi", "máy hỏng", "máy không lên", "máy bị lỗi"]
                     },
                     "reply": "Đã nhận thông tin có máy lỗi."
                 }

@@ -4,7 +4,7 @@ import { CdpPage, connectToZaloMainPageEarly, connectToZaloNotificationPage } fr
 import { forceRestartZalo } from "./desktopScraper.js";
 import { routeMessageSafe } from "../chat/fanout.js";
 import { appendInbox } from "../chat/inbox.js";
-import { makeGroupNameReader } from "../chat/rules.js";
+import { makeChatGroupsReader } from "../chat/rules.js";
 import { consumeEcho } from "../chat/state.js";
 import { installRealtimeListener } from "./realtimeListener.js";
 import { swallow } from "./atomicWrite.js";
@@ -94,14 +94,16 @@ export async function watch(): Promise<void> {
     // every await before this line is a frame-loss window (this cost us
     // the cipher-key frame entirely in an earlier version of this file).
     let groupIdToTarget = new Map<string, string>();
-    const chatGroups = makeGroupNameReader();
+    const chatGroups = makeChatGroupsReader();
     installRealtimeListener(mainPage, (event) => {
         const target = groupIdToTarget.get(event.groupId);
+        const groups = chatGroups();
         const route = routeMessageSafe(
             {
                 event,
                 target,
-                allowedGroups: chatGroups(),
+                allowedGroups: groups.allowed,
+                noScrapeGroups: groups.noScrape,
                 consumeEcho: (t, text) => consumeEcho(t, text, Date.now()),
             },
             (err) => console.warn(`[watch] chat routing failed, the group is still queued for scraping: ${err.message}`),
@@ -145,6 +147,7 @@ export async function watch(): Promise<void> {
 
         const target = resolveTarget(data.name);
         if (!target) return;
+        if (chatGroups().noScrape.has(target)) return; // chat-only group (chat-rules.json "scrape": false): nothing to scrape
 
         console.log(`[watch] notification for "${target}": ${data.body ?? ""}`.slice(0, 160));
         enqueue(target, "notification");

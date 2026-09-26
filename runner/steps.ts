@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { recoveryIgnoreWith } from "../chat/rules.js";
 import { config } from "../config.js";
 import { runScrape } from "../history/desktopScraper.js";
 import { runQueuedScrape } from "../history/queueRun.js";
@@ -80,7 +81,7 @@ export function realDeps(opts: { freshGaps: () => Gap[] }): CycleDeps {
                 {
                     now: () => Date.now(),
                     targets: config.targets,
-                    ignoreTargets: config.recoveryIgnoreTargets,
+                    ignoreTargets: recoveryIgnoreWith(config.recoveryIgnoreTargets),
                     loadMessages: () => loadMessages(store),
                     gaps: () => gaps,
                     scrape: (targets, sinceTs) => runScrape(store, targets, { sinceTs, untilTs: null }),

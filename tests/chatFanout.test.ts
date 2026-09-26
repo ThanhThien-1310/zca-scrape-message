@@ -71,3 +71,29 @@ test("routeMessageSafe with an unknown conversation still does nothing", () => {
     const r = routeMessageSafe({ event: { groupId: "g9" }, target: undefined, allowedGroups: ALLOWED, consumeEcho: never }, () => undefined);
     assert.deepEqual(r, { queue: false, inbox: null });
 });
+
+test("a chat-only group (scrape:false) still reaches the chat inbox but is never queued for scraping", () => {
+    const r = routeMessage({ event: { groupId: "g1", textMessage: text() }, target: "bot test", allowedGroups: ALLOWED, noScrapeGroups: new Set(["bot test"]), consumeEcho: never });
+    assert.equal(r.queue, false);
+    assert.equal(r.inbox?.msgId, "m1");
+});
+
+test("in a chat-only group the bot's own echo and the account's own messages go nowhere; photos are not queued either", () => {
+    const noScrape = new Set(["bot test"]);
+    assert.deepEqual(routeMessage({ event: { groupId: "g1", textMessage: text({ isSelf: true, content: "Đã nhận." }) }, target: "bot test", allowedGroups: ALLOWED, noScrapeGroups: noScrape, consumeEcho: () => true }), { queue: false, inbox: null });
+    assert.deepEqual(routeMessage({ event: { groupId: "g1", textMessage: text({ isSelf: true }) }, target: "bot test", allowedGroups: ALLOWED, noScrapeGroups: noScrape, consumeEcho: never }), { queue: false, inbox: null });
+    assert.deepEqual(routeMessage({ event: { groupId: "g1" }, target: "bot test", allowedGroups: ALLOWED, noScrapeGroups: noScrape, consumeEcho: never }), { queue: false, inbox: null });
+});
+
+test("other groups are unaffected by the chat-only set", () => {
+    const r = routeMessage({ event: { groupId: "g2", textMessage: text() }, target: "LC_HoaSen1_TĐ", allowedGroups: ALLOWED, noScrapeGroups: new Set(["bot test"]), consumeEcho: never });
+    assert.deepEqual(r, { queue: true, inbox: null });
+});
+
+test("routeMessageSafe: even when the chat part throws, a chat-only group is not queued for scraping", () => {
+    const r = routeMessageSafe(
+        { event: { groupId: "g1", textMessage: text() }, target: "bot test", allowedGroups: ALLOWED, noScrapeGroups: new Set(["bot test"]), consumeEcho: () => { throw new Error("EPERM"); } },
+        () => undefined,
+    );
+    assert.deepEqual(r, { queue: false, inbox: null });
+});

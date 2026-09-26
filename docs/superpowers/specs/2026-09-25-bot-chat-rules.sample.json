@@ -8,6 +8,7 @@
     },
     "groups": {
         "bot test": {
+            "scrape": false,
             "rules": [
                 {
                     "id": "bao-cao-co-may-loi",

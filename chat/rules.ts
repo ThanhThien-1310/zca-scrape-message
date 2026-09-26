@@ -26,7 +26,8 @@ export interface ChatRules {
     version: 1;
     dryRun: boolean;
     limits: Limits;
-    groups: Record<string, { rules: Rule[] }>;
+    /** `scrape: false` = chat-only group: never queued for scraping, never recovered (default true). */
+    groups: Record<string, { rules: Rule[]; scrape: boolean }>;
 }
 
 export const DEFAULT_LIMITS: Limits = { maxRepliesPerMinute: 6, maxReplyDelaySeconds: 180, cooldownSecondsPerRule: 60 };
@@ -120,7 +121,12 @@ export function parseRules(json: unknown, targets: string[]): ChatRules {
                 const rule = parseRule(r, `nhóm "${name}", quy tắc #${i + 1}`, seen, errors);
                 if (rule) rules.push(rule);
             });
-            groups[name] = { rules };
+            let scrape = true;
+            if (g.scrape !== undefined) {
+                if (typeof g.scrape !== "boolean") errors.push(`nhóm "${name}": "scrape" phải là true hoặc false.`);
+                else scrape = g.scrape;
+            }
+            groups[name] = { rules, scrape };
         }
     }
 
@@ -171,4 +177,41 @@ export function makeGroupNameReader(file: string = DEFAULT_RULES_PATH): () => Re
         }
         return cached;
     };
+}
+
+/** Names of the groups marked `"scrape": false`. Forgiving like `groupNamesFromFile`: never throws, a bad file means none. */
+export function noScrapeGroupsFromFile(file: string = DEFAULT_RULES_PATH): string[] {
+    try {
+        const v: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+        if (!isObj(v) || !isObj(v.groups)) return [];
+        return Object.entries(v.groups)
+            .filter(([, g]) => isObj(g) && g.scrape === false)
+            .map(([name]) => name);
+    } catch {
+        return [];
+    }
+}
+
+/** Like `makeGroupNameReader` but also returns the chat-only groups; re-reads the file only when it changed. */
+export function makeChatGroupsReader(file: string = DEFAULT_RULES_PATH): () => { allowed: ReadonlySet<string>; noScrape: ReadonlySet<string> } {
+    let mtime = -1;
+    let cached = { allowed: new Set<string>(), noScrape: new Set<string>() };
+    return () => {
+        let m: number;
+        try {
+            m = fs.statSync(file).mtimeMs;
+        } catch {
+            m = -2;
+        }
+        if (m !== mtime) {
+            mtime = m;
+            cached = m === -2 ? { allowed: new Set(), noScrape: new Set() } : { allowed: new Set(groupNamesFromFile(file)), noScrape: new Set(noScrapeGroupsFromFile(file)) };
+        }
+        return cached;
+    };
+}
+
+/** `config.recoveryIgnoreTargets` plus every chat-only group, so recovery never scrapes a group the user chose not to scrape. */
+export function recoveryIgnoreWith(base: string[], file: string = DEFAULT_RULES_PATH): string[] {
+    return [...new Set([...base, ...noScrapeGroupsFromFile(file)])];
 }

@@ -199,6 +199,7 @@ Sửa đường dẫn theo máy của bạn. Cách khác là PM2 chạy như d�
 4. Giữ chạy nền bằng tác vụ Windows tương tự runner: `schtasks /Create /TN "Zalo Chat" /SC ONLOGON /TR "cmd /c cd /d <đường dẫn>\zca-scrape-message && npm run bot:chat >> data\chat.log 2>&1" /F`.
 
 - **Dừng khẩn cấp:** tạo tệp `data/.chat-off` (bot vẫn đọc hộp thư nhưng không gửi gì); xóa tệp để gửi lại.
+- **Nhóm chỉ chat, không cào:** thêm `"scrape": false` vào nhóm trong `chat-rules.json` (ví dụ `"bot test": { "scrape": false, "rules": [...] }`). Tin của nhóm vẫn vào hộp thư chat để bot trả lời, nhưng nhóm không vào hàng chờ cào và runner không khôi phục nó. Khởi động lại `bot:watch`, `bot:runner` và `bot:chat` sau khi đổi.
 - Bot không trả lời tin quá `maxReplyDelaySeconds`, không lặp lại cùng một tình huống trong `cooldownSecondsPerRule`, và không gửi quá `maxRepliesPerMinute` tin mỗi phút. Ô soạn tin đang có chữ dở (bạn đang gõ) thì bot hoãn, không gõ đè.
 - Tài khoản dùng cho bot nên dành riêng: việc tự động gửi tin có thể bị Zalo coi là bất thường, và mỗi lần gửi bot chuyển cuộc trò chuyện đang mở.
 
