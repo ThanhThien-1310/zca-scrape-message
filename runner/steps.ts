@@ -6,7 +6,7 @@ import { config } from "../config.js";
 import { runScrape } from "../history/desktopScraper.js";
 import { runQueuedScrape } from "../history/queueRun.js";
 import { DEFAULT_QUEUE_PATH, readQueue, removeFromQueue } from "../history/scrapeQueue.js";
-import { effectiveGaps } from "../history/watchState.js";
+import type { Gap } from "../history/watchState.js";
 import { runRecovery } from "../lesson/recoveryRun.js";
 import { currentSession, reportFileName, todayVietnam } from "../lesson/time.js";
 import type { SourceMessage } from "../lesson/types.js";
@@ -14,6 +14,7 @@ import { MessageStore } from "../store/messageStore.js";
 import type { SessionKey } from "./affectedSessions.js";
 import type { BuildResult, CycleDeps } from "./cycle.js";
 import { readBuilt, writeBuilt } from "./builtReports.js";
+import { makeRecoverStep } from "./recoveryPlan.js";
 import { safeReplace } from "./safeReplace.js";
 import { scrapeSinceTs } from "./schedule.js";
 
@@ -64,12 +65,16 @@ export async function buildSession(session: SessionKey): Promise<BuildResult> {
     return { reviewCount: review.length, excel: result.path, warnings };
 }
 
-export function realDeps(): CycleDeps {
+/**
+ * `freshGaps` returns the `bot:watch` gaps that no recovery has covered yet (runner/recoveryPlan.ts). The recover step
+ * of a cycle only ever works on those: with none, a cycle triggered by the queue scrapes ONLY the queue.
+ */
+export function realDeps(opts: { freshGaps: () => Gap[] }): CycleDeps {
     const store = new MessageStore();
     return {
         now: () => Date.now(),
         loadMessages: () => loadMessages(store),
-        recover: async () => {
+        recover: makeRecoverStep(opts.freshGaps, async (gaps) => {
             const result = await runRecovery(
                 { day: todayVietnam(), buoi: currentSession() },
                 {
@@ -77,12 +82,12 @@ export function realDeps(): CycleDeps {
                     targets: config.targets,
                     ignoreTargets: config.recoveryIgnoreTargets,
                     loadMessages: () => loadMessages(store),
-                    gaps: (now) => effectiveGaps(now),
+                    gaps: () => gaps,
                     scrape: (targets, sinceTs) => runScrape(store, targets, { sinceTs }),
                 },
             );
             return { errors: result.errors.map((e) => `${e.target}: ${e.error}`) };
-        },
+        }),
         scrapeQueued: () =>
             runQueuedScrape({
                 readQueue: () => readQueue(),

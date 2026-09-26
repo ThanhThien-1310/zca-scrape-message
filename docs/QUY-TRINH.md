@@ -219,7 +219,7 @@ Các bước 1, 1b, 2, 3, 5, 6 ở trên có thể do `bot:runner` tự làm; kh
 
 **Một vòng, theo thứ tự:**
 
-1. Khôi phục nếu `bot:watch` có gián đoạn trong buổi hiện tại (như `recover:missing`).
+1. Khôi phục, **chỉ với các khoảng gián đoạn của `bot:watch` chưa được khôi phục** (mỗi khoảng chỉ khôi phục một lần, lúc nó còn mở và thêm một lần khi nó đóng). Không có khoảng mới thì bước này không làm gì và không cào nhóm nào ngoài hàng chờ. (Chạy tay `recover:missing` thì vẫn xét mọi khoảng gián đoạn của buổi.)
 2. Cào các nhóm trong hàng chờ. Không cào được (Zalo không kết nối) thì vòng lỗi, hàng chờ nguyên.
 3. Xác định buổi cần dựng: mọi buổi có báo cáo đầu/cuối buổi nằm trên đĩa mà chưa có trong `data/.runner-built.json`; rồi đồng bộ DB.
 4. Với mỗi buổi: trích xuất (áp `output/overrides.json`), điền Excel vào tệp tạm rồi đổi tên đè lên `data/export/baocaobuoi<buổi>_<ddMMyy>.xlsm`, rồi `mark:messages`. Dựng thành công thì buổi đó bị xóa khỏi danh sách chờ.

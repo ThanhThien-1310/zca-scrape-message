@@ -1,4 +1,5 @@
 import type { Gap, WatchState } from "../history/watchState.js";
+import { recoveryKey } from "./recoveryPlan.js";
 import { sessionWindow } from "../lesson/recovery.js";
 import { vietnamDay } from "../lesson/time.js";
 
@@ -39,7 +40,7 @@ export function toQueueTimes(queue: string[], meta: Record<string, number>, fall
  * again for it; a gap that was open and later closes gets a new key too.
  */
 export function newRecoveryKeys(gaps: Gap[], done: ReadonlySet<string>, scope: string): string[] {
-    return gaps.map((g) => `${scope}|${g.from}|${g.to ?? "open"}`).filter((key) => !done.has(key));
+    return gaps.map((g) => recoveryKey(g, scope)).filter((key) => !done.has(key));
 }
 
 /** Scrape back to the start of the Vietnam day of `now`, so the scroll-back does not grow with the runner's uptime. */

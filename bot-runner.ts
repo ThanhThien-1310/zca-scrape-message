@@ -1,12 +1,13 @@
 import { acquireScrapeLock, releaseScrapeLock } from "./history/scrapeLock.js";
 import { readQueue, readQueueMeta, readQueueSeen } from "./history/scrapeQueue.js";
-import { effectiveGaps, HEARTBEAT_INTERVAL_MS, readState } from "./history/watchState.js";
+import { effectiveGaps, HEARTBEAT_INTERVAL_MS, readState, type Gap } from "./history/watchState.js";
 import { gapsInWindow, sessionWindow } from "./lesson/recovery.js";
 import { currentSession, todayVietnam } from "./lesson/time.js";
 import { dirtySessions, initBuiltBaseline, readBuilt } from "./runner/builtReports.js";
 import { runCycle } from "./runner/cycle.js";
 import { beatRunner, readRunnerState, recordCycle, setPhase, startRunner, stopRunner } from "./runner/runnerState.js";
-import { decide, newRecoveryKeys, settledGaps, toQueueTimes, watchWarmingUp } from "./runner/schedule.js";
+import { selectFreshGaps } from "./runner/recoveryPlan.js";
+import { decide, settledGaps, toQueueTimes, watchWarmingUp } from "./runner/schedule.js";
 import { loadMessages, realDeps } from "./runner/steps.js";
 
 /**
@@ -57,7 +58,10 @@ async function main(): Promise<void> {
 
     if (initBuiltBaseline(await loadMessages())) log("[runner] first start: the reports that already exist count as built (rebuild one with `npm run runner:once`).");
 
-    const deps = realDeps();
+    // The gaps the NEXT cycle must recover; set right before each cycle and read by its recover step, so an old gap that
+    // was already recovered never makes a queue-triggered cycle rescan the groups that still lack a report.
+    const plan: { gaps: Gap[] } = { gaps: [] };
+    const deps = realDeps({ freshGaps: () => plan.gaps });
     const startedAt = Date.now();
     const recovered = new Set<string>();
     let nextDirtyCheck = 0;
@@ -79,7 +83,8 @@ async function main(): Promise<void> {
         const day = todayVietnam(now);
         const buoi = currentSession(now);
         const gaps = settledGaps(gapsInWindow(effectiveGaps(now), sessionWindow(day, buoi), now), now);
-        const freshGaps = newRecoveryKeys(gaps, recovered, `${day}|${buoi}`);
+        const fresh = selectFreshGaps(gaps, recovered, `${day}|${buoi}`);
+        const freshGaps = fresh.keys;
 
         // A report that is on disk but not built (the runner or a cycle died, a manual scrape, a failed build).
         let dirty = false;
@@ -100,6 +105,7 @@ async function main(): Promise<void> {
             continue;
         }
         setPhase(now, "running");
+        plan.gaps = fresh.fresh;
         try {
             const why = decision.action === "run" ? `hàng chờ: ${decision.reason}` : freshGaps.length > 0 ? "khoảng gián đoạn của bot:watch" : "có báo cáo chưa dựng";
             log(`[runner] bắt đầu vòng (${why}).`);
@@ -110,6 +116,7 @@ async function main(): Promise<void> {
             log(`[runner] vòng xong: ${summary.ok ? "OK" : "LỖI"} — nhóm ${summary.groups.length}, buổi ${summary.sessions.length}, cần xem ${summary.reviewCount}${summary.errors.length > 0 ? `, lỗi: ${summary.errors.join("; ")}` : ""}${summary.buildErrors.length > 0 ? `, lỗi dựng: ${summary.buildErrors.join("; ")}` : ""}`);
             if (state.state === "error") log(`[runner] ${state.consecutiveFailures} vòng lỗi liên tiếp — ngừng tự thử. Sửa nguyên nhân rồi khởi động lại.`);
         } finally {
+            plan.gaps = [];
             releaseScrapeLock();
         }
     }
