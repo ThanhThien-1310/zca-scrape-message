@@ -45,7 +45,7 @@ thay vì dùng Playwright.
 
 | Chế độ | Lệnh | Mô tả |
 |---|---|---|
-| Theo dõi thời gian thực | `npm run bot:watch` | Đứng chạy liên tục, **nơi duy nhất nghe tin** (WebSocket nội bộ của Zalo Desktop — xem `history/realtimeListener.ts` — và popup thông báo). Mỗi tin nó chia vào hai luồng: hàng chờ cào `data/.scrape-queue.json` và hộp thư chat `data/.chat-inbox.jsonl`. Không cào, không ghi `data/<groupId>.json`. |
+| Theo dõi thời gian thực | `npm run bot:watch` | Đứng chạy liên tục, **nơi duy nhất nghe tin** (WebSocket nội bộ của Zalo Desktop — xem `history/realtimeListener.ts` — và popup thông báo). Mỗi tin nó chia vào hai luồng: hàng chờ cào `data/.scrape-events-<ngày>.jsonl` và hộp thư chat `data/.chat-inbox.jsonl`. Không cào, không ghi `data/<groupId>.json`. |
 | Tự động cào và dựng báo cáo | `npm run bot:runner` | Chạy nền: hàng chờ có nhóm và yên lặng thì cào, đồng bộ DB, trích xuất, ghi đè Excel của buổi, đánh dấu tin; tự khôi phục khi `bot:watch` từng gián đoạn. |
 | Quét theo hàng chờ (tay) | `npm run bot:scrape` | Chạy tay khi runner không chạy: đọc hàng chờ, chỉ mở các nhóm đang có trong đó, cuộn lấy lịch sử, xóa các nhóm vừa xử lý khỏi hàng chờ rồi thoát. Hàng chờ rỗng thì thoát ngay, không đụng Zalo Desktop. |
 | Xếp nhóm vào hàng chờ | `npm run scrape:add -- "Tên nhóm"` | Xếp nhóm (phải có trong `config.targets`) vào hàng chờ bằng tay: nhóm mới chưa từng cào, hoặc ép cào lại. Chỉ ghi file, không đụng Zalo. |
@@ -59,7 +59,7 @@ thay vì dùng Playwright.
 Kho `data/<groupId>.json` (1 file JSON dạng mảng cho mỗi cuộc trò chuyện,
 dedupe theo `msgId`) do các tiến trình **có cào** ghi: `bot:runner`,
 `bot:scrape` và `recover:missing`. `bot:watch` và `bot:scrape` phối hợp qua
-**hàng chờ** `data/.scrape-queue.json` (danh sách tên nhóm, không trùng):
+**hàng chờ** `data/.scrape-events-<ngày>.jsonl` (mỗi tin một dòng chỉ được nối thêm; hàng chờ là các nhóm còn dòng chưa cào):
 `bot:watch` thêm vào, runner (hoặc `bot:scrape`) đọc, cào đúng các nhóm đó rồi
 xóa đúng các nhóm vừa xử lý (nhóm được thêm trong lúc đang cào vẫn còn). Vì
 `bot:watch` không bao giờ điều khiển giao diện Zalo Desktop nên chạy song song
@@ -210,10 +210,10 @@ lên tệp đang bị tiến trình khác đọc) được thử lại và khôn
 
 ### Hàng chờ giữa `bot:watch` và `bot:scrape`
 
-- File: `data/.scrape-queue.json` — mảng JSON tên nhóm đúng như `config.targets`, không trùng. Ghi nguyên tử (file tạm rồi đổi tên, có thử lại trên Windows). Hai tệp phụ: `data/.scrape-queue-meta.json` (thời điểm từng nhóm vào hàng chờ, cho thời gian chờ yên lặng của runner) và `data/.scrape-queue-seen.json` (tin đến cho một nhóm đang nằm sẵn trong hàng chờ, để nhóm đó không bị xóa nhầm nếu tin ấy đến sau lúc bắt đầu cào).
+- File: `data/.scrape-events-<ngày>.jsonl` (một file mỗi ngày Việt Nam), mỗi dòng `{"t": tên nhóm đúng như config.targets, "at": thời điểm}`. **Chỉ được nối thêm**: `bot:watch` và `scrape:add` không đọc-sửa-ghi lại file nào, nên không thể ghi đè lẫn nhau (bản cũ dùng một file JSON chung và có thể làm mất nhóm khi watch và runner ghi cùng lúc). Tệp thứ hai `data/.scrape-events.handled.jsonl` do runner hoặc `bot:scrape` (đang giữ khóa) nối thêm sau mỗi lần cào: nó ghi từng file ngày đã đọc tới byte nào. Một nhóm nằm trong hàng chờ khi còn dòng của nó nằm sau mốc đó; dùng vị trí byte thay vì đồng hồ nên tin đến đúng lúc bắt đầu cào cũng không bị nuốt. File cũ hơn 3 ngày tự bị xóa. Hàng chờ cũ `data/.scrape-queue.json` (nếu còn) được nhập một lần khi watch, runner hoặc `bot:scrape` khởi động, rồi đổi tên `.migrated`.
 - `bot:watch` chỉ **thêm** tên nhóm khi phát hiện tin mới (trừ nhóm chỉ chat `"scrape": false`). Không bao giờ chạm vào giao diện Zalo Desktop. Có thể thêm tay: `npm run scrape:add -- "Tên nhóm"`.
-- Runner (hoặc `bot:scrape` chạy tay) chụp lại hàng chờ, cào đúng các nhóm đó rồi xóa đúng các nhóm vừa xử lý; nhóm được thêm trong lúc đang cào vẫn còn cho lần sau. Hàng chờ rỗng: thoát ngay, in `hàng chờ rỗng`.
-- Nhóm lỗi hoặc không có tin vẫn bị xóa khỏi hàng chờ và được ghi log; nếu không kết nối được Zalo Desktop thì không xóa gì.
+- Runner (hoặc `bot:scrape` chạy tay) chụp lại hàng chờ (kèm mốc byte), cào đúng các nhóm đó rồi đánh dấu đã cào tới mốc; nhóm hoặc tin được thêm trong lúc đang cào nằm sau mốc nên vẫn còn cho lần sau. Hàng chờ rỗng: thoát ngay, in `hàng chờ rỗng`.
+- Nhóm cào **lỗi** vẫn ở lại hàng chờ và được thử lại ở vòng sau (tối đa `runner.maxScrapeAttempts` lần, mặc định 3, mỗi lần cách nhau thời gian yên lặng); hết số lần thì bỏ khỏi hàng chờ, ghi log và một cảnh báo trong vòng của runner kèm lệnh `scrape:add` để cào lại. Nhóm không có tin mới vẫn được coi là đã cào. Nếu không kết nối được Zalo Desktop thì không đánh dấu gì.
 - Chỉ các tiến trình giữ khóa `data/.scrape.lock` mới điều khiển giao diện, nên không còn nguy cơ 2 tiến trình cùng click/cuộn 1 cửa sổ Zalo.
 
 > [!NOTE]
@@ -360,7 +360,7 @@ data/                             DỮ LIỆU ĐẦU RA (không commit, .gitigno
   <groupId>.json                   lưu vĩnh viễn, mảng JSON ghi đè mỗi lần lưu,
                                     dedupe theo msgId, đặt tên theo group id thật
                                     (bền vững khi đổi tên nhóm)
-  .scrape-queue*.json, .watch-*.json, .runner-*.json, .chat-*.json, .scrape.lock
+  .scrape-events*.jsonl, .watch-*.json, .runner-*.json, .chat-*.json, .scrape.lock
                                    hàng chờ, nhịp tim, trạng thái, khóa (xem các mục trên)
   export/                          các file Excel báo cáo baocaobuoi<buổi>_<ddMMyy>.xlsm
 output/                           kết quả trung gian của trích xuất và nhật ký runner (không commit)

@@ -32,7 +32,7 @@ function harness(opts: {
             (async () => {
                 calls.push("scrape");
                 messages.push(...(opts.scraped ?? []));
-                return { status: "done", targets: ["A"], failed: [] };
+                return { status: "done", targets: ["A"], failed: [], gaveUp: [] };
             }),
         syncDb: async () => {
             calls.push("sync");
@@ -73,7 +73,7 @@ test("when the scrape cannot run nothing is synced or built and the cycle is a f
 });
 
 test("a group that failed to scrape is a warning, not a failure", async () => {
-    const h = harness({ scrape: async () => ({ status: "done", targets: ["A", "B"], failed: ["B"] }) });
+    const h = harness({ scrape: async () => ({ status: "done", targets: ["A", "B"], failed: ["B"], gaveUp: [] }) });
     const s = await runCycle(h.deps);
     assert.equal(s.ok, true);
     assert.deepEqual(s.groups, ["A", "B"]);
@@ -131,4 +131,11 @@ test("build warnings (for example an Excel saved as _moi) reach the summary", as
     });
     const s = await runCycle(h.deps);
     assert.deepEqual(s.warnings, ["file đang mở, đã lưu thành b_moi.xlsm"]);
+});
+
+test("a group dropped after its last attempt is a warning that says it was dropped", async () => {
+    const h = harness({ scrape: async () => ({ status: "done", targets: ["A", "B"], failed: ["B"], gaveUp: ["B"] }) });
+    const s = await runCycle(h.deps);
+    assert.equal(s.ok, true);
+    assert.match(s.warnings.join("\n"), /bỏ "B" khỏi hàng chờ.*scrape:add/);
 });

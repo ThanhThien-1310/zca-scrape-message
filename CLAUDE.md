@@ -21,7 +21,7 @@ anything not covered below.
 
 ```bash
 npx tsx index.ts                              # manual scrape of the queued targets only (npm run bot:scrape); empty queue exits at once
-npm run bot:watch                              # long-running detector: enqueues targets with new messages into data/.scrape-queue.json, never scrapes
+npm run bot:watch                              # long-running detector: appends targets with new messages to data/.scrape-events-<day>.jsonl (the scrape queue), never scrapes
 npm run zalo:debug                             # just relaunch Zalo Desktop with --remote-debugging-port open, then exit (for manual CDP probing)
 npx tsx history/exportExcelCli.ts <threadId> [senderName]   # export already-scraped thread to .xlsx (npm run export:excel -- <threadId> [senderName])
 npm run mcp                                    # start the read-only MCP server over stdio
@@ -46,10 +46,10 @@ checks whether the CDP debug port is currently open (should return JSON, not
 connection-refused).
 
 **`bot:watch` and `bot:scrape` cooperate through a queue, not by running the same UI code.**
-`bot:watch` only appends target names to `data/.scrape-queue.json` (see
-`history/scrapeQueue.ts`); `bot:scrape` (`index.ts`, manual) snapshots that
-queue, scrapes exactly those targets, then removes exactly those entries
-(`history/queueRun.ts`) — a target queued mid-scrape stays. `bot:watch` never
+`bot:watch` only appends one line per message to `data/.scrape-events-<day>.jsonl` (see
+`history/scrapeQueue.ts`: append-only, no shared read-modify-write file, so watch and runner cannot overwrite each other); `bot:scrape` (`index.ts`, manual) and the runner take a snapshot of the
+queue (its groups plus how many bytes of each event file were read), scrape exactly those targets, then append a record to `.scrape-events.handled.jsonl`
+(`history/queueRun.ts`) — a target queued mid-scrape sits after that mark and stays; a target whose scrape failed stays queued and is retried up to `runner.maxScrapeAttempts` times. `bot:watch` never
 drives Zalo Desktop's UI, so running both at once is safe. See README "Hàng chờ
 giữa `bot:watch` và `bot:scrape`".
 

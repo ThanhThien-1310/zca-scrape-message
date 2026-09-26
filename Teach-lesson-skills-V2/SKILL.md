@@ -33,7 +33,7 @@ Skill này giữ nguyên điều kiện kích hoạt và mục tiêu của skill
 
 Workdir: `zca-scrape-message/`.
 
-Hai bot phối hợp: `bot:watch` chỉ theo dõi và ghi tên nhóm có tin mới vào hàng chờ `data/.scrape-queue.json`; `bot:scrape` đọc hàng chờ và cào đúng các nhóm đó. Sau đó script trích xuất, agent giám sát.
+Hai bot phối hợp: `bot:watch` chỉ theo dõi và nối thêm tên nhóm có tin mới vào hàng chờ (`data/.scrape-events-<ngày>.jsonl`, xem bằng `npm run runner:status`); `bot:scrape` đọc hàng chờ và cào đúng các nhóm đó. Sau đó script trích xuất, agent giám sát.
 
 | Bước | Việc | Lệnh |
 |---|---|---|
@@ -448,7 +448,7 @@ Nêu cho người dùng khi liên quan:
 1. Script trích xuất toàn bộ, agent đọc và giám sát (thay cho việc agent tự trích xuất).
 2. File mẫu dùng bản trong `templates/`; script tự chạy macro của file mẫu sau khi điền sheet `data`.
 3. `School` và `Area` điền tên (không điền ID).
-4. Hai bot phối hợp qua hàng chờ: `bot:watch` chỉ phát hiện tin mới và ghi tên nhóm vào `data/.scrape-queue.json`; `bot:scrape` cào các nhóm trong hàng chờ.
+4. Hai bot phối hợp qua hàng chờ: `bot:watch` chỉ phát hiện tin mới và nối thêm tên nhóm vào hàng chờ (`data/.scrape-events-<ngày>.jsonl`); `bot:scrape` cào các nhóm trong hàng chờ.
 5. Mỗi lần chạy chỉ xử lý một buổi của một ngày; mỗi buổi một file Excel `baocaobuoi<buoi>_<ddMMyy>.xlsm`. Tạm thời bỏ qua ảnh.
 
 ## Giả định còn lại

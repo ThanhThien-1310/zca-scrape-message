@@ -13,6 +13,7 @@ export interface ConfigShape {
         dirtyRetrySeconds: number;
         watchWarmupSeconds: number;
         maxConsecutiveFailures: number;
+        maxScrapeAttempts: number;
     };
     recovery: { marginMinutes: number };
     chat: { pollSeconds: number; heartbeatSeconds: number; skipBackoffSeconds: number; sentLedgerMinutes: number; echoWindowSeconds: number };
@@ -41,6 +42,7 @@ export function validateConfig(cfg: ConfigShape): string[] {
         ["runner.dirtyRetrySeconds", cfg.runner.dirtyRetrySeconds],
         ["runner.watchWarmupSeconds", cfg.runner.watchWarmupSeconds],
         ["runner.maxConsecutiveFailures", cfg.runner.maxConsecutiveFailures],
+        ["runner.maxScrapeAttempts", cfg.runner.maxScrapeAttempts],
         ["recovery.marginMinutes", cfg.recovery.marginMinutes],
         ["chat.pollSeconds", cfg.chat.pollSeconds],
         ["chat.heartbeatSeconds", cfg.chat.heartbeatSeconds],

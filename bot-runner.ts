@@ -1,5 +1,5 @@
 import { acquireScrapeLock, releaseScrapeLock } from "./history/scrapeLock.js";
-import { readQueue, readQueueMeta, readQueueSeen } from "./history/scrapeQueue.js";
+import { importLegacyQueue, readQueue, readQueueMeta, readQueueSeen } from "./history/scrapeQueue.js";
 import { effectiveGaps, HEARTBEAT_INTERVAL_MS, readState, type Gap } from "./history/watchState.js";
 import { gapsInWindow, sessionWindow } from "./lesson/recovery.js";
 import { currentSession, todayVietnam } from "./lesson/time.js";
@@ -62,6 +62,8 @@ async function main(): Promise<void> {
     const startedAt = Date.now();
     const recovered = new Set<string>();
     let nextDirtyCheck = 0;
+    const imported = importLegacyQueue();
+    if (imported > 0) log(`[runner] đã nhập ${imported} nhóm từ hàng chờ cũ (.scrape-queue.json) sang hàng chờ mới.`);
     log("[runner] running. Waiting for work.");
 
     for (;;) {

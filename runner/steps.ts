@@ -6,7 +6,7 @@ import { recoveryIgnoreWith } from "../chat/rules.js";
 import { config } from "../config.js";
 import { runScrape } from "../history/desktopScraper.js";
 import { runQueuedScrape } from "../history/queueRun.js";
-import { DEFAULT_QUEUE_PATH, readQueue, removeFromQueue } from "../history/scrapeQueue.js";
+import { completeSnapshot, takeSnapshot } from "../history/scrapeQueue.js";
 import type { Gap } from "../history/watchState.js";
 import { runRecovery } from "../lesson/recoveryRun.js";
 import { currentSession, reportFileName, todayVietnam } from "../lesson/time.js";
@@ -91,8 +91,8 @@ export function realDeps(opts: { freshGaps: () => Gap[] }): CycleDeps {
         }),
         scrapeQueued: () =>
             runQueuedScrape({
-                readQueue: () => readQueue(),
-                removeFromQueue: (handled, startedAt) => removeFromQueue(handled, DEFAULT_QUEUE_PATH, startedAt),
+                takeSnapshot: () => takeSnapshot(),
+                complete: (snapshot, failed) => completeSnapshot(snapshot, { failed }),
                 // Scroll back to the start of today only: the default `config.sinceTs` is fixed when the process starts.
                 scrape: (targets) => runScrape(store, targets, { sinceTs: scrapeSinceTs(Date.now()), untilTs: null }),
                 log: (m) => console.log(m),

@@ -137,8 +137,8 @@ Nên chạy đủ một lượt bằng tay trước khi để các bot chạy n�
 
 1. Mở Zalo Desktop, đăng nhập.
 2. Terminal 1: `npm run bot:watch` (để nguyên). Nó tắt và mở lại Zalo Desktop, rồi in `listening for new messages`.
-3. Nhờ một tài khoản khác gửi tin vào một nhóm trong `config.targets`. Terminal 1 in `[watch] queued "<tên nhóm>"`; file `data\.scrape-queue.json` chứa tên nhóm đó.
-4. Terminal 2: `npm run bot:scrape`. Kết quả đúng: nhóm được cào, `data\<groupId>.json` có tin mới, hàng chờ về `[]`. (Khi `bot:runner` đang chạy thì nó làm bước này và các bước 5 đến 8 giúp bạn: xem mục 8.1b.)
+3. Nhờ một tài khoản khác gửi tin vào một nhóm trong `config.targets`. Terminal 1 in `[watch] queued "<tên nhóm>"`; file `data\.scrape-events-<ngày>.jsonl` có thêm một dòng chứa tên nhóm đó (xem nhanh hàng chờ bằng `npm run runner:status`).
+4. Terminal 2: `npm run bot:scrape`. Kết quả đúng: nhóm được cào, `data\<groupId>.json` có tin mới, hàng chờ rỗng (`runner:status`). (Khi `bot:runner` đang chạy thì nó làm bước này và các bước 5 đến 8 giúp bạn: xem mục 8.1b.)
 5. `npm run sync:db` (chạy thử), rồi `npm run sync:db -- --apply` khi thấy số liệu hợp lý.
 6. `npm run extract:reports -- --buoi <buổi hiện tại>`, xem `output\review.json`.
 7. `npm run fill:report -- output/output.json`.

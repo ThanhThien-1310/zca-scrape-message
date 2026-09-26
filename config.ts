@@ -193,6 +193,13 @@ export const config = {
          * báo LỖI; hàng chờ vẫn giữ nguyên, phải khởi động lại tay. Đơn vị: số vòng.
          */
         maxConsecutiveFailures: 3,
+
+        /**
+         * Một nhóm cào LỖI (ví dụ không tìm thấy trong thanh bên Zalo) vẫn ở lại hàng chờ và được thử lại ở vòng sau,
+         * tối đa bấy nhiêu lần tất cả; hết số lần thì bỏ khỏi hàng chờ và ghi log. Đơn vị: lần. Ví dụ 3: thử lần 1, 2, 3 rồi bỏ.
+         * Đặt 1 nếu muốn nhóm lỗi bị bỏ ngay như trước.
+         */
+        maxScrapeAttempts: 3,
     },
 
     // ═══════════════════════════════════════════════════════════════════════

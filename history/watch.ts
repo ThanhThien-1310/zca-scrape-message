@@ -8,7 +8,7 @@ import { makeChatGroupsReader } from "../chat/rules.js";
 import { consumeEcho } from "../chat/state.js";
 import { installRealtimeListener } from "./realtimeListener.js";
 import { swallow } from "./atomicWrite.js";
-import { enqueueTarget } from "./scrapeQueue.js";
+import { enqueueTarget, importLegacyQueue } from "./scrapeQueue.js";
 import { beat, HEARTBEAT_INTERVAL_MS, startWatching, stopWatching as recordStop, type SourceStatus } from "./watchState.js";
 
 const NOTIFY_BINDING = "__zalobotNotify";
@@ -16,7 +16,7 @@ const NOTIFY_BINDING = "__zalobotNotify";
 /**
  * Detector only. Stays connected indefinitely and, whenever a configured
  * conversation gets a new message, records its name in the durable scrape queue
- * (`data/.scrape-queue.json`, see history/scrapeQueue.ts). It never opens,
+ * (`data/.scrape-events-<day>.jsonl`, append-only, see history/scrapeQueue.ts). It never opens,
  * clicks, searches or scrolls anything in Zalo Desktop's UI and never writes
  * `data/<groupId>.json` — `bot:scrape` (run manually) is the only process that
  * drives the UI and scrapes, and only the queued conversations.
@@ -70,6 +70,8 @@ export async function watch(): Promise<void> {
     // forceRestartZalo and connectToZaloMainPageEarly for why both the
     // restart and the early, loosely-matched attach are needed to reliably
     // observe the one-time cipher-key handshake.
+    const imported = importLegacyQueue();
+    if (imported > 0) console.log(`[watch] đã nhập ${imported} nhóm từ hàng chờ cũ (.scrape-queue.json) sang hàng chờ mới.`);
     await forceRestartZalo();
     const mainPage = await connectToZaloMainPageEarly(config.cdpUrl);
     await mainPage.enableNetwork();

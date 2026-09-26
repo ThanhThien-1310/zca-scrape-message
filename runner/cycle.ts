@@ -16,7 +16,7 @@ export interface CycleDeps {
     loadMessages(): Promise<SourceMessage[]>;
     /** Re-scrapes groups missing reports if `bot:watch` had a gap in the current session; never throws for a single group. */
     recover(): Promise<{ errors: string[] }>;
-    /** Snapshot the queue, scrape exactly those groups, remove exactly those (history/queueRun.ts). Throws if Zalo Desktop is unreachable. */
+    /** Snapshot the queue, scrape exactly those groups, mark exactly those as scraped; failed groups stay queued for a retry (history/queueRun.ts). Throws if Zalo Desktop is unreachable. */
     scrapeQueued(): Promise<QueueRunResult>;
     syncDb(): Promise<void>;
     /** Extract one session, write its Excel, mark its messages. */
@@ -43,6 +43,7 @@ export async function runCycle(deps: CycleDeps): Promise<CycleSummary> {
         if (scrape.status === "done") {
             summary.groups = scrape.targets;
             for (const t of scrape.failed) summary.warnings.push(`không cào được "${t}"`);
+            for (const t of scrape.gaveUp) summary.warnings.push(`đã bỏ "${t}" khỏi hàng chờ sau nhiều lần lỗi; cào lại bằng: npm run scrape:add -- "${t}"`);
         }
 
         const messages = await deps.loadMessages();

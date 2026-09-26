@@ -49,6 +49,7 @@ export const SETTINGS: Setting[] = [
     { section: SECTIONS[4], path: "runner.dirtyRetrySeconds", unit: "giây", default: 300, readers: ["bot:runner"], note: "Thử lại một buổi dựng lỗi sau bấy nhiêu giây." },
     { section: SECTIONS[4], path: "runner.watchWarmupSeconds", unit: "giây", default: 90, readers: ["bot:runner"], note: "Không đụng vào Zalo trong bấy nhiêu giây sau khi bot:watch khởi động." },
     { section: SECTIONS[4], path: "runner.maxConsecutiveFailures", unit: "vòng", default: 3, readers: ["bot:runner"], note: "Bấy nhiêu vòng lỗi liên tiếp thì runner ngừng tự thử." },
+    { section: SECTIONS[4], path: "runner.maxScrapeAttempts", unit: "lần", default: 3, readers: ["bot:runner", "bot:scrape"], note: "Nhóm cào lỗi ở lại hàng chờ, thử tối đa bấy nhiêu lần rồi bỏ." },
 
     { section: SECTIONS[5], path: "recovery.marginMinutes", unit: "phút", default: 5, readers: ["bot:runner", "recover:missing"], note: "Cào lại từ trước lúc watch chết bấy nhiêu phút." },
 
