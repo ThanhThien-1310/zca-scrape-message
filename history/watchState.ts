@@ -15,11 +15,11 @@ import { writeFileAtomic } from "./atomicWrite.js";
  * It cannot know WHICH messages it missed; it records WHEN. `recover:missing`
  * uses the gaps to decide whether a re-scrape is needed at all.
  */
-export const HEARTBEAT_INTERVAL_MS = 30_000;
+export const HEARTBEAT_INTERVAL_MS = config.watch.heartbeatSeconds * 1000;
 /** A heartbeat older than this means the watcher is dead (3 missed beats). */
-export const STALE_AFTER_MS = 90_000;
+export const STALE_AFTER_MS = config.watch.deadAfterSeconds * 1000;
 /** A blind spell (both sources down) shorter than this is start-up noise, not a gap. */
-const MIN_BLIND_GAP_MS = 60_000;
+export const MIN_BLIND_GAP_MS = config.watch.minBlindSeconds * 1000;
 
 export type SourceStatus = "connecting" | "active" | "down";
 

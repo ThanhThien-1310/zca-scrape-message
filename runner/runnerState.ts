@@ -16,7 +16,7 @@ import { writeFileAtomic } from "../history/atomicWrite.js";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** After this many failed cycles in a row the runner stops trying until it is restarted. */
-export const MAX_CONSECUTIVE_FAILURES = 3;
+export const MAX_CONSECUTIVE_FAILURES = config.runner.maxConsecutiveFailures;
 
 export interface CycleSummary {
     kind: "cycle" | "rebuild";

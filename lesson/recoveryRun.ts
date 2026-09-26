@@ -1,10 +1,11 @@
+import { config } from "../config.js";
 import type { Gap } from "../history/watchState.js";
 import { diffRecovered, findMissingGroups, gapsInWindow, messageKey, sessionWindow, type MissingGroup, type RecoveredMessage, type Window } from "./recovery.js";
 import type { Buoi } from "./time.js";
 import type { SourceMessage } from "./types.js";
 
 /** Scrape from this long before a gap starts, to catch messages that arrived just as the watcher went down. */
-const SINCE_MARGIN_MS = 5 * 60_000;
+export const SINCE_MARGIN_MS = config.recovery.marginMinutes * 60_000;
 
 export interface RecoveryDeps {
     now(): number;

@@ -7,7 +7,7 @@ import { dirtySessions, initBuiltBaseline, readBuilt } from "./runner/builtRepor
 import { runCycle } from "./runner/cycle.js";
 import { beatRunner, readRunnerState, recordCycle, setPhase, startRunner, stopRunner } from "./runner/runnerState.js";
 import { selectFreshGaps } from "./runner/recoveryPlan.js";
-import { decide, settledGaps, toQueueTimes, watchWarmingUp } from "./runner/schedule.js";
+import { decide, DIRTY_CHECK_MS, DIRTY_RETRY_MS, POLL_MS, settledGaps, toQueueTimes, watchWarmingUp } from "./runner/schedule.js";
 import { loadMessages, realDeps } from "./runner/steps.js";
 
 /**
@@ -24,9 +24,6 @@ import { loadMessages, realDeps } from "./runner/steps.js";
  * After 3 failed cycles in a row it stops trying (state `error`) until restarted; the queue is untouched.
  * Look at it with `npm run runner:status`.
  */
-const POLL_MS = 5_000;
-const DIRTY_CHECK_MS = 60_000;
-const DIRTY_RETRY_MS = 5 * 60_000;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const log = (m: string) => console.log(`${new Date().toISOString()} ${m}`);
 

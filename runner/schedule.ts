@@ -1,12 +1,13 @@
+import { config } from "../config.js";
 import type { Gap, WatchState } from "../history/watchState.js";
 import { recoveryKey } from "./recoveryPlan.js";
 import { sessionWindow } from "../lesson/recovery.js";
 import { vietnamDay } from "../lesson/time.js";
 
 /** The queue must be quiet this long before a cycle runs (bursts of reports arrive together). */
-export const QUIET_MS = 2 * 60_000;
+export const QUIET_MS = config.runner.quietSeconds * 1000;
 /** A cycle runs at the latest this long after the earliest group was queued, however busy the queue stays. */
-export const MAX_WAIT_MS = 10 * 60_000;
+export const MAX_WAIT_MS = config.runner.maxWaitSeconds * 1000;
 
 export interface QueueTimes {
     count: number;
@@ -48,8 +49,13 @@ export function scrapeSinceTs(now: number): number {
     return sessionWindow(vietnamDay(now), "sang").from;
 }
 
-const WARMUP_MS = 90_000;
-const MIN_BLIND_MS = 60_000;
+export const WARMUP_MS = config.runner.watchWarmupSeconds * 1000;
+export const MIN_BLIND_MS = config.watch.minBlindSeconds * 1000;
+
+/** Runner: how often it looks at the queue, checks for unbuilt reports, and retries a session whose build failed. */
+export const POLL_MS = config.runner.pollSeconds * 1000;
+export const DIRTY_CHECK_MS = config.runner.dirtyCheckSeconds * 1000;
+export const DIRTY_RETRY_MS = config.runner.dirtyRetrySeconds * 1000;
 
 /** `bot:watch` restarts Zalo Desktop when it starts; the runner must not touch Zalo until that has settled. */
 export function watchWarmingUp(state: WatchState | null, now: number): boolean {
