@@ -152,7 +152,7 @@ Ba tình huống thường gặp:
 
 1. **Runner cào nhanh hơn hoặc chậm hơn:** đổi `runner.quietSeconds` (mặc định 120). Ví dụ nhóm nhắn lúc 08:00:20, đặt 120 thì cào lúc 08:02:20, đặt 30 thì cào lúc 08:00:50. Giá trị nhỏ hơn thì nhiều vòng nhỏ hơn chiếm giao diện Zalo. Phải nhỏ hơn hoặc bằng `runner.maxWaitSeconds`.
 2. **Đổi ranh giới buổi chiều:** đổi `sessions.toiFromHour` (mặc định 18). Ví dụ 17 thì chiều là 12:00 đến 17:00 và tối từ 17:00; nhớ dời lịch chạy buổi chiều thành 17:05. Đổi giờ chỉ ảnh hưởng dữ liệu mới.
-3. **Thêm nhóm mới:** thêm tên nhóm đúng như thanh bên Zalo vào `targets`, khởi động lại `bot:watch`; nhóm cần được cào ít nhất một lần thì mới nghe được tin qua WebSocket.
+3. **Thêm nhóm mới:** thêm tên nhóm đúng như thanh bên Zalo vào `targets`, rồi **khởi động lại cả `bot:watch`, `bot:runner` và `bot:chat`** (cả ba đọc `targets` lúc khởi động: watch để nhận tin, runner để khôi phục, chat để chấp nhận nhóm đó trong `chat-rules.json`). Nhóm cần được cào ít nhất một lần thì watch mới nghe được tin của nó qua WebSocket.
 
 Lưu ý: `sinceTs` chỉ được tính một lần lúc bot khởi động, nên bot chạy qua đêm giữ mốc của ngày hôm qua (`bot:runner` tự tính lại mỗi vòng nên không bị ảnh hưởng).
 

@@ -40,7 +40,7 @@ test("quietSeconds may equal maxWaitSeconds but not exceed it", () => {
 
 test("a watcher is declared dead only after at least two missed beats; fewer than three is only a warning", () => {
     assert.throws(bad((c) => (c.watch.deadAfterSeconds = 45)), /deadAfterSeconds/);
-    const warnings = bad((c) => (c.watch.deadAfterSeconds = 60))();
+    const warnings = bad((c) => (c.watch.deadAfterSeconds = 60))().filter((w) => /watch\.heartbeatSeconds/.test(w));
     assert.equal(warnings.length, 1);
     assert.match(warnings[0], /deadAfterSeconds/);
 });
@@ -77,4 +77,12 @@ test("every problem is reported at once", () => {
         c.targets = [];
     });
     assert.throws(fn, (e: Error) => /quietSeconds/.test(e.message) && /toiFromHour/.test(e.message) && /targets/.test(e.message));
+});
+
+test("bot:chat's own heartbeat is judged against watch.deadAfterSeconds (chat:status uses it): two beats must fit, fewer than three only warns", () => {
+    assert.throws(bad((c) => (c.chat.heartbeatSeconds = 60)), /chat\.heartbeatSeconds.*watch\.deadAfterSeconds/);
+    assert.throws(bad((c) => (c.chat.heartbeatSeconds = 46)), /chat\.heartbeatSeconds/);
+    const warnings = bad((c) => (c.chat.heartbeatSeconds = 40))();
+    assert.equal(warnings.filter((w) => /chat\.heartbeatSeconds/.test(w)).length, 1);
+    assert.deepEqual(bad((c) => (c.chat.heartbeatSeconds = 30))(), []);
 });

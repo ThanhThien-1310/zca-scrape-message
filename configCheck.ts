@@ -62,6 +62,15 @@ export function validateConfig(cfg: ConfigShape): string[] {
         }
     }
 
+    // bot:chat's own heartbeat is judged by `chat:status` against watch.deadAfterSeconds, so the two must fit together.
+    if (isPositiveInt(cfg.chat.heartbeatSeconds) && isPositiveInt(cfg.watch.deadAfterSeconds)) {
+        if (cfg.watch.deadAfterSeconds < 2 * cfg.chat.heartbeatSeconds) {
+            errors.push(`chat.heartbeatSeconds (${cfg.chat.heartbeatSeconds}) quá lớn so với watch.deadAfterSeconds (${cfg.watch.deadAfterSeconds}): chat:status dùng watch.deadAfterSeconds để coi bot chat là đã chết, nên phải chứa ít nhất 2 nhịp tim của chat.`);
+        } else if (cfg.watch.deadAfterSeconds < 3 * cfg.chat.heartbeatSeconds) {
+            warnings.push(`chat.heartbeatSeconds (${cfg.chat.heartbeatSeconds}) gần bằng watch.deadAfterSeconds (${cfg.watch.deadAfterSeconds}): chat:status chỉ chịu được một nhịp tim của chat bị trễ.`);
+        }
+    }
+
     if (isPositiveInt(cfg.chat.sentLedgerMinutes) && isPositiveInt(cfg.chat.echoWindowSeconds) && cfg.chat.sentLedgerMinutes * 60 <= cfg.chat.echoWindowSeconds) {
         errors.push(`chat.sentLedgerMinutes (${cfg.chat.sentLedgerMinutes} phút) phải dài hơn chat.echoWindowSeconds (${cfg.chat.echoWindowSeconds} giây).`);
     }

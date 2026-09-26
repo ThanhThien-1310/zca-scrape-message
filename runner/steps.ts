@@ -83,7 +83,7 @@ export function realDeps(opts: { freshGaps: () => Gap[] }): CycleDeps {
                     ignoreTargets: config.recoveryIgnoreTargets,
                     loadMessages: () => loadMessages(store),
                     gaps: () => gaps,
-                    scrape: (targets, sinceTs) => runScrape(store, targets, { sinceTs }),
+                    scrape: (targets, sinceTs) => runScrape(store, targets, { sinceTs, untilTs: null }),
                 },
             );
             return { errors: result.errors.map((e) => `${e.target}: ${e.error}`) };
@@ -93,7 +93,7 @@ export function realDeps(opts: { freshGaps: () => Gap[] }): CycleDeps {
                 readQueue: () => readQueue(),
                 removeFromQueue: (handled, startedAt) => removeFromQueue(handled, DEFAULT_QUEUE_PATH, startedAt),
                 // Scroll back to the start of today only: the default `config.sinceTs` is fixed when the process starts.
-                scrape: (targets) => runScrape(store, targets, { sinceTs: scrapeSinceTs(Date.now()) }),
+                scrape: (targets) => runScrape(store, targets, { sinceTs: scrapeSinceTs(Date.now()), untilTs: null }),
                 log: (m) => console.log(m),
             }),
         syncDb: async () => {

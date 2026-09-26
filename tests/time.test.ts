@@ -1,3 +1,4 @@
+import "./helpers/pinConfig.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { currentSession, excelDateSerial, excelTimeFraction, isBuoi, reportFileName, sessionOf, todayVietnam, vietnamDay } from "../lesson/time.js";

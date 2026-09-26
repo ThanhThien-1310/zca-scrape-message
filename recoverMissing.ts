@@ -60,7 +60,7 @@ async function main(): Promise<void> {
                 return all;
             },
             gaps: (now) => effectiveGaps(now),
-            scrape: (targets, sinceTs) => runScrape(store, targets, { sinceTs }),
+            scrape: (targets, sinceTs) => runScrape(store, targets, { sinceTs, untilTs: null }),
         },
     );
 

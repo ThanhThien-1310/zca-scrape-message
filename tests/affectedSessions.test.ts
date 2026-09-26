@@ -1,3 +1,4 @@
+import "./helpers/pinConfig.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { affectedSessions, mergeSessions } from "../runner/affectedSessions.js";

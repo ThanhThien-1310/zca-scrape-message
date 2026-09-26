@@ -106,6 +106,8 @@ export const config = {
     /**
      * Chỉ giữ tin đến mốc này (unix ms); chỉ là bộ lọc kết quả, không ảnh hưởng việc cuộn.
      * Ví dụ: todayAt(12, 0) để chốt đúng buổi sáng. null là đến lúc chạy.
+     * CHỈ áp dụng cho bot:scrape chạy tay: bot:runner và khôi phục luôn bỏ qua untilTs (nếu không, đặt 12:00 sẽ làm runner
+     * âm thầm bỏ hết tin buổi chiều).
      */
     untilTs: null as number | null,
 
@@ -211,7 +213,11 @@ export const config = {
         /** Bao lâu bot chat kiểm hộp thư một lần. Độ trễ trả lời tối thiểu xấp xỉ giá trị này cộng thời gian gửi. Đơn vị: giây. */
         pollSeconds: 3,
 
-        /** Nhịp tim của bot chat (data/.chat-state.json), dùng cho chat:status. Đơn vị: giây. */
+        /**
+         * Nhịp tim của bot chat (data/.chat-state.json), dùng cho chat:status. chat:status coi bot chat là ĐÃ CHẾT khi quá
+         * watch.deadAfterSeconds không có nhịp tim, nên deadAfterSeconds phải chứa ít nhất 2 nhịp này (ví dụ nhịp 30 với
+         * deadAfterSeconds 90 là đúng; nhịp 60 bị từ chối). Đơn vị: giây.
+         */
         heartbeatSeconds: 30,
 
         /**

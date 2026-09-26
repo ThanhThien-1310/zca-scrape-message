@@ -1,3 +1,4 @@
+import "./helpers/pinConfig.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { extractAll } from "../lesson/extract.js";

@@ -1,3 +1,4 @@
+import "./helpers/pinConfig.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { diffRecovered, findMissingGroups, gapsInWindow, messageKey, sessionWindow } from "../lesson/recovery.js";
