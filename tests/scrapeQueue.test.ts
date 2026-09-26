@@ -163,7 +163,7 @@ test("compaction drops old day files and the handled records that only mention t
     enqueueTarget("A", file, at(9, 0, 20));
     done(file, takeSnapshot(file), [], at(10, 0, 20));
     enqueueTarget("B", file, at(9, 0, 24));
-    compactQueue(file, at(12, 0, 24));
+    compactQueue(file, at(12, 0, 24), 3);
     assert.equal(fs.existsSync(segmentPath(file, at(9, 0, 20))), false);
     assert.equal(fs.existsSync(segmentPath(file, at(9, 0, 24))), true);
     assert.deepEqual(readQueue(file), ["B"]);
@@ -174,8 +174,19 @@ test("compaction drops old day files and the handled records that only mention t
 test("compaction keeps a queued group of a recent day", () => {
     const file = fresh();
     enqueueTarget("A", file, at(9, 0, 23));
-    compactQueue(file, at(12, 0, 24));
+    compactQueue(file, at(12, 0, 24), 3);
     assert.deepEqual(readQueue(file), ["A"]);
+});
+
+test("how many days of event files are kept is a parameter", () => {
+    for (const [keepDays, expected] of [[1, ["C"]], [2, ["B", "C"]], [7, ["A", "B", "C"]]] as const) {
+        const file = fresh();
+        enqueueTarget("A", file, at(9, 0, 20));
+        enqueueTarget("B", file, at(9, 0, 22));
+        enqueueTarget("C", file, at(9, 0, 24));
+        compactQueue(file, at(12, 0, 24), keepDays);
+        assert.deepEqual(readQueue(file), [...expected], `keepDays ${keepDays}`);
+    }
 });
 
 test("the old queue file is imported once and renamed", () => {

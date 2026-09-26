@@ -8,7 +8,7 @@ const good = (): ConfigShape => ({
     targetMessageCount: 2000,
     scrollDelayMs: { min: 500, max: 1200 },
     watch: { heartbeatSeconds: 30, deadAfterSeconds: 90, minBlindSeconds: 60 },
-    runner: { quietSeconds: 120, maxWaitSeconds: 600, pollSeconds: 5, dirtyCheckSeconds: 60, dirtyRetrySeconds: 300, watchWarmupSeconds: 90, maxConsecutiveFailures: 3, maxScrapeAttempts: 3 },
+    runner: { quietSeconds: 120, maxWaitSeconds: 600, pollSeconds: 5, dirtyCheckSeconds: 60, dirtyRetrySeconds: 300, watchWarmupSeconds: 90, maxConsecutiveFailures: 3, maxScrapeAttempts: 3, queueKeepDays: 3 },
     recovery: { marginMinutes: 5 },
     chat: { pollSeconds: 3, heartbeatSeconds: 30, skipBackoffSeconds: 45, sentLedgerMinutes: 10, echoWindowSeconds: 120 },
     sessions: { chieuFromHour: 12, toiFromHour: 18 },
@@ -30,6 +30,8 @@ test("every seconds/minutes value must be a positive whole number, and the error
     assert.throws(bad((c) => (c.recovery.marginMinutes = Number.NaN)), /recovery\.marginMinutes/);
     assert.throws(bad((c) => (c.chat.skipBackoffSeconds = "45" as unknown as number)), /chat\.skipBackoffSeconds/);
     assert.throws(bad((c) => (c.runner.maxConsecutiveFailures = 0)), /runner\.maxConsecutiveFailures/);
+    assert.throws(bad((c) => (c.runner.queueKeepDays = 0)), /runner.queueKeepDays/);
+    assert.throws(bad((c) => (c.runner.maxScrapeAttempts = 0)), /runner.maxScrapeAttempts/);
     assert.throws(bad((c) => (c.targetMessageCount = 0)), /targetMessageCount/);
 });
 

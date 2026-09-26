@@ -43,7 +43,7 @@ test("the documented defaults are exactly what the code used before the config w
     const pinned: Record<string, number> = {
         "watch.heartbeatSeconds": 30, "watch.deadAfterSeconds": 90, "watch.minBlindSeconds": 60,
         "runner.quietSeconds": 120, "runner.maxWaitSeconds": 600, "runner.pollSeconds": 5, "runner.dirtyCheckSeconds": 60,
-        "runner.dirtyRetrySeconds": 300, "runner.watchWarmupSeconds": 90, "runner.maxConsecutiveFailures": 3,
+        "runner.dirtyRetrySeconds": 300, "runner.watchWarmupSeconds": 90, "runner.maxConsecutiveFailures": 3, "runner.maxScrapeAttempts": 3, "runner.queueKeepDays": 3,
         "recovery.marginMinutes": 5,
         "chat.pollSeconds": 3, "chat.heartbeatSeconds": 30, "chat.skipBackoffSeconds": 45, "chat.sentLedgerMinutes": 10, "chat.echoWindowSeconds": 120,
         "sessions.chieuFromHour": 12, "sessions.toiFromHour": 18,

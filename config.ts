@@ -200,6 +200,14 @@ export const config = {
          * Đặt 1 nếu muốn nhóm lỗi bị bỏ ngay như trước.
          */
         maxScrapeAttempts: 3,
+
+        /**
+         * Hàng chờ cào (data/.scrape-events-<ngày>.jsonl) chỉ được nối thêm nên tự dọn theo ngày: sau mỗi lần cào, file sự kiện
+         * của những ngày Việt Nam CŨ HƠN bấy nhiêu ngày bị xóa. Ngày hôm nay luôn được giữ. Ví dụ 3: đang là 26/09 thì giữ 23, 24, 25, 26
+         * và xóa từ 22 trở về trước; một nhóm nằm chờ ở file đã xóa sẽ mất khỏi hàng chờ. Đặt 1 để chỉ giữ hôm nay và hôm qua
+         * (file nhỏ nhất), đặt 7 nếu muốn giữ cả tuần. Đơn vị: ngày.
+         */
+        queueKeepDays: 3,
     },
 
     // ═══════════════════════════════════════════════════════════════════════

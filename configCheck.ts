@@ -14,6 +14,7 @@ export interface ConfigShape {
         watchWarmupSeconds: number;
         maxConsecutiveFailures: number;
         maxScrapeAttempts: number;
+        queueKeepDays: number;
     };
     recovery: { marginMinutes: number };
     chat: { pollSeconds: number; heartbeatSeconds: number; skipBackoffSeconds: number; sentLedgerMinutes: number; echoWindowSeconds: number };
@@ -43,6 +44,7 @@ export function validateConfig(cfg: ConfigShape): string[] {
         ["runner.watchWarmupSeconds", cfg.runner.watchWarmupSeconds],
         ["runner.maxConsecutiveFailures", cfg.runner.maxConsecutiveFailures],
         ["runner.maxScrapeAttempts", cfg.runner.maxScrapeAttempts],
+        ["runner.queueKeepDays", cfg.runner.queueKeepDays],
         ["recovery.marginMinutes", cfg.recovery.marginMinutes],
         ["chat.pollSeconds", cfg.chat.pollSeconds],
         ["chat.heartbeatSeconds", cfg.chat.heartbeatSeconds],

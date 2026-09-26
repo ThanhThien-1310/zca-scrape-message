@@ -25,8 +25,6 @@ export const DEFAULT_QUEUE_PATH = path.join(config.dataDir, ".scrape-events.json
 /** The queue file that earlier versions used (a JSON array plus `-meta`/`-seen` sidecars); imported once, see `importLegacyQueue`. */
 export const LEGACY_QUEUE_PATH = path.join(config.dataDir, ".scrape-queue.json");
 
-/** Event files (and handled records that only mention them) older than this many Vietnam days are deleted by `compactQueue`. */
-const KEEP_DAYS = 3;
 const DAY_MS = 86_400_000;
 
 /** For every event file that existed when the snapshot was taken, the byte offset up to which it was read. */
@@ -358,11 +356,12 @@ export function completeSnapshot(snapshot: QueueSnapshot, opts: CompleteOptions 
 }
 
 /**
- * Deletes event files older than `KEEP_DAYS` Vietnam days, and rewrites the handled file without the records that
- * only refer to deleted ones. Only for whoever holds `data/.scrape.lock` (the only writer of the handled file).
+ * Deletes event files older than `keepDays` Vietnam days (`config.runner.queueKeepDays`; today's file is always kept), and
+ * rewrites the handled file without the records that only refer to deleted ones. Only for whoever holds `data/.scrape.lock`
+ * (the only writer of the handled file).
  */
-export function compactQueue(file: string = DEFAULT_QUEUE_PATH, now: number = Date.now()): void {
-    const oldest = `${path.basename(stem(file))}-${vietnamDay(now - KEEP_DAYS * DAY_MS)}.jsonl`;
+export function compactQueue(file: string = DEFAULT_QUEUE_PATH, now: number = Date.now(), keepDays: number = config.runner.queueKeepDays): void {
+    const oldest = `${path.basename(stem(file))}-${vietnamDay(now - keepDays * DAY_MS)}.jsonl`;
     const dir = path.dirname(file);
     const names = listSegments(file);
     const removed = names.filter((n) => n < oldest);
