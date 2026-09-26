@@ -1,11 +1,16 @@
 import { computerGrade, FIELD_KEYS, isValidFacilityGrade, parseCount, parseGrade, parseLines, parseNote, parseRoom } from "./parseReport.js";
+import { config } from "../../config.js";
 import { parseGroupName } from "./schoolArea.js";
 import type { CoSoVatChat, FieldKey, LoaiBaoCao, RawFields, Report, SourceMessage, Sua } from "../types/index.js";
 
-export function extractRaw(content: string, groupName: string): RawFields {
+/**
+ * `aliases` (default `config.groupAliases`) maps a test group's name to the name of a real school group: the school and area are
+ * read from that name instead, so a report sent to the test group gets a room like a real one. Nothing else about the message changes.
+ */
+export function extractRaw(content: string, groupName: string, aliases: Record<string, string> = config.groupAliases): RawFields {
     const { values, unknownLabels } = parseLines(content);
     const room = parseRoom(values.phongMay);
-    const { truong, khuVuc } = parseGroupName(groupName);
+    const { truong, khuVuc } = parseGroupName(aliases[groupName] ?? groupName);
     return {
         phongMay: room.phongMay,
         coSoPhong: room.coSo,

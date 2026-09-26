@@ -91,6 +91,16 @@ export const config = {
      */
     recoveryIgnoreTargets: ["bot test"] as string[],
 
+    /**
+     * Nhóm THỬ được ĐỌC NHƯ một nhóm trường thật khi trích xuất báo cáo: tên nhóm thử -> tên một nhóm trường thật, theo kiểu đặt tên
+     * nhóm thật (cấp học_tên trường_khu vực). Nhờ vậy báo cáo gửi vào nhóm thử có trường, khu vực, mã phòng và ra một dòng trong Excel,
+     * để chạy thử cả quy trình. Phòng máy lấy từ chính tin nhắn: ghi "Phòng Máy: PM3" để không trùng phòng thật PM1.
+     * CHỈ ĐỂ THỬ: dòng của nhóm thử nằm trong file Excel THẬT của buổi. Khi thử xong, xóa dòng này (đặt {}), khởi động lại bot rồi dựng lại
+     * buổi (npm run runner:once -- --day <ngày> --buoi <buổi>) thì dòng đó biến mất. Khóa phải nằm trong targets. Mặc định: {}.
+     * Ví dụ: { "bot test": "LC_ChuVănAn_BTAN" }.
+     */
+    groupAliases: { "bot test": "LC_ChuVănAn_BTAN" } as Record<string, string>,
+
     // ═══════════════════════════════════════════════════════════════════════
     // 3. CÀO
     // ═══════════════════════════════════════════════════════════════════════

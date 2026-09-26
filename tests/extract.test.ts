@@ -139,7 +139,7 @@ test("the room-line branch overrides the school branch and is part of the lookup
 });
 
 test("a group name without an area goes to review and never crashes", async () => {
-    const r = await extractAll([msg(COMPLETE, at(8), { groupName: "bot test" })], { day: DAY, lookupRoomIds: lookup });
+    const r = await extractAll([msg(COMPLETE, at(8), { groupName: "bot test" })], { day: DAY, lookupRoomIds: lookup, groupAliases: {} });
     assert.equal(r.reports.length, 1);
     assert.equal(r.reports[0].data.khuVuc, null);
     assert.equal(r.reports[0].data.maTrangThai, 2);
@@ -179,4 +179,34 @@ test("an override whose key matches no scraped message is reported, one for anot
         ],
     });
     assert.deepEqual(r.unknownOverrides, [{ maNhom: "g1", maTinNhan: "typo-id" }]);
+});
+
+// ---- group aliases (a test group read as a real school group) ----
+const CHU_VAN_AN_PM3 = 36;
+const lookupChuVanAn: RoomLookup = async (keys) =>
+    new Map(keys.map((k) => [roomKeyString(k), k.room === "3" && k.tenRieng === "CHU VĂN AN" && k.khuVuc === "BTAN" ? CHU_VAN_AN_PM3 : null]));
+const demoReport = () => msg(COMPLETE.replace("Phòng Máy: PM1", "Phòng Máy: PM3"), at(8), { groupId: "g9", groupName: "bot test" });
+
+test("without an alias a report from a test group has no school, no room id, and goes to review", async () => {
+    const r = await extractAll([demoReport()], { day: DAY, lookupRoomIds: lookupChuVanAn, groupAliases: {} });
+    assert.equal(r.reports[0].data.maPhong, null);
+    assert.equal(r.reports[0].data.maTrangThai, 2);
+    assert.ok(r.review.some((x) => x.lyDo.includes("truong_khong_nhan_ra")));
+});
+
+test("with an alias the test group is read as the school group it stands for, so its report gets a room id and no review", async () => {
+    const r = await extractAll([demoReport()], { day: DAY, lookupRoomIds: lookupChuVanAn, groupAliases: { "bot test": "LC_ChuVănAn_BTAN" } });
+    const rep = r.reports[0];
+    assert.equal(rep.data.maPhong, CHU_VAN_AN_PM3);
+    assert.equal(rep.data.maTrangThai, 1);
+    assert.deepEqual(rep.data.truong, { capHoc: "LC", tenRieng: "CHU VĂN AN", coSo: null });
+    assert.equal(rep.data.khuVuc, "BTAN");
+    assert.equal(rep.maNhom, "g9"); // the group id and name of the message itself are untouched
+    assert.deepEqual(r.review, []);
+});
+
+test("an alias applies only to the group it names", async () => {
+    const other = msg(COMPLETE, at(9)); // "LC_HoaSen1_TĐ"
+    const r = await extractAll([demoReport(), other], { day: DAY, lookupRoomIds: lookup, groupAliases: { "bot test": "LC_ChuVănAn_BTAN" } });
+    assert.equal(r.reports.find((x) => x.maTinNhan === other.msgId)?.data.maPhong, 399);
 });

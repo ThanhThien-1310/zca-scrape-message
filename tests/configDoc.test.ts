@@ -11,7 +11,7 @@ function leafPaths(obj: Record<string, unknown>, prefix = ""): string[] {
     for (const [key, value] of Object.entries(obj)) {
         if (key === "cdpUrl") continue; // derived from cdpPort
         const p = prefix + key;
-        if (value !== null && typeof value === "object" && !Array.isArray(value) && key !== "scrollDelayMs") out.push(...leafPaths(value as Record<string, unknown>, `${p}.`));
+        if (value !== null && typeof value === "object" && !Array.isArray(value) && key !== "scrollDelayMs" && key !== "groupAliases") out.push(...leafPaths(value as Record<string, unknown>, `${p}.`));
         else out.push(p);
     }
     return out;

@@ -76,6 +76,8 @@ Thông số đầu tiên bạn phải đặt là `targets`: **đúng tên hiển
 targets: ["LC_ChuVănAn_BTAN", "LC_HoaSen1_TĐ", "LC_TríTuệViệt_BTAN"] as string[],
 ```
 
+**Chạy thử cả quy trình bằng `bot test`:** đặt `groupAliases: { "bot test": "LC_ChuVănAn_BTAN" }` trong `config.ts` (và `"scrape": true` cho `bot test` trong `chat-rules.json`). Báo cáo gửi vào `bot test` được đọc như của nhóm Chu Văn An BTAN nên có trường, khu vực và mã phòng. Ghi trong tin **`Phòng Máy: PM3`** (PM1 là phòng có báo cáo thật). Khi đó cả chuỗi tự chạy: bot chat trả lời trong vài giây; sau `runner.quietSeconds` runner cào nhóm, đồng bộ DB, trích xuất và dựng Excel, có dòng `Chu Văn An, BTAN, PM3, Demo GV`. Dòng đó nằm trong file Excel thật của buổi; thử xong đặt `groupAliases: {}`, khởi động lại bot rồi `npm run runner:once -- --day <ngày> --buoi <buổi>` để dựng lại và dòng đó biến mất. Đồng bộ DB và đánh dấu `StatusId` ghi thật các tin của `bot test`.
+
 Nhóm thử nghiệm (ví dụ `bot test`) có ba cách xử lý khi chạy thật: xóa khỏi `targets`; để trong `recoveryIgnoreTargets` (không bị coi là "thiếu báo cáo" và không bị cào lại khi khôi phục); hoặc, nếu nó chỉ dùng cho bot chat, đặt `"scrape": false` trong `chat-rules.json` (mục 8.1c). Hai thiết lập khác cần biết:
 
 - `sinceTs` (mặc định 06:00 hôm nay): `bot:scrape` chạy tay chỉ lấy tin từ mốc này trở đi. Giá trị này chỉ được tính **một lần lúc bot khởi động**, nên bot chạy qua đêm giữ mốc của ngày hôm qua (`bot:runner` tự tính lại mỗi vòng nên không bị ảnh hưởng).

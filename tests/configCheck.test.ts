@@ -6,6 +6,7 @@ import type { ConfigShape } from "../src/types/index.js";
 const good = (): ConfigShape => ({
     targets: ["bot test", "LC_HoaSen1_TĐ"],
     recoveryIgnoreTargets: ["bot test"],
+    groupAliases: {},
     targetMessageCount: 2000,
     scrollDelayMs: { min: 500, max: 1200 },
     watch: { heartbeatSeconds: 30, deadAfterSeconds: 90, minBlindSeconds: 60 },
@@ -35,6 +36,15 @@ test("every seconds/minutes value must be a positive whole number, and the error
     assert.throws(bad((c) => (c.chat.restorePreviousConversation = "yes" as unknown as boolean)), /chat.restorePreviousConversation.*true hoặc false/);
     assert.throws(bad((c) => (c.runner.maxScrapeAttempts = 0)), /runner.maxScrapeAttempts/);
     assert.throws(bad((c) => (c.targetMessageCount = 0)), /targetMessageCount/);
+});
+
+test("groupAliases: keys must be tracked groups and values must read as a real school group", () => {
+    assert.deepEqual(bad((c) => (c.groupAliases = { "bot test": "LC_ChuVănAn_BTAN" }))(), []);
+    assert.throws(bad((c) => (c.groupAliases = { "nhóm lạ": "LC_ChuVănAn_BTAN" })), /groupAliases.*"nhóm lạ".*targets/);
+    assert.throws(bad((c) => (c.groupAliases = { "bot test": "bot test" })), /groupAliases.*"bot test".*trường/);
+    assert.throws(bad((c) => (c.groupAliases = { "bot test": "" })), /groupAliases/);
+    assert.throws(bad((c) => (c.groupAliases = { "bot test": 5 as unknown as string })), /groupAliases/);
+    assert.throws(bad((c) => (c.groupAliases = [] as unknown as Record<string, string>)), /groupAliases phải là/);
 });
 
 test("quietSeconds may equal maxWaitSeconds but not exceed it", () => {

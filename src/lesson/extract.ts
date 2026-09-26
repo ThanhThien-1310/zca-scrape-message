@@ -12,6 +12,8 @@ export interface ExtractOptions {
     overrides?: Override[];
     /** Omit to skip the room lookup (offline runs and tests): `maPhong` stays null and is not treated as an error. */
     lookupRoomIds?: RoomLookup;
+    /** Test group name -> real school group name (default `config.groupAliases`), see `extractRaw`. */
+    groupAliases?: Record<string, string>;
 }
 
 export interface ExtractResult {
@@ -89,7 +91,7 @@ export async function extractAll(messages: SourceMessage[], opts: ExtractOptions
             continue;
         }
 
-        const raw = applyOverride(extractRaw(m.content, m.groupName), ov?.sua);
+        const raw = applyOverride(extractRaw(m.content, m.groupName, opts.groupAliases), ov?.sua);
         const report = deriveReport(m, kind, raw);
         const { lyDo, truongCanXem } = flagsFor(raw);
         const roomKey: RoomKey | null =

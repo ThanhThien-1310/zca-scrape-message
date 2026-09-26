@@ -4,6 +4,7 @@
 export interface ConfigShape {
     targets: string[];
     recoveryIgnoreTargets: string[];
+    groupAliases: Record<string, string>;
     targetMessageCount: number;
     scrollDelayMs: { min: number; max: number };
     watch: { heartbeatSeconds: number; deadAfterSeconds: number; minBlindSeconds: number };

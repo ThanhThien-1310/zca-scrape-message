@@ -31,6 +31,7 @@ export const SETTINGS: Setting[] = [
     { section: SECTIONS[0], path: "dataDir", unit: "", defaultLabel: "./data", readers: ALL, note: "Nơi lưu tin đã cào và các tệp trạng thái." },
 
     { section: SECTIONS[1], path: "targets", unit: "", defaultLabel: "theo máy bạn", readers: ["bot:watch", "bot:runner", "bot:chat", "bot:scrape"], note: "Tên nhóm đúng như thanh bên Zalo; chỉ nhóm ở đây mới được theo dõi." },
+    { section: SECTIONS[1], path: "groupAliases", unit: "", default: {}, readers: ["bot:runner", "bot:chat"], note: "Nhóm thử được đọc như một nhóm trường thật khi trích xuất (chỉ để thử; dòng nằm trong Excel thật).", format: (v) => (Object.keys(v as object).length === 0 ? "{} (không có)" : Object.entries(v as Record<string, string>).map(([k, a]) => `${k} -> ${a}`).join(", ")) },
     { section: SECTIONS[1], path: "recoveryIgnoreTargets", unit: "", defaultLabel: "bot test", readers: ["bot:runner", "recover:missing"], note: "Nhóm không gửi báo cáo buổi dạy; khôi phục không cào lại chúng." },
 
     { section: SECTIONS[2], path: "sinceTs", unit: "mốc giờ", defaultLabel: "06:00 hôm nay", readers: ["bot:scrape", "recover:missing"], note: "Chỉ giữ tin từ mốc này; tính một lần lúc bot khởi động.", format: hhmm },

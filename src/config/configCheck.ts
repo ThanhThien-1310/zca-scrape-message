@@ -1,3 +1,4 @@
+import { parseGroupName } from "../lesson/schoolArea.js";
 import type { ConfigShape } from "../types/index.js";
 
 const isPositiveInt = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v > 0;
@@ -75,6 +76,19 @@ export function validateConfig(cfg: ConfigShape): string[] {
         seen.add(t);
     }
     for (const t of cfg.recoveryIgnoreTargets) if (!cfg.targets.includes(t)) errors.push(`recoveryIgnoreTargets có "${t}" không nằm trong targets.`);
+
+    if (typeof cfg.groupAliases !== "object" || cfg.groupAliases === null || Array.isArray(cfg.groupAliases)) {
+        errors.push('groupAliases phải là một đối tượng { "tên nhóm thử": "tên nhóm trường" }.');
+    } else {
+        for (const [name, as] of Object.entries(cfg.groupAliases)) {
+            if (!cfg.targets.includes(name)) errors.push(`groupAliases có "${name}" không nằm trong targets.`);
+            if (typeof as !== "string" || as.trim() === "") errors.push(`groupAliases["${name}"] phải là tên một nhóm trường (chuỗi không rỗng).`);
+            else {
+                const parsed = parseGroupName(as);
+                if (!parsed.truong || !parsed.khuVuc) errors.push(`groupAliases["${name}"] = "${as}" không đọc ra được trường và khu vực (đặt theo kiểu "LC_ChuVănAn_BTAN").`);
+            }
+        }
+    }
 
     if (errors.length > 0) throw new Error(`config.ts không hợp lệ:\n- ${errors.join("\n- ")}`);
     return warnings;
