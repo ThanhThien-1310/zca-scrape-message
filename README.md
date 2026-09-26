@@ -79,6 +79,7 @@ cục bộ của app, không phải trong tiến trình.
 
 ```bash
 npm run config:show     # in toàn bộ giá trị theo mục kèm đơn vị, mặc định, bot nào đọc; khóa khác mặc định có dấu *
+npm run scrape:add -- "Tên nhóm"   # xếp nhóm (phải có trong config.targets) vào hàng chờ cào bằng tay: nhóm mới chưa từng cào, hoặc ép cào lại; runner cào sau thời gian yên lặng, hoặc chạy npm run bot:scrape
 ```
 
 Các mục mới (ngoài các khóa cũ `cdpPort`, `targets`, `sinceTs`, `scrollDelayMs`...):

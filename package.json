@@ -23,6 +23,7 @@
         "bot:chat": "tsx bot-chat.ts",
         "chat:status": "tsx chatStatus.ts",
         "config:show": "tsx configShow.ts",
+        "scrape:add": "tsx scrapeAdd.ts",
         "export:lesson-report": "tsx exportLessonReport.ts",
         "mark:messages": "tsx markMessages.ts"
     },

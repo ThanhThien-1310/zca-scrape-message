@@ -37,6 +37,7 @@ npm run runner:once -- [--day D] [--buoi B]    # rebuild ONE session's outputs w
 npm run bot:chat                               # auto-reply from chat-rules.json: reads data/.chat-inbox.jsonl (written by bot:watch), sends via Zalo Desktop's UI
 npm run chat:status                            # is bot:chat alive? dry-run or live, groups, pending inbox (exit 2 when not alive)
 npm run config:show                            # print every tunable in config.ts by section (value, unit, default, which bot reads it); values that differ from the default are marked *
+npm run scrape:add -- "Group name" [...]         # put group(s) from config.targets into the scrape queue by hand (a new group that was never scraped, or a forced re-scrape)
 npm run recover:missing -- [--day D] [--buoi B] [--dry-run]   # only if bot:watch had a gap: re-scrape just the groups missing a report, list what was missed
 ```
 
