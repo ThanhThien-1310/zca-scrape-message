@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { swallow, writeFileAtomic, type AtomicFs } from "../history/atomicWrite.js";
+import { swallow, writeFileAtomic, type AtomicFs } from "../src/core/atomicWrite.js";
 
 const code = (c: string) => Object.assign(new Error(`${c}: simulated`), { code: c });
 

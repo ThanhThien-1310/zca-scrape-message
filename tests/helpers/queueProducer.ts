@@ -1,4 +1,4 @@
-import { enqueueTarget } from "../../history/scrapeQueue.js";
+import { enqueueTarget } from "../../src/scrape/scrapeQueue.js";
 
 /** Child process of the queue race test: queues `groups` distinct groups, one at a time, like `bot:watch` does. */
 const [file, groups] = [process.argv[2], Number(process.argv[3])];

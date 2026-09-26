@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveUntilTs } from "../history/scrapeWindow.js";
+import { resolveUntilTs } from "../src/scrape/scrapeWindow.js";
 
 test("with no override the configured untilTs applies (manual bot:scrape keeps honouring it)", () => {
     assert.equal(resolveUntilTs(undefined, 123), 123);

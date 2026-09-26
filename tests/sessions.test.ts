@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sessionWindow } from "../lesson/recovery.js";
-import { sessionOf, type Buoi } from "../lesson/time.js";
+import { sessionWindow } from "../src/lesson/recovery.js";
+import { sessionOf, type Buoi } from "../src/lesson/time.js";
 
 const DAY = "2026-09-24";
 const vn = (h: number, m = 0, s = 0) => Date.UTC(2026, 8, 24, h - 7, m, s);

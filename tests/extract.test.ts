@@ -1,8 +1,8 @@
 import "./helpers/pinConfig.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractAll } from "../lesson/extract.js";
-import { roomKeyString, type RoomLookup } from "../lesson/roomKey.js";
+import { extractAll } from "../src/lesson/extract.js";
+import { roomKeyString, type RoomLookup } from "../src/lesson/roomKey.js";
 import { at, COLLEGE_ROOM, COMPLETE, DAY, FAULTY_WITH_NOTE, IT_MAINTENANCE, msg, NO_INTERNET_LINE, SPECIALIST, YESTERDAY } from "./fixtures.js";
 
 // Room "1" of HOA SEN 1 exists as Room.Id 399; everything else is unknown.

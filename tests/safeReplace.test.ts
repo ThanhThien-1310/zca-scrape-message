@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { safeReplace, type FsLike } from "../runner/safeReplace.js";
+import { safeReplace, type FsLike } from "../src/runner/safeReplace.js";
 
 const fresh = () => fs.mkdtempSync(path.join(os.tmpdir(), "replace-"));
 const write = (file: string, text: string) => fs.writeFileSync(file, text, "utf8");

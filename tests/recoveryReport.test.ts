@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatRecovery } from "../lesson/recoveryReport.js";
-import { sessionWindow } from "../lesson/recovery.js";
-import type { RecoveryResult } from "../lesson/recoveryRun.js";
+import { formatRecovery } from "../src/lesson/recoveryReport.js";
+import { sessionWindow } from "../src/lesson/recovery.js";
+import type { RecoveryResult } from "../src/lesson/recoveryRun.js";
 import { at, DAY } from "./fixtures.js";
 
 const base = (over: Partial<RecoveryResult>): RecoveryResult => ({

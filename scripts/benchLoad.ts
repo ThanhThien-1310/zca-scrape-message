@@ -3,11 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { extractAll } from "../lesson/extract.js";
-import { todayVietnam } from "../lesson/time.js";
-import type { SourceMessage } from "../lesson/types.js";
-import { completeSnapshot, enqueueTarget, takeSnapshot } from "../history/scrapeQueue.js";
-import { MessageStore, type NormalizedMessage } from "../store/messageStore.js";
+import { extractAll } from "../src/lesson/extract.js";
+import { todayVietnam } from "../src/lesson/time.js";
+import type { SourceMessage } from "../src/lesson/types.js";
+import { completeSnapshot, enqueueTarget, takeSnapshot } from "../src/scrape/scrapeQueue.js";
+import { MessageStore, type NormalizedMessage } from "../src/store/messageStore.js";
 
 /**
  * Load simulation, offline: N synthetic groups in a temp directory. It never touches data/, the database or

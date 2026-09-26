@@ -2,7 +2,7 @@
 // It sets the tunable sections of `config` to those defaults (configDoc.ts) before any module reads them, so the test
 // checks the logic at the defaults no matter what is currently typed in config.ts.
 import { config } from "../../config.js";
-import { SETTINGS } from "../../configDoc.js";
+import { SETTINGS } from "../../src/config/configDoc.js";
 
 const SECTIONS = ["watch.", "runner.", "recovery.", "chat.", "sessions."];
 for (const setting of SETTINGS) {

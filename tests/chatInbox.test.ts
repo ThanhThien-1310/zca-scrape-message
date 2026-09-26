@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { appendInbox, readInbox, writeCursor, type InboxEntry } from "../chat/inbox.js";
+import { appendInbox, readInbox, writeCursor, type InboxEntry } from "../src/chat/inbox.js";
 
 const files = () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inbox-"));

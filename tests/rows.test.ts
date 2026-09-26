@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DATA_SHEET_COLUMNS } from "../lesson/codes.js";
-import { extractAll } from "../lesson/extract.js";
-import { roomKeyString, type RoomLookup } from "../lesson/roomKey.js";
-import { buildRows } from "../lesson/rows.js";
+import { DATA_SHEET_COLUMNS } from "../src/lesson/codes.js";
+import { extractAll } from "../src/lesson/extract.js";
+import { roomKeyString, type RoomLookup } from "../src/lesson/roomKey.js";
+import { buildRows } from "../src/lesson/rows.js";
 import { at, COMPLETE, DAY, FAULTY_WITH_NOTE, msg } from "./fixtures.js";
 
 const col = (name: (typeof DATA_SHEET_COLUMNS)[number]) => DATA_SHEET_COLUMNS.indexOf(name);

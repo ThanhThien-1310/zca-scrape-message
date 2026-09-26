@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DEFAULT_LIMITS, groupNamesFromFile, loadRules, makeChatGroupsReader, makeGroupNameReader, noScrapeGroupsFromFile, parseRules, recoveryIgnoreWith } from "../chat/rules.js";
+import { DEFAULT_LIMITS, groupNamesFromFile, loadRules, makeChatGroupsReader, makeGroupNameReader, noScrapeGroupsFromFile, parseRules, recoveryIgnoreWith } from "../src/chat/rules.js";
 
 const TARGETS = ["bot test", "LC_HoaSen1_TĐ"];
 const valid = (): any => ({

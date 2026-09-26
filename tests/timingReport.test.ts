@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatTimingReport, summarizeTimings } from "../runner/timingReport.js";
+import { formatTimingReport, summarizeTimings } from "../src/runner/timingReport.js";
 
 const cycle = (at: number, durationMs: number | undefined, timings: { target: string; ms: number; ok: boolean }[], stepMs?: Record<string, number>) => ({
     kind: "cycle",

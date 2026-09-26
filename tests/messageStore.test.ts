@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { MessageStore } from "../store/messageStore.js";
+import { MessageStore } from "../src/store/messageStore.js";
 
 test("listThreads ignores dot-files such as the scrape queue", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "store-"));

@@ -15,7 +15,7 @@ import {
     readQueueSeen,
     segmentPath,
     takeSnapshot,
-} from "../history/scrapeQueue.js";
+} from "../src/scrape/scrapeQueue.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fresh = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "queue-")), "data", ".scrape-events.jsonl");

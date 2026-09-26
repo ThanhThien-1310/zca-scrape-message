@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { QueueRunResult } from "../history/queueRun.js";
-import { messageKey } from "../lesson/recovery.js";
-import type { SourceMessage } from "../lesson/types.js";
-import type { SessionKey } from "../runner/affectedSessions.js";
-import { runCycle, type BuildResult, type CycleDeps } from "../runner/cycle.js";
+import type { QueueRunResult } from "../src/scrape/queueRun.js";
+import { messageKey } from "../src/lesson/recovery.js";
+import type { SourceMessage } from "../src/lesson/types.js";
+import type { SessionKey } from "../src/runner/affectedSessions.js";
+import { runCycle, type BuildResult, type CycleDeps } from "../src/runner/cycle.js";
 import { at, COMPLETE, DAY, IT_MAINTENANCE, msg } from "./fixtures.js";
 
 const SANG: SessionKey = { day: DAY, buoi: "sang" };

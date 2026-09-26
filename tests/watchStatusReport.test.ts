@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatWatchStatus } from "../history/watchStatusReport.js";
-import { STALE_AFTER_MS, type Gap, type WatchState } from "../history/watchState.js";
+import { formatWatchStatus } from "../src/watch/watchStatusReport.js";
+import { STALE_AFTER_MS, type Gap, type WatchState } from "../src/watch/watchState.js";
 import { at } from "./fixtures.js";
 
 const NOW = at(10, 0);

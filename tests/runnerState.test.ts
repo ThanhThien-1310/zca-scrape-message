@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { STALE_AFTER_MS } from "../history/watchState.js";
+import { STALE_AFTER_MS } from "../src/watch/watchState.js";
 import {
     appendLog,
     beatRunner,
@@ -16,7 +16,7 @@ import {
     stopRunner,
     type CycleSummary,
     type RunnerFiles,
-} from "../runner/runnerState.js";
+} from "../src/runner/runnerState.js";
 
 function files(): RunnerFiles {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "runner-"));

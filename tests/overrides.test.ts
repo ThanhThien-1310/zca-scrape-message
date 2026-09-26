@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { readOverrides } from "../lesson/overrides.js";
+import { readOverrides } from "../src/lesson/overrides.js";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "overrides-"));
 const write = (name: string, content: string) => {

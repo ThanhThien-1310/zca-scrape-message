@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { classifyTitle, computerGrade, parseCount, parseGrade, parseLines, parseNote, parseRoom } from "../lesson/parseReport.js";
+import { classifyTitle, computerGrade, parseCount, parseGrade, parseLines, parseNote, parseRoom } from "../src/lesson/parseReport.js";
 
 test("classifyTitle", () => {
     assert.equal(classifyTitle("BÁO CÁO ĐẦU BUỔI DẠY\n- Tên Giáo Viên: A"), "DauBuoi");

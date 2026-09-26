@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { dirtySessions, initBuiltBaseline, readBuilt, reportKeys, sessionReportKeys, writeBuilt } from "../runner/builtReports.js";
-import { messageKey } from "../lesson/recovery.js";
+import { dirtySessions, initBuiltBaseline, readBuilt, reportKeys, sessionReportKeys, writeBuilt } from "../src/runner/builtReports.js";
+import { messageKey } from "../src/lesson/recovery.js";
 import { at, COMPLETE, DAY, IT_MAINTENANCE, msg, SPECIALIST } from "./fixtures.js";
 
 const fresh = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "built-")), "data", ".runner-built.json");

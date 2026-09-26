@@ -1,4 +1,4 @@
-import type { SourceMessage } from "../lesson/types.js";
+import type { SourceMessage } from "../src/lesson/types.js";
 
 export const DAY = "2026-09-24";
 /** Epoch ms of hour:minute on 2026-09-24 in Vietnam (UTC+7). */

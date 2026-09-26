@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { routeMessage, routeMessageSafe } from "../chat/fanout.js";
+import { routeMessage, routeMessageSafe } from "../src/chat/fanout.js";
 
 const text = (over: Partial<{ msgId: string; senderId: string; senderName: string; isSelf: boolean; ts: number; content: string }> = {}) => ({ msgId: "m1", senderId: "u1", senderName: "Cô Lan", isSelf: false, ts: 5, content: "Máy lỗi rồi", ...over });
 const ALLOWED = new Set(["bot test"]);

@@ -1,7 +1,7 @@
 import "./helpers/pinConfig.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { currentSession, excelDateSerial, excelTimeFraction, isBuoi, reportFileName, sessionOf, todayVietnam, vietnamDay } from "../lesson/time.js";
+import { currentSession, excelDateSerial, excelTimeFraction, isBuoi, reportFileName, sessionOf, todayVietnam, vietnamDay } from "../src/lesson/time.js";
 
 test("time helpers use the Vietnam calendar", () => {
     const ts = Date.UTC(2026, 8, 23, 18, 30); // 01:30 on 24 Sep in Vietnam

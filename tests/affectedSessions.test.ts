@@ -1,8 +1,8 @@
 import "./helpers/pinConfig.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { affectedSessions, mergeSessions } from "../runner/affectedSessions.js";
-import { messageKey } from "../lesson/recovery.js";
+import { affectedSessions, mergeSessions } from "../src/runner/affectedSessions.js";
+import { messageKey } from "../src/lesson/recovery.js";
 import { at, COMPLETE, DAY, IT_MAINTENANCE, msg, SPECIALIST, YESTERDAY } from "./fixtures.js";
 
 const none = new Set<string>();

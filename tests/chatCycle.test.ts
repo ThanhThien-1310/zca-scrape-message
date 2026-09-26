@@ -1,11 +1,11 @@
 import "./helpers/pinConfig.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runChatCycle, type ChatDeps } from "../chat/cycle.js";
-import type { InboxEntry, InboxItem } from "../chat/inbox.js";
-import { createLimiter } from "../chat/limits.js";
-import { parseRules } from "../chat/rules.js";
-import type { SendHooks, SendResult } from "../chat/send.js";
+import { runChatCycle, type ChatDeps } from "../src/chat/cycle.js";
+import type { InboxEntry, InboxItem } from "../src/chat/inbox.js";
+import { createLimiter } from "../src/chat/limits.js";
+import { parseRules } from "../src/chat/rules.js";
+import type { SendHooks, SendResult } from "../src/chat/send.js";
 import { COMPLETE, FAULTY_WITH_NOTE } from "./fixtures.js";
 
 const NOW = 1_000_000;

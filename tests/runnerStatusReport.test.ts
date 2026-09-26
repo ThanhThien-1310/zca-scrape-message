@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { STALE_AFTER_MS } from "../history/watchState.js";
-import { formatRunnerStatus } from "../runner/runnerStatusReport.js";
-import type { CycleSummary, RunnerState } from "../runner/runnerState.js";
+import { STALE_AFTER_MS } from "../src/watch/watchState.js";
+import { formatRunnerStatus } from "../src/runner/runnerStatusReport.js";
+import type { CycleSummary, RunnerState } from "../src/runner/runnerState.js";
 import { at, DAY } from "./fixtures.js";
 
 const NOW = at(10, 0);

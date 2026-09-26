@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { config } from "../config.js";
-import { validateConfig, type ConfigShape } from "../configCheck.js";
-import { formatConfig, SECTIONS, SETTINGS } from "../configDoc.js";
+import { validateConfig, type ConfigShape } from "../src/config/configCheck.js";
+import { formatConfig, SECTIONS, SETTINGS } from "../src/config/configDoc.js";
 
 /** Leaf paths of `config`: scalars, arrays and `scrollDelayMs` (a {min,max} pair shown as one line). */
 function leafPaths(obj: Record<string, unknown>, prefix = ""): string[] {

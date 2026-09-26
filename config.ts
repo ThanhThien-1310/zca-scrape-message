@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateConfig } from "./configCheck.js";
+import { validateConfig } from "./src/config/configCheck.js";
 
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 

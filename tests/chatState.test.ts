@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { consumeEcho, loadDone, markDone, recordSent } from "../chat/state.js";
+import { consumeEcho, loadDone, markDone, recordSent } from "../src/chat/state.js";
 
 const dir = () => fs.mkdtempSync(path.join(os.tmpdir(), "chatstate-"));
 

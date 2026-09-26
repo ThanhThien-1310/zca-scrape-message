@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { InboxEntry } from "../chat/inbox.js";
-import { foldText, hasMayLoi, matches, pickRule, renderReply } from "../chat/match.js";
-import { extractRaw } from "../lesson/build.js";
-import type { Rule } from "../chat/rules.js";
+import type { InboxEntry } from "../src/chat/inbox.js";
+import { foldText, hasMayLoi, matches, pickRule, renderReply } from "../src/chat/match.js";
+import { extractRaw } from "../src/lesson/build.js";
+import type { Rule } from "../src/chat/rules.js";
 import { COMPLETE, FAULTY_WITH_NOTE, IT_MAINTENANCE, SPECIALIST } from "./fixtures.js";
 
 const entry = (text: string, over: Partial<InboxEntry> = {}): InboxEntry => ({ groupName: "bot test", groupId: "g1", msgId: "m1", senderId: "u1", senderName: "Cô Lan", ts: 1, text, ...over });

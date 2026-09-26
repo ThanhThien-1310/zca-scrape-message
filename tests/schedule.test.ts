@@ -2,7 +2,7 @@ import "./helpers/pinConfig.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { at } from "./fixtures.js";
-import { decide, MAX_WAIT_MS, newRecoveryKeys, QUIET_MS, scrapeSinceTs, settledGaps, toQueueTimes, watchWarmingUp } from "../runner/schedule.js";
+import { decide, MAX_WAIT_MS, newRecoveryKeys, QUIET_MS, scrapeSinceTs, settledGaps, toQueueTimes, watchWarmingUp } from "../src/runner/schedule.js";
 
 const NOW = 1_000_000_000_000;
 

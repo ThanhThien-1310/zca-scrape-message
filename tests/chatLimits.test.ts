@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createLimiter, isStale } from "../chat/limits.js";
+import { createLimiter, isStale } from "../src/chat/limits.js";
 
 const limits = { maxRepliesPerMinute: 2, maxReplyDelaySeconds: 180, cooldownSecondsPerRule: 30 };
 

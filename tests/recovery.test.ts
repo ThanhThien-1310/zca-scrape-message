@@ -1,11 +1,11 @@
 import "./helpers/pinConfig.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { diffRecovered, findMissingGroups, gapsInWindow, messageKey, sessionWindow } from "../lesson/recovery.js";
-import { runRecovery, type RecoveryDeps } from "../lesson/recoveryRun.js";
-import type { Gap } from "../history/watchState.js";
-import { sessionOf } from "../lesson/time.js";
-import type { SourceMessage } from "../lesson/types.js";
+import { diffRecovered, findMissingGroups, gapsInWindow, messageKey, sessionWindow } from "../src/lesson/recovery.js";
+import { runRecovery, type RecoveryDeps } from "../src/lesson/recoveryRun.js";
+import type { Gap } from "../src/watch/watchState.js";
+import { sessionOf } from "../src/lesson/time.js";
+import type { SourceMessage } from "../src/lesson/types.js";
 import { at, COMPLETE, DAY, IT_MAINTENANCE, msg, SPECIALIST } from "./fixtures.js";
 
 const A = { groupId: "gA", groupName: "A" };
