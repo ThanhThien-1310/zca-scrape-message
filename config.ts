@@ -157,7 +157,7 @@ export const config = {
          * MỚI NHẤT của nhóm nằm trong hàng chờ. Ví dụ: nhóm A nhắn lúc 08:00:00 và tin cuối 08:00:20, đặt 120 thì cào lúc 08:02:20;
          * đặt 30 thì cào lúc 08:00:50 (nhanh hơn nhưng nhiều vòng nhỏ chiếm giao diện Zalo hơn). Đơn vị: giây.
          */
-        quietSeconds: 120,
+        quietSeconds: 30,
 
         /**
          * Trần chờ tính từ lúc nhóm ĐẦU TIÊN vào hàng chờ, để nhóm nhắn liên tục không bị hoãn mãi. Ví dụ: nhóm vào hàng chờ
