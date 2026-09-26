@@ -31,6 +31,10 @@ interface Script {
     enterPicks: boolean;
     /** Picking a suggestion turns it into a real tag (false: the name is left as plain text). */
     chipWorks: boolean;
+    /** Typing after "@" narrows the suggestions to the names that contain it (false: the list stays as it was). */
+    filterWorks: boolean;
+    /** The suggestion list disappears as soon as something is typed after "@" (it comes back when the typed text is deleted). */
+    closeOnType: boolean;
 }
 
 const EVERYONE = "Báo cho cả nhóm @All";
@@ -39,13 +43,13 @@ const EXTRAS = ["Tìm kiếm GIF @GIF", "Tìm sticker @STICKER"];
 function fake(target: string, over: Partial<Script> = {}) {
     const s: Script = {
         startTitle: "LC_KhacNhom", opens: true, draft: false, insertWorks: true, charWorks: true, enterWorks: true, switchAfterInsert: false, insertMangles: false,
-        members: ["Mai Anh Khoa", "Nguyễn Trọng Phúc"], popover: true, showMembers: true, enterPicks: true, chipWorks: true,
+        members: ["Mai Anh Khoa", "Nguyễn Trọng Phúc"], popover: true, showMembers: true, enterPicks: true, chipWorks: true, filterWorks: true, closeOnType: false,
         ...over,
     };
     const st = { title: s.startTitle as string | null, empty: true, text: "", lastRow: "", selectAll: false, pop: { open: false, items: [] as string[], active: 0, typed: "" }, chips: [] as string[] };
     const suggestions = (typed: string): string[] => [
         EVERYONE,
-        ...(s.showMembers || typed !== "" ? s.members.filter((m) => m.toLowerCase().includes(typed.toLowerCase())) : []),
+        ...(s.showMembers || typed !== "" ? s.members.filter((m) => !s.filterWorks || m.toLowerCase().includes(typed.toLowerCase())) : []),
         ...EXTRAS,
     ];
     const inputs: Array<{ method: string; params: any }> = [];
@@ -88,10 +92,13 @@ function fake(target: string, over: Partial<Script> = {}) {
                 if (s.switchAfterInsert) st.title = "LC_KhacNhom";
                 if (params.text === "@" && s.popover) st.pop = { open: true, items: suggestions(""), active: 0, typed: "" };
                 else if (st.pop.open) {
-                    st.pop.typed += params.text;
-                    st.pop.items = suggestions(st.pop.typed);
-                    st.pop.active = 0;
-                }
+                    if (s.closeOnType) st.pop = { open: false, items: [], active: 0, typed: params.text };
+                    else {
+                        st.pop.typed += params.text;
+                        st.pop.items = suggestions(st.pop.typed);
+                        st.pop.active = 0;
+                    }
+                } else if (s.closeOnType && s.popover && !st.pop.open && st.pop.typed !== "") st.pop.typed += params.text;
             }
             if (method === "Input.dispatchKeyEvent" && params.type === "rawKeyDown" && (params.key === "ArrowDown" || params.key === "ArrowUp") && st.pop.open) {
                 st.pop.active = Math.max(0, Math.min(st.pop.items.length - 1, st.pop.active + (params.key === "ArrowDown" ? 1 : -1)));
@@ -114,6 +121,17 @@ function fake(target: string, over: Partial<Script> = {}) {
                 st.lastRow = st.text;
                 st.text = "";
                 st.empty = true;
+            }
+            if (method === "Input.dispatchKeyEvent" && params.type === "rawKeyDown" && params.key === "Backspace" && !st.selectAll && st.text !== "") {
+                // Deleting one character; back at a bare "@" the suggestions come back.
+                st.text = st.text.slice(0, -1);
+                if (st.pop.open) {
+                    st.pop.typed = st.pop.typed.slice(0, -1);
+                    st.pop.items = suggestions(st.pop.typed);
+                } else if (st.text.endsWith("@") && s.popover) st.pop = { open: true, items: suggestions(""), active: 0, typed: "" };
+                else if (st.pop.typed !== "") st.pop.typed = st.pop.typed.slice(0, -1);
+                st.empty = st.text === "";
+                return;
             }
             if (method === "Input.dispatchKeyEvent" && params.type === "rawKeyDown" && params.key === "a" && params.modifiers === 2) st.selectAll = true;
             if (method === "Input.dispatchKeyEvent" && params.type === "rawKeyDown" && params.key === "Backspace" && st.selectAll) {
@@ -275,8 +293,8 @@ test("a tag: types @, moves the highlight to the person with the arrow keys, pic
     const f = fake("bot test");
     const r = await sendReply(f.page, "bot test", { text: "Ghi nhận kiểm tra.", mentions: [PHUC] }, deps);
     assert.deepEqual(r, { status: "sent" });
-    assert.deepEqual(typed(f.inputs).map((i) => i.params.text), ["@", " ", "Ghi nhận kiểm tra."]);
-    assert.equal(keys(f.inputs, "ArrowDown"), 2); // "Báo cho cả nhóm @All" is highlighted first, then Mai Anh Khoa, then the person
+    assert.deepEqual(typed(f.inputs).map((i) => i.params.text), ["@", PHUC, " ", "Ghi nhận kiểm tra."]); // the whole name is typed right after the @
+    assert.equal(keys(f.inputs, "ArrowDown"), 1); // the list is narrowed to the person, but "Báo cho cả nhóm @All" is still the highlighted one, so one step down
     assert.equal(enters(f.inputs), 2); // one to pick the person, one to send
     assert.deepEqual(f.st.chips, [PHUC]);
     assert.match(f.st.lastRow, /@Nguyễn Trọng Phúc.*Ghi nhận kiểm tra\./);
@@ -300,15 +318,41 @@ test("several tags are added in the order given", async () => {
     const r = await sendReply(f.page, "bot test", { text: "Xin chào.", mentions: [PHUC, "Mai Anh Khoa"] }, deps);
     assert.equal(r.status, "sent");
     assert.deepEqual(f.st.chips, [PHUC, "Mai Anh Khoa"]);
-    assert.deepEqual(typed(f.inputs).map((i) => i.params.text), ["@", " ", "@", " ", "Xin chào."]);
+    assert.deepEqual(typed(f.inputs).map((i) => i.params.text), ["@", PHUC, " ", "@", "Mai Anh Khoa", " ", "Xin chào."]);
 });
 
-test("a person who is not among the first suggestions is found by typing the name", async () => {
+test("a person who is not among the first suggestions (long member list) is found because the name is typed", async () => {
     const f = fake("bot test", { showMembers: false });
     const r = await sendReply(f.page, "bot test", { text: "ok", mentions: [PHUC] }, deps);
     assert.equal(r.status, "sent");
     assert.deepEqual(typed(f.inputs).map((i) => i.params.text), ["@", PHUC, " ", "ok"]);
     assert.deepEqual(f.st.chips, [PHUC]);
+});
+
+test("if Zalo does not narrow the list to what was typed, the person is still found in the full list with the arrow keys", async () => {
+    const f = fake("bot test", { filterWorks: false });
+    const r = await sendReply(f.page, "bot test", { text: "ok", mentions: [PHUC] }, deps);
+    assert.equal(r.status, "sent");
+    assert.equal(keys(f.inputs, "ArrowDown"), 2); // @All, Mai Anh Khoa, then the person
+    assert.deepEqual(f.st.chips, [PHUC]);
+});
+
+test("if the list disappears once the name is typed, the typed name is deleted and the person is found in the full list", async () => {
+    const f = fake("bot test", { closeOnType: true });
+    const r = await sendReply(f.page, "bot test", { text: "ok", mentions: [PHUC] }, deps);
+    assert.equal(r.status, "sent");
+    assert.equal(keys(f.inputs, "Backspace"), [...PHUC].length); // only what was typed is deleted
+    assert.equal(keys(f.inputs, "ArrowDown"), 2);
+    assert.deepEqual(f.st.chips, [PHUC]);
+    assert.match(f.st.lastRow, /^@Nguyễn Trọng Phúc/); // no leftover of the typed name in front of the tag
+});
+
+test("when the person cannot be found the log says which names were on the list", async () => {
+    const f = fake("bot test", { members: ["Mai Anh Khoa", "Trần Văn B"] });
+    const r = await sendReply(f.page, "bot test", { text: "ok", mentions: ["Người Lạ"] }, deps);
+    assert.equal(r.status, "failed");
+    assert.match((r as { reason: string }).reason, /không thấy "Người Lạ".*đang có: Mai Anh Khoa, Trần Văn B/);
+    assert.doesNotMatch((r as { reason: string }).reason, /@All|GIF|STICKER|cả nhóm/); // only people, never the special entries
 });
 
 test("the name is matched ignoring letter case and the different ways a letter can be encoded", async () => {

@@ -121,6 +121,14 @@ async function tap(page: SendPage, k: object): Promise<void> {
     await page.input("Input.dispatchKeyEvent", { type: "keyUp", ...k });
 }
 
+const BACKSPACE = { key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 8 };
+
+/** Tên những người đang có trên danh sách (để ghi vào log khi không tìm thấy); bỏ các mục đặc biệt "cả nhóm", GIF, sticker. */
+const seenNames = (list: MentionList): string => {
+    const names = list.items.filter((i) => !isEveryone(i.text) && !/@(gif|sticker)\b/i.test(i.text)).map((i) => i.text);
+    return names.length === 0 ? "không có ai" : names.slice(0, 8).join(", ") + (names.length > 8 ? ", ..." : "");
+};
+
 /** Vị trí các mục khớp đúng tên người (không bao giờ tính mục "cả nhóm"). */
 const matchesOf = (list: MentionList, name: string): number[] => list.items.flatMap((it, i) => (!isEveryone(it.text) && nameKey(it.text) === nameKey(name) ? [i] : []));
 
@@ -136,17 +144,25 @@ async function insertMention(page: SendPage, name: string, deps: SendDeps, guard
     let list = await read();
     if (!list.open) return "danh sách thẻ @ không hiện";
 
-    let hits = matchesOf(list, name);
+    // Gõ ngay tên đầy đủ để Zalo thu danh sách về đúng người đó (nhóm đông người thì người cần gắn thường không hiện sẵn).
+    if (!(await guarded())) return "nhóm đang mở đã đổi";
+    await page.input("Input.insertText", { text: name });
+    await deps.delay(600);
+    list = await read();
+    let hits = list.open ? matchesOf(list, name) : [];
     if (hits.length === 0) {
-        // Không có trong các gợi ý đầu (nhóm đông người): gõ tên để Zalo lọc.
-        if (!(await guarded())) return "nhóm đang mở đã đổi";
-        await page.input("Input.insertText", { text: name });
+        // Sau khi gõ tên mà không thấy người đó (danh sách đóng hoặc không lọc như dự đoán): xóa đúng phần tên vừa gõ
+        // và tìm trong danh sách đầy đủ bằng phím mũi tên.
+        for (let i = 0; i < [...name].length; i++) {
+            if (!(await guarded())) return "nhóm đang mở đã đổi";
+            await tap(page, BACKSPACE);
+        }
         await deps.delay(600);
         list = await read();
-        if (!list.open) return `không thấy "${name}" trong danh sách thẻ`;
+        if (!list.open) return `danh sách thẻ đóng sau khi gõ tên "${name}"`;
         hits = matchesOf(list, name);
     }
-    if (hits.length === 0) return `không thấy "${name}" trong danh sách thẻ`;
+    if (hits.length === 0) return `không thấy "${name}" trong danh sách thẻ (đang có: ${seenNames(list)})`;
     if (hits.length > 1) return `có ${hits.length} người tên "${name}" trong nhóm, không biết chọn ai`;
 
     for (let step = 0; ; step++) {
