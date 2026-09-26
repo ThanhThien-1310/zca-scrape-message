@@ -63,7 +63,7 @@ export class CdpPage {
      * Zalo Desktop can go quiet on a specific command (renderer briefly
      * blocked, execution context torn down by a navigation, etc.) without
      * ever closing the WebSocket — without a timeout, `await`s on `send()`
-     * hang forever with no error, no log, nothing (see history/watch.ts's
+     * hang forever with no error, no log, nothing (see src/watch/watch.ts's
      * scrapeAndSaveLatest chain silently stalling after a notification).
      */
     private send(method: string, params: Record<string, unknown> = {}, timeoutMs = 15_000): Promise<any> {
@@ -134,7 +134,7 @@ export class CdpPage {
      * injecting any JS into the page. Only reports frames on connections
      * created *after* this is called, so callers that need the connection's
      * initial handshake (e.g. a cipher key sent once at connect time — see
-     * history/realtimeListener.ts) must call this before that connection is
+     * src/watch/realtimeListener.ts) must call this before that connection is
      * (re)established, not after.
      */
     async enableNetwork(): Promise<void> {
@@ -206,7 +206,7 @@ export async function connectToZaloMainPage(cdpUrl: string, timeoutMs = 20_000):
  * 500ms. The title is only set once the page finishes loading its own JS,
  * by which point Zalo Desktop's own WebSocket connection to its chat
  * backend has typically already opened and sent its one-time cipher-key
- * frame (see history/realtimeListener.ts) — attaching via the stricter,
+ * frame (see src/watch/realtimeListener.ts) — attaching via the stricter,
  * slower-polling `connectToZaloMainPage` reliably arrives too late to
  * observe it. Only needed by the realtime WS listener's startup path; every
  * other caller (scraping) can keep using `connectToZaloMainPage`.
@@ -241,7 +241,7 @@ export async function connectToZaloMainPageEarly(cdpUrl: string, timeoutMs = 20_
  * Finds Zalo Desktop's notification popup window (znotification.html) and
  * opens a connected CdpPage to it. Its DOM (#zname / #zbody) always reflects
  * whatever notification was last shown, and updates live as new ones arrive
- * — see history/watch.ts.
+ * — see src/watch/watch.ts.
  */
 export async function connectToZaloNotificationPage(cdpUrl: string, timeoutMs = 20_000): Promise<CdpPage> {
     const deadline = Date.now() + timeoutMs;

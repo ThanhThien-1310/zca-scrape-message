@@ -1,7 +1,7 @@
 import type { CompleteResult, QueueRunResult, QueueSnapshot, TargetOutcome } from "../types/index.js";
 
 export interface QueueRunDeps {
-    /** The queued groups and how far the queue files were read (history/scrapeQueue.ts `takeSnapshot`). */
+    /** The queued groups and how far the queue files were read (src/scrape/scrapeQueue.ts `takeSnapshot`). */
     takeSnapshot(): QueueSnapshot;
     /** Marks the snapshot as scraped: groups queued since stay queued, failed groups stay queued until their attempts run out. */
     complete(snapshot: QueueSnapshot, failed: string[]): CompleteResult;

@@ -109,7 +109,7 @@ function buildPhotoMessage(msg: RawMessage): RealtimeMessageEvent["photoMessage"
         // Zalo's own numeric message id — confirmed live to match exactly
         // what a DOM row's `data-qid` attribute carries for the same
         // message (see extractRowsFromMessageSrc in
-        // history/desktopScraper.ts), so a photo saved from here dedupes
+        // src/scrape/desktopScraper.ts), so a photo saved from here dedupes
         // correctly if the DOM scrape also ends up seeing the same row.
         msgId: msg.msgId,
         senderId: isSelf ? "" : (msg.uidFrom ?? ""),
@@ -132,7 +132,7 @@ function buildPhotoMessage(msg: RawMessage): RealtimeMessageEvent["photoMessage"
  * Must be called (and `page.enableNetwork()` must already have run) before
  * Zalo Desktop's own WebSocket connects, or the one-time cipher-key frame
  * will have already passed and no message frame will ever decode. See
- * history/watch.ts for how the caller guarantees this ordering.
+ * src/watch/watch.ts for how the caller guarantees this ordering.
  */
 export function installRealtimeListener(page: CdpPage, onMessage: (event: RealtimeMessageEvent) => void, onKeyCaptured?: () => void): void {
     let cipherKey: string | undefined;
@@ -185,7 +185,7 @@ export function installRealtimeListener(page: CdpPage, onMessage: (event: Realti
                     // WS's idTo is the bare numeric id; the store's groupId
                     // (and this listener's lookup map, built from it) uses
                     // "g<digits>" for groups, the bare id for DMs — see
-                    // NormalizedMessage.groupId in store/messageStore.ts.
+                    // NormalizedMessage.groupId in src/store/messageStore.ts.
                     const groupId = isGroup ? `g${msg.idTo}` : msg.idTo;
 
                     const photoMessage = !isRecall && msg.msgType === "chat.photo" ? buildPhotoMessage(msg) : undefined;

@@ -17,17 +17,17 @@ const NOTIFY_BINDING = "__zalobotNotify";
 /**
  * Detector only. Stays connected indefinitely and, whenever a configured
  * conversation gets a new message, records its name in the durable scrape queue
- * (`data/.scrape-events-<day>.jsonl`, append-only, see history/scrapeQueue.ts). It never opens,
+ * (`data/.scrape-events-<day>.jsonl`, append-only, see src/scrape/scrapeQueue.ts). It never opens,
  * clicks, searches or scrolls anything in Zalo Desktop's UI and never writes
  * `data/<groupId>.json` — `bot:scrape` (run manually) is the only process that
  * drives the UI and scrapes, and only the queued conversations.
  *
  * Two independent detection sources, unchanged: Zalo Desktop's own WebSocket
- * connection to its chat backend (history/realtimeListener.ts, primary) and its
+ * connection to its chat backend (src/watch/realtimeListener.ts, primary) and its
  * notification popup window (znotification.html, fallback).
  *
  * It also copies plain text messages of the groups listed in chat-rules.json into the chat inbox
- * (chat/inbox.ts) for `bot:chat`, and ignores the replies `bot:chat` itself sent (chat/state.ts).
+ * (src/chat/inbox.ts) for `bot:chat`, and ignores the replies `bot:chat` itself sent (src/chat/state.ts).
  *
  * Always restarts Zalo Desktop on startup (forceRestartZalo, not
  * ensureZaloReady) so the realtime WS source can observe its connection from
@@ -39,7 +39,7 @@ export async function watch(): Promise<void> {
         return;
     }
 
-    // Leave evidence of when this watcher was alive (see history/watchState.ts) and
+    // Leave evidence of when this watcher was alive (see src/watch/watchState.ts) and
     // refuse to run next to another one, before touching Zalo Desktop.
     const started = startWatching(Date.now(), process.pid);
     if (started.anotherInstanceAlive) {
@@ -176,7 +176,7 @@ export async function watch(): Promise<void> {
 /**
  * Builds a `groupId -> target name` lookup from the JSON store — each
  * thread file is named by its real groupId and every row already carries
- * `groupName` (see store/messageStore.ts), so this needs no fresh DOM read.
+ * `groupName` (see src/store/messageStore.ts), so this needs no fresh DOM read.
  * Only covers targets that have been scraped at least once before; a target
  * with no prior data has no known groupId yet and simply won't be
  * recognized by the realtime WS source until its first scrape (via

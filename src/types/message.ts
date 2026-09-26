@@ -60,11 +60,11 @@ export type NormalizedMessage = {
     senderName: string;
     isSelf: boolean;
     ts: number;
-    /** `"desktop.text"` for DOM-scraped rows (the only kind this scraper reads text content for); `"chat.photo"` for a photo message saved directly from the realtime WS payload — see history/realtimeListener.ts. Other Zalo msgTypes (sticker, voice, video, file...) aren't captured specially yet and fall through as an empty-content `"desktop.text"` row, same as before. */
+    /** `"desktop.text"` for DOM-scraped rows (the only kind this scraper reads text content for); `"chat.photo"` for a photo message saved directly from the realtime WS payload — see src/watch/realtimeListener.ts. Other Zalo msgTypes (sticker, voice, video, file...) aren't captured specially yet and fall through as an empty-content `"desktop.text"` row, same as before. */
     msgType: string;
     /** Message text. For `"chat.photo"`, this is the photo's caption (empty string if it has none) — the image itself is `url`, not `content`. */
     content: string;
-    /** Path of the saved image file, relative to the data dir (`images/<groupId>/<msgId>.<ext>`, see store/imageStore.ts) — only present for `"chat.photo"` rows whose image could actually be saved. */
+    /** Path of the saved image file, relative to the data dir (`images/<groupId>/<msgId>.<ext>`, see src/store/imageStore.ts) — only present for `"chat.photo"` rows whose image could actually be saved. */
     url?: string;
 };
 
@@ -89,7 +89,7 @@ export type RealtimeMessageEvent = {
      * numeric message id (`msg.msgId` on the wire) — confirmed live to
      * match character-for-character the `data-qid` attribute the same
      * message's DOM row carries (see extractRowsFromMessageSrc in
-     * history/desktopScraper.ts), so a save here dedupes correctly against
+     * src/scrape/desktopScraper.ts), so a save here dedupes correctly against
      * whatever the DOM scrape saves for the same row. `senderId`/`senderName` are blank for the account's own messages
      * (the wire format sends `uidFrom: "0"` for those, with no numeric id
      * substitute available at this layer), matching how self-sent rows

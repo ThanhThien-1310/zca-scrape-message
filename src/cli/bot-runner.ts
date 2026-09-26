@@ -13,9 +13,9 @@ import type { Gap } from "../types/index.js";
 
 /**
  * Long-running orchestrator. `bot:watch` only detects and queues; this process notices work, waits for a
- * quiet spell (runner/schedule.ts), then runs a cycle: recover a `bot:watch` gap if there was one, scrape
+ * quiet spell (src/runner/schedule.ts), then runs a cycle: recover a `bot:watch` gap if there was one, scrape
  * the queue, sync the DB, rebuild the Excel of every session that has a report not built yet
- * (runner/cycle.ts). Work is any of: groups in the queue; a `bot:watch` gap over the current session not
+ * (src/runner/cycle.ts). Work is any of: groups in the queue; a `bot:watch` gap over the current session not
  * recovered yet; a session with an unbuilt report (checked every minute, every 5 minutes after a build
  * error). It never restarts `bot:watch`. Like `bot:scrape`, a scrape relaunches Zalo Desktop if its debug
  * port is closed, which is why nothing runs while `bot:watch` is still starting (it relaunches Zalo itself).

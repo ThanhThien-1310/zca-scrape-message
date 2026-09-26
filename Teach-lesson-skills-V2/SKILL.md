@@ -47,7 +47,7 @@ Hai bot phối hợp: `bot:watch` chỉ theo dõi và nối thêm tên nhóm có
 | 6 | Cập nhật DB | `npm run mark:messages -- output/marks.json` |
 | 7 | Thông báo | `"xong"` nếu thành công, ngược lại báo lỗi chi tiết |
 
-Nếu bất kỳ bước nào (trừ bước 0 và 1b, xem mục "Kiểm tra `bot:watch` và khôi phục khi bị gián đoạn") lỗi thì dừng và báo lỗi, **không chạy tiếp các bước sau**; đặc biệt không chạy bước 6 khi bước 3 hoặc 5 lỗi, vì bước 6 đánh dấu tin nhắn đã đọc dù chưa có kết quả. Nếu bước 1 in `hàng chờ rỗng` thì **không dừng**: chỉ có nghĩa là không có nhóm nào cần cào thêm (dữ liệu có thể đã được cào trước đó, ví dụ ai đó đã chạy `bot:scrape` tay); cứ tiếp tục bước 2–6 với dữ liệu đã có. Chỉ khi bước 3 in `xét 0 tin` thì dừng và báo "không có tin nhắn trong buổi này". Đọc kỹ output của bước 1: dòng `sidebar item ... not found` hoặc `no messages found` nghĩa là nhóm đó có thể **chưa được cào** dù lệnh vẫn thoát mã 0; nêu tên nhóm đó trong thông báo cuối. Nếu không có tin nhắn báo cáo hợp lệ (`output.json` là `[]`) thì bước 5 tự bỏ qua, vẫn chạy bước 6 để đánh dấu các tin nhắn còn lại là `-1`. Chi tiết bước 3, 4, 5, 6 ở các mục "Script trích xuất và agent giám sát", "Điền file Excel mẫu" và "`markMessages.ts`" bên dưới.
+Nếu bất kỳ bước nào (trừ bước 0 và 1b, xem mục "Kiểm tra `bot:watch` và khôi phục khi bị gián đoạn") lỗi thì dừng và báo lỗi, **không chạy tiếp các bước sau**; đặc biệt không chạy bước 6 khi bước 3 hoặc 5 lỗi, vì bước 6 đánh dấu tin nhắn đã đọc dù chưa có kết quả. Nếu bước 1 in `hàng chờ rỗng` thì **không dừng**: chỉ có nghĩa là không có nhóm nào cần cào thêm (dữ liệu có thể đã được cào trước đó, ví dụ ai đó đã chạy `bot:scrape` tay); cứ tiếp tục bước 2–6 với dữ liệu đã có. Chỉ khi bước 3 in `xét 0 tin` thì dừng và báo "không có tin nhắn trong buổi này". Đọc kỹ output của bước 1: dòng `sidebar item ... not found` hoặc `no messages found` nghĩa là nhóm đó có thể **chưa được cào** dù lệnh vẫn thoát mã 0; nêu tên nhóm đó trong thông báo cuối. Nếu không có tin nhắn báo cáo hợp lệ (`output.json` là `[]`) thì bước 5 tự bỏ qua, vẫn chạy bước 6 để đánh dấu các tin nhắn còn lại là `-1`. Chi tiết bước 3, 4, 5, 6 ở các mục "Script trích xuất và agent giám sát", "Điền file Excel mẫu" và "`src/cli/mark-messages.ts`" bên dưới.
 
 ## Chế độ giám sát khi `bot:runner` đang chạy
 
@@ -307,7 +307,7 @@ Chuyển giá trị `groupName` qua skill `school-and-area-extraction` để x�
 
 ## Script trích xuất và agent giám sát
 
-Script `extractLessonReports.ts` (lệnh `extract:reports`) thực hiện toàn bộ các quy tắc trích xuất ở trên. Bạn (agent) không tự trích xuất mà **đọc kết quả, đối chiếu với tin nhắn gốc và sửa** những chỗ script làm sai hoặc không chắc chắn.
+Script `src/cli/extract-reports.ts` (lệnh `extract:reports`) thực hiện toàn bộ các quy tắc trích xuất ở trên. Bạn (agent) không tự trích xuất mà **đọc kết quả, đối chiếu với tin nhắn gốc và sửa** những chỗ script làm sai hoặc không chắc chắn.
 
 Lệnh: `npm run extract:reports -- [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--no-db]`
 - `--day`: ngày cần xử lý theo giờ Việt Nam, mặc định hôm nay. Người dùng nói ngày khác thì thêm tham số này, và thêm `--day` cho cả bước 5 (để đặt tên file Excel).
@@ -408,7 +408,7 @@ Cách điền:
 - `School`: tên trường dạng `LC HOA SEN 1` (ghép `capHoc`, `tenRieng`, thêm `coSo` nếu có). `Area`: mã khu vực như skill `school-and-area-extraction` trả về (`TĐ`, `BTAN`...). `Room`: `phongMay` giữ đúng như người báo cáo viết.
 - `FacilityGrade`: `xepLoai`. `FacilityNote`: để trống. `QuantityNote`: `GhiChuLoi`.
 
-## `markMessages.ts` (bước 6)
+## `src/cli/mark-messages.ts` (bước 6)
 
 Đầu vào: `output/marks.json`, dạng `[{ "maNhom": "...", "maTinNhan": "...", "maTrangThai": 1 }]` (script trích xuất ghi file này, gồm cả tin nhắn được phân loại `-1`).
 

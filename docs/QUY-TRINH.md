@@ -299,11 +299,11 @@ Bảng dưới là các sự cố của quy trình trích xuất và chạy tay.
 |---|---|---|
 | `bot:scrape` in `hàng chờ rỗng` | `bot:watch` chưa chạy hoặc chưa thấy tin mới, hoặc runner đã cào xong | Kiểm tra `bot:watch` đang chạy; chạy `npm run runner:status` để xem hàng chờ; xếp nhóm bằng `npm run scrape:add -- "Tên nhóm"` nếu cần cào ngay |
 | `bot:scrape` hoặc `recover:missing` báo đang có `bot:runner`/`bot:chat` điều khiển Zalo | Khóa `data/.scrape.lock` đang được giữ | Chờ vòng của runner xong rồi chạy lại |
-| Số tin sau khi cào bằng 0, hoặc `sidebar item ... not found` | Zalo cập nhật giao diện, hoặc tên trong `config.targets` lệch tên nhóm | Xem mục "Bảo trì" trong README; sửa `history/scrapeSelectors.ts` hoặc `config.targets` |
+| Số tin sau khi cào bằng 0, hoặc `sidebar item ... not found` | Zalo cập nhật giao diện, hoặc tên trong `config.targets` lệch tên nhóm | Xem mục "Bảo trì" trong README; sửa `src/scrape/scrapeSelectors.ts` hoặc `config.targets` |
 | `watch:status` báo `CÓ VẺ ĐÃ CHẾT` | Tiến trình `bot:watch` đã thoát, máy ngủ hoặc khởi động lại | Khởi động lại `npm run bot:watch`; runner tự khôi phục (hoặc chạy `recover:missing` cho buổi bị ảnh hưởng) |
 | `watch:status` báo `ĐANG CHẠY NHƯNG MÙ` | Zalo Desktop bị đóng hoặc mất kết nối, cả hai nguồn phát hiện đều mất | Mở lại Zalo Desktop; khởi động lại `bot:watch` |
 | `recover:missing` báo nhóm vẫn thiếu | Giáo viên chưa gửi báo cáo, hoặc nhóm không có lớp buổi đó | Nhắc người phụ trách; thêm nhóm không dạy vào `config.recoveryIgnoreTargets` (hoặc đặt `"scrape": false` nếu nó chỉ dùng cho chat) |
-| `extract:reports` báo lỗi kết nối DB | Sai `.env`, DB không truy cập được | Chạy `npx tsx dbCheck.ts`; tạm dùng `--no-db` |
+| `extract:reports` báo lỗi kết nối DB | Sai `.env`, DB không truy cập được | Chạy `npx tsx src/cli/debug/db-check.ts`; tạm dùng `--no-db` |
 | `extract:reports` ra 0 báo cáo | Sai `--day` hoặc `--buoi`, hoặc tin nằm ở buổi khác | Chạy lại với đúng ngày và buổi; kiểm tra `data/<groupId>.json` và `config.sessions` |
 | `output/overrides.json ... is not valid JSON` | File sửa tay bị sai cú pháp | Sửa file; script nêu rõ tên file |
 | `CẢNH BÁO: override ... không khớp tin nhắn nào` | Gõ sai `maNhom` hoặc `maTinNhan` | Chép lại `key` từ file review |

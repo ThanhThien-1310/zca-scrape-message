@@ -6,12 +6,12 @@ export interface CycleDeps {
     loadMessages(): Promise<SourceMessage[]>;
     /** Re-scrapes groups missing reports if `bot:watch` had a gap in the current session; never throws for a single group. */
     recover(): Promise<{ errors: string[] }>;
-    /** Snapshot the queue, scrape exactly those groups, mark exactly those as scraped; failed groups stay queued for a retry (history/queueRun.ts). Throws if Zalo Desktop is unreachable. */
+    /** Snapshot the queue, scrape exactly those groups, mark exactly those as scraped; failed groups stay queued for a retry (src/scrape/queueRun.ts). Throws if Zalo Desktop is unreachable. */
     scrapeQueued(): Promise<QueueRunResult>;
     syncDb(): Promise<void>;
     /** Extract one session, write its Excel, mark its messages. */
     build(session: SessionKey): Promise<BuildResult>;
-    /** Keys of the reports already built into an Excel; kept on disk (runner/builtReports.ts). */
+    /** Keys of the reports already built into an Excel; kept on disk (src/runner/builtReports.ts). */
     built: { read(): Set<string>; write(keys: Set<string>): void };
 }
 

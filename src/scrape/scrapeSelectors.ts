@@ -14,7 +14,7 @@ export const selectors = {
     /**
      * Display-name element of whichever sidebar entry is currently open —
      * the open item gets an extra `selected` class alongside `.conv-item`
-     * (confirmed via debug-active-conversation.ts). Used by the live
+     * (confirmed via src/cli/debug/active-conversation.ts). Used by the live
      * message observer to read which thread is actually open at the moment
      * a message renders, instead of trusting Node-side state that goes
      * stale the instant the user manually switches conversations.
@@ -49,7 +49,7 @@ export const selectors = {
  * generated id close to, but not exactly, the message's server `ts`) —
  * confirmed live. Superseded as the primary identity source by the row's
  * `[data-qid]` descendant(s), which carry Zalo's own real numeric message
- * id (see `extractRowsFromMessageSrc` in `history/desktopScraper.ts`); this
+ * id (see `extractRowsFromMessageSrc` in `src/scrape/desktopScraper.ts`); this
  * prefix is now only used as a fallback for a row with no `[data-qid]` at
  * all.
  */

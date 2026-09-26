@@ -75,9 +75,9 @@ export class MessageStore {
      * Zalo Desktop only renders a sender's display name on the *first*
      * bubble of a consecutive run from that person — later bubbles in the
      * same burst have an empty senderName in the DOM (see
-     * history/exportExcel.ts's normalizeSenderName note). senderId doesn't
+     * src/export/exportExcel.ts's normalizeSenderName note). senderId doesn't
      * have this gap (read per-row from React props, not visually
-     * collapsed — see readMsgIdentitySrc in history/desktopScraper.ts), so
+     * collapsed — see readMsgIdentitySrc in src/scrape/desktopScraper.ts), so
      * an empty name for a known senderId is filled in from the last name
      * seen for that id in this conversation. The map persists for the
      * store's whole lifetime (seeded from disk, updated on every save), so

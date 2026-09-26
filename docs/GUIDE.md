@@ -58,7 +58,7 @@ DB_TRUST_CERT=true
 Kiểm tra kết nối (chỉ đọc, không ghi gì):
 
 ```powershell
-npx tsx dbCheck.ts
+npx tsx src/cli/debug/db-check.ts
 ```
 
 Kết quả đúng: in `connected: <tên DB> as <tài khoản>` và danh sách cột của `Zalo_CrawlMessage`.
@@ -330,7 +330,7 @@ Kết quả nằm ở `data\export\baocaobuoi<buoi>_<ddMMyy>.xlsm`. Mô tả đ�
 ## 10. Danh sách kiểm tra trước khi bật tự động
 
 - [ ] `npm test` và `npm run typecheck` đạt.
-- [ ] `npx tsx dbCheck.ts` kết nối được DB.
+- [ ] `npx tsx src/cli/debug/db-check.ts` kết nối được DB.
 - [ ] `npm run config:show` cho thấy các giá trị bạn chủ ý (khóa khác mặc định có dấu `*`); `targets` đúng tên nhóm thật.
 - [ ] Một lượt chạy tay (mục 5) cho ra file Excel đúng.
 - [ ] Skill V2 đã có trong `skills\` và skill cũ cùng câu kích hoạt đã gỡ.

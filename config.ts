@@ -38,7 +38,7 @@ function findZaloExe(): string | null {
  * ĐÂY LÀ FILE DUY NHẤT CẦN SỬA để chỉnh cách các bot chạy. Chia 8 mục; mỗi thông số có ghi chú ý nghĩa, đơn vị và ví dụ.
  * Đổi giá trị xong thì KHỞI ĐỘNG LẠI bot liên quan (bot chỉ đọc file này lúc khởi động).
  * Xem toàn bộ giá trị hiện tại (khóa khác mặc định có dấu *): `npm run config:show`.
- * Giá trị sai bị từ chối khi khởi động, kèm tên khóa sai (xem configCheck.ts).
+ * Giá trị sai bị từ chối khi khởi động, kèm tên khóa sai (xem src/config/configCheck.ts).
  */
 export const config = {
     // ═══════════════════════════════════════════════════════════════════════

@@ -16,7 +16,7 @@ import type { Buoi, SourceMessage } from "../types/index.js";
  * Safety net for a `bot:watch` that died (or went blind) and missed messages.
  *
  * It does nothing unless the watcher's own records (data/.watch-state.json and
- * data/.watch-gaps.json, see history/watchState.ts) show a gap that overlaps
+ * data/.watch-gaps.json, see src/watch/watchState.ts) show a gap that overlaps
  * the session. When they do, it re-scrapes ONLY the groups that still lack a
  * start or end report — from shortly before the gap — and says which messages
  * that brought back (output/recovery.json). Groups in `config.recoveryIgnoreTargets`

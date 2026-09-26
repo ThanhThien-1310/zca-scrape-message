@@ -4,9 +4,9 @@ import { ensureZaloReady } from "../../scrape/desktopScraper.js";
 /**
  * Standalone helper: makes sure Zalo Desktop is running with its CDP debug
  * port open, without running any scrape. Useful when you just want to probe
- * the DOM manually (e.g. to refresh history/scrapeSelectors.ts) without
+ * the DOM manually (e.g. to refresh src/scrape/scrapeSelectors.ts) without
  * waiting for a full scrape pass — reuses the same restart logic as
- * index.ts/watch.ts (see ensureZaloReady in history/desktopScraper.ts).
+ * index.ts/watch.ts (see ensureZaloReady in src/scrape/desktopScraper.ts).
  */
 async function main() {
     await ensureZaloReady();

@@ -37,7 +37,7 @@ Hai hướng khác đã thử và bỏ:
 
 Playwright's `connectOverCDP` không attach thẳng được vào Electron của Zalo
 Desktop (lỗi `Browser.setDownloadBehavior`, do bản CDP cũ — Electron
-22 / Chrome 108). Vì vậy `history/cdp.ts` tự cài một client CDP tối giản qua
+22 / Chrome 108). Vì vậy `src/scrape/cdp.ts` tự cài một client CDP tối giản qua
 WebSocket thô (`Runtime.evaluate`, và `Input.*` cho việc gõ của `bot:chat`)
 thay vì dùng Playwright.
 
@@ -45,7 +45,7 @@ thay vì dùng Playwright.
 
 | Chế độ | Lệnh | Mô tả |
 |---|---|---|
-| Theo dõi thời gian thực | `npm run bot:watch` | Đứng chạy liên tục, **nơi duy nhất nghe tin** (WebSocket nội bộ của Zalo Desktop — xem `history/realtimeListener.ts` — và popup thông báo). Mỗi tin nó chia vào hai luồng: hàng chờ cào `data/.scrape-events-<ngày>.jsonl` và hộp thư chat `data/.chat-inbox.jsonl`. Không cào, không ghi `data/<groupId>.json`. |
+| Theo dõi thời gian thực | `npm run bot:watch` | Đứng chạy liên tục, **nơi duy nhất nghe tin** (WebSocket nội bộ của Zalo Desktop — xem `src/watch/realtimeListener.ts` — và popup thông báo). Mỗi tin nó chia vào hai luồng: hàng chờ cào `data/.scrape-events-<ngày>.jsonl` và hộp thư chat `data/.chat-inbox.jsonl`. Không cào, không ghi `data/<groupId>.json`. |
 | Tự động cào và dựng báo cáo | `npm run bot:runner` | Chạy nền: hàng chờ có nhóm và yên lặng thì cào, đồng bộ DB, trích xuất, ghi đè Excel của buổi, đánh dấu tin; tự khôi phục khi `bot:watch` từng gián đoạn. |
 | Quét theo hàng chờ (tay) | `npm run bot:scrape` | Chạy tay khi runner không chạy: đọc hàng chờ, chỉ mở các nhóm đang có trong đó, cuộn lấy lịch sử, xóa các nhóm vừa xử lý khỏi hàng chờ rồi thoát. Hàng chờ rỗng thì thoát ngay, không đụng Zalo Desktop. |
 | Xếp nhóm vào hàng chờ | `npm run scrape:add -- "Tên nhóm"` | Xếp nhóm (phải có trong `config.targets`) vào hàng chờ bằng tay: nhóm mới chưa từng cào, hoặc ép cào lại. Chỉ ghi file, không đụng Zalo. |
@@ -141,10 +141,10 @@ Các thông số vận hành nằm trong các đối tượng con (mặc định
 
 Mỗi lần cào (`bot:scrape`, hay một vòng của `bot:runner`):
 
-0. **Giữ khóa Zalo** (`data/.scrape.lock`, `history/scrapeLock.ts`). Đang có
+0. **Giữ khóa Zalo** (`data/.scrape.lock`, `src/core/scrapeLock.ts`). Đang có
    tiến trình khác điều khiển giao diện thì `bot:scrape` từ chối và báo ai
    đang giữ; runner thì thử lại sau.
-1. **`ensureZaloReady()`** (`history/desktopScraper.ts`): kiểm tra cổng
+1. **`ensureZaloReady()`** (`src/scrape/desktopScraper.ts`): kiểm tra cổng
    debug CDP (`config.cdpPort`) đã mở chưa.
    - Nếu **chưa**: tắt hẳn mọi tiến trình `Zalo.exe` đang chạy
      (`taskkill /IM Zalo.exe /F`) rồi mở lại kèm
@@ -178,11 +178,11 @@ Mỗi lần cào (`bot:scrape`, hay một vòng của `bot:runner`):
 ### Chế độ theo dõi thời gian thực (`watch`)
 
 `npm run bot:watch` đứng chạy liên tục và phát hiện ngay khi có tin mới, từ
-**2 nguồn** độc lập (`history/watch.ts`); mỗi lần phát hiện chỉ ghi tên nhóm
+**2 nguồn** độc lập (`src/watch/watch.ts`); mỗi lần phát hiện chỉ ghi tên nhóm
 vào hàng chờ (không mở giao diện, không cào, không lưu tin), và nếu nhóm nằm
 trong `chat-rules.json` thì ghi thêm tin chữ vào hộp thư chat:
 
-1. **WebSocket nội bộ của Zalo Desktop (`history/realtimeListener.ts`,
+1. **WebSocket nội bộ của Zalo Desktop (`src/watch/realtimeListener.ts`,
    nhanh nhất)** — Zalo Desktop tự mở 1 kết nối WebSocket tới backend chat
    của nó để tự cập nhật UI; bot chỉ **quan sát** kết nối đó qua CDP
    `Network` domain (không tạo kết nối riêng, không cần đăng nhập gì thêm).
@@ -257,8 +257,8 @@ npm run zalo:debug
 ```
 
 Lệnh này chỉ gọi `ensureZaloReady()` rồi in ra URL debug và thoát, **không**
-đụng vào `config.targets` hay `data/`. `debug-active-conversation.ts` và
-`debug-zalo.ts` ở thư mục gốc là các script chẩn đoán một lần dùng để dò
+đụng vào `config.targets` hay `data/`. `src/cli/debug/active-conversation.ts` và
+`src/cli/debug/zalo.ts` ở thư mục gốc là các script chẩn đoán một lần dùng để dò
 lại selector khi Zalo Desktop đổi giao diện.
 
 Kiểm tra cổng debug đã mở chưa:
@@ -316,44 +316,44 @@ trong QUY-TRINH.md).
 
 ## Cấu trúc dự án
 
+Mã nguồn nằm trong `src/`; ở gốc chỉ có cấu hình, tài liệu và dữ liệu. Các kiểu dùng chung nằm tập trung ở `src/types/`.
+
 ```
 config.ts                        SỬA Ở ĐÂY: nhóm cần theo dõi, mọi thông số vận hành (8 mục)
-configCheck.ts / configDoc.ts    kiểm giá trị lúc khởi động / mô tả từng thông số cho config:show
-configShow.ts                    npm run config:show
 chat-rules.json                  kịch bản trả lời của bot:chat (theo nhóm)
+package.json  tsconfig.json  README.md  CLAUDE.md
 
-bot-runner.ts / runnerOnce.ts / runnerStatus.ts     bot:runner, runner:once, runner:status
-bot-chat.ts / chatStatus.ts                         bot:chat, chat:status
-index.ts                         cào tay theo hàng chờ (npm run bot:scrape)
-scrapeAdd.ts                     npm run scrape:add
-watch.ts / watchStatus.ts        bot:watch (chạy history/watch.ts), watch:status
-recoverMissing.ts                npm run recover:missing
-extractLessonReports.ts / fillRoomFacilityReport.ts / syncDb.ts / markMessages.ts
-                                 các bước trích xuất, điền Excel, đồng bộ và đánh dấu DB
-debug-zalo.ts                    mở Zalo Desktop kèm cổng debug, không quét
-debug-active-conversation.ts     chẩn đoán: in className của item sidebar đang active
-
-history/
-  desktopScraper.ts              logic chính: ensureZaloReady, tìm nhóm, cuộn, cào,
-                                  đọc groupId/groupName/senderId thật qua React fiber
-  watch.ts                       logic watcher: nguồn WS realtime + notification popup,
-                                  chia tin vào hàng chờ cào và hộp thư chat
-  realtimeListener.ts            nghe WebSocket nội bộ của Zalo Desktop qua CDP Network
-                                  domain (best-effort, xem mục Bảo trì)
-  cdp.ts                         client CDP thô (WebSocket) thay Playwright
-  scrapeSelectors.ts             CSS selector DOM Zalo Desktop
-  scrapeQueue.ts / queueRun.ts / queueAdd.ts   hàng chờ cào, một lần chạy theo hàng chờ, scrape:add
-  scrapeLock.ts                  khóa chung cho mọi thứ điều khiển giao diện Zalo
-  watchState.ts                  nhịp tim và khoảng gián đoạn của bot:watch
-  atomicWrite.ts                 ghi tệp nguyên tử chịu được Windows (thử lại khi EPERM)
-  exportExcel.ts / exportExcelCli.ts   xuất .xlsx từ dữ liệu đã cào
-
-runner/                          bot:runner: lịch chờ, một vòng, trạng thái, dựng Excel an toàn
-chat/                            bot:chat: kịch bản, khớp tình huống, hộp thư, gửi tin, giới hạn
-lesson/                          trích xuất báo cáo buổi dạy, chia buổi, khôi phục
-store/                           messageStore.ts (data/<groupId>.json, dedupe), kết nối DB
-mcp/                             server.ts: MCP server chỉ-đọc (list_threads, get_recent_messages,
-                                  search_messages)
+src/
+  cli/                           mọi lệnh chạy (mỗi `npm run ...` trỏ tới một file ở đây)
+    bot-watch.ts                 bot:watch (nghe tin, xếp hàng chờ, hộp thư chat)
+    bot-runner.ts                bot:runner (cào, đồng bộ DB, trích xuất, dựng Excel)
+    bot-chat.ts                  bot:chat (trả lời theo kịch bản)
+    bot-scrape.ts                bot:scrape (cào tay theo hàng chờ)
+    scrape-add.ts                scrape:add
+    watch-status.ts / runner-status.ts / runner-timing.ts / chat-status.ts   xem trạng thái, thời gian
+    runner-once.ts               runner:once (dựng lại một buổi, không cào)
+    recover-missing.ts           recover:missing
+    extract-reports.ts / fill-report.ts / sync-db.ts / mark-messages.ts   các bước trích xuất, điền Excel, đồng bộ, đánh dấu DB
+    config-show.ts               config:show
+    export-excel.ts / export-lesson-report.ts   xuất .xlsx từ dữ liệu đã cào
+    debug/                       công cụ chẩn đoán (zalo.ts mở Zalo kèm cổng debug; db-check.ts; active-conversation.ts)
+  types/                         CÁC KIỂU DÙNG CHUNG: message, report, session, queue, runner, watch, chat, config, core
+                                 (nhập bằng `import type { ... } from "../types/index.js"`)
+  core/                          hạ tầng dùng chung: paths.ts (mọi đường dẫn theo vị trí dự án), atomicWrite.ts (ghi tệp
+                                 nguyên tử chịu được Windows), scrapeLock.ts (khóa chung cho mọi thứ điều khiển giao diện Zalo)
+  config/                        configCheck.ts (kiểm giá trị lúc khởi động), configDoc.ts (mô tả từng thông số cho config:show)
+  scrape/                        cào Zalo Desktop: desktopScraper.ts (ensureZaloReady, tìm nhóm, cuộn, cào, đọc groupId thật qua
+                                 React fiber), cdp.ts (client CDP thô thay Playwright), scrapeSelectors.ts (CSS selector DOM),
+                                 scrapeQueue.ts / queueRun.ts / queueAdd.ts (hàng chờ cào, một lần chạy theo hàng chờ, scrape:add)
+  watch/                         watch.ts (nguồn WS realtime + notification popup, chia tin vào hàng chờ và hộp thư chat),
+                                 realtimeListener.ts (WebSocket nội bộ của Zalo qua CDP Network), watchState.ts (nhịp tim, khoảng gián đoạn)
+  runner/                        bot:runner: lịch chờ, một vòng, trạng thái, thời gian, dựng Excel an toàn
+  chat/                          bot:chat: kịch bản, khớp tình huống, hộp thư, gửi tin, giới hạn
+  lesson/                        trích xuất báo cáo buổi dạy, chia buổi, khôi phục
+  store/                         messageStore.ts (data/<groupId>.json, dedupe), kết nối DB
+  export/                        exportExcel.ts (xuất .xlsx từ dữ liệu đã cào)
+  mcp/                           server.ts: MCP server chỉ-đọc (list_threads, get_recent_messages, search_messages)
+scripts/                         fill-template.ps1 (điền template Excel qua COM), benchLoad.ts (đo tải giả lập)
 tests/                           unit test (node:test)
 docs/                            GUIDE.md, QUY-TRINH.md, các spec và kế hoạch
 
@@ -377,7 +377,7 @@ bản xuất riêng theo ngày. Mỗi lần lưu tin mới, cả mảng được
 file tạm rồi rename, tránh hỏng file nếu bị ngắt giữa chừng), dedupe theo
 `msgId` — chạy lại cào không tạo tin trùng. Tên file là `groupId` thật
 (không phải slug tên nhóm), nên **không bị vỡ lịch sử khi nhóm đổi tên**.
-Shape `NormalizedMessage` (`store/messageStore.ts`):
+Shape `NormalizedMessage` (`src/store/messageStore.ts`):
 
 ```ts
 {
@@ -411,7 +411,7 @@ là thứ khác: nó nằm ở `data/export/baocaobuoi<buổi>_<ddMMyy>.xlsm` do
 
 Xếp theo khả năng gặp phải, cao → thấp:
 
-1. **Đọc `groupId`/`senderId` qua React internal fiber (`history/desktopScraper.ts:readMsgIdentitySrc`)** —
+1. **Đọc `groupId`/`senderId` qua React internal fiber (`src/scrape/desktopScraper.ts:readMsgIdentitySrc`)** —
    điểm dễ vỡ nhất trong toàn bộ scraper, dễ vỡ hơn cả selector CSS bên
    dưới. Kỹ thuật này đọc thẳng property nội bộ của React
    (`__reactFiber$...`/`memoizedProps`) gắn trên DOM node, hoàn toàn không
@@ -423,12 +423,12 @@ Xếp theo khả năng gặp phải, cao → thấp:
    cảnh báo này liên tục, cần soi lại cấu trúc fiber mới qua
    `npm run zalo:debug` + `Runtime.evaluate` thủ công.
 
-2. **Selector DOM (`history/scrapeSelectors.ts`)** — gắn chặt vào bản UI
+2. **Selector DOM (`src/scrape/scrapeSelectors.ts`)** — gắn chặt vào bản UI
    hiện tại của Zalo Desktop. Mỗi lần Zalo tự động update giao diện, các
    class này có thể đổi và scraper sẽ âm thầm trả về rỗng hoặc báo
    `"sidebar item for ... not found"`. Cách sửa: chạy `npm run zalo:debug`,
-   dùng `debug-active-conversation.ts` hoặc `Runtime.evaluate` thủ công
-   qua `history/cdp.ts` để soi DOM mới và cập nhật lại selector. **`bot:chat`
+   dùng `src/cli/debug/active-conversation.ts` hoặc `Runtime.evaluate` thủ công
+   qua `src/scrape/cdp.ts` để soi DOM mới và cập nhật lại selector. **`bot:chat`
    phụ thuộc thêm vào ô soạn tin** (`#richInput`, `placeholder` dạng "Nhập @,
    tin nhắn tới <tên nhóm>", class `empty`) — cũng có thể đổi khi Zalo cập nhật;
    khi đó bot từ chối gửi (chốt chặn kiểm nhóm đích thất bại) thay vì gõ nhầm.
@@ -441,7 +441,7 @@ Xếp theo khả năng gặp phải, cao → thấp:
    `timeLocal` bất thường trong file export, khả năng cao là một định dạng
    id mới chưa được xử lý.
 
-4. **Nguồn WS realtime (`history/realtimeListener.ts`) dựa trên giao thức
+4. **Nguồn WS realtime (`src/watch/realtimeListener.ts`) dựa trên giao thức
    nhị phân chưa công bố của Zalo** (mã lệnh cmd/subCmd, mã hoá AES-GCM +
    nén gzip) — dò ngược qua dự án `zca-js` và xác nhận lại bằng cách bắt
    trực tiếp gói tin qua CDP `Network` domain, không phải API chính thức.
@@ -463,7 +463,7 @@ Xếp theo khả năng gặp phải, cao → thấp:
    với `bot:scrape` và runner, chỉ xảy ra khi debug port chưa mở; với
    `bot:watch`, xảy ra **mỗi lần khởi động**, kể cả khi Zalo đã mở sẵn — cần
    thiết để nguồn WS realtime bắt được cipher key trao đổi lúc kết nối (xem
-   `history/realtimeListener.ts`). Không mất dữ liệu, chỉ gián đoạn UI vài
+   `src/watch/realtimeListener.ts`). Không mất dữ liệu, chỉ gián đoạn UI vài
    giây. **Không thể tắt `autoLaunchZalo` khi dùng `bot:watch`**: nó luôn cần
    khởi động lại Zalo và sẽ báo lỗi nếu giá trị là `false`. Vì vậy đừng khởi
    động `bot:watch` lúc đang dùng Zalo dở.
@@ -496,8 +496,8 @@ Xếp theo khả năng gặp phải, cao → thấp:
 
 11. **Ghi tệp trạng thái trên Windows.** Đổi tên đè lên một tệp đang bị tiến
     trình khác mở (kể cả chỉ để đọc) báo `EPERM`. Các tệp trạng thái của bot
-    (nhịp tim, hàng chờ, sổ chat...) dùng `history/atomicWrite.ts` để thử lại
-    và lỗi ghi nhịp tim không làm `bot:watch` thoát. `store/messageStore.ts`
+    (nhịp tim, hàng chờ, sổ chat...) dùng `src/core/atomicWrite.ts` để thử lại
+    và lỗi ghi nhịp tim không làm `bot:watch` thoát. `src/store/messageStore.ts`
     (tệp `data/<groupId>.json`) vẫn dùng cách đổi tên cũ; nguy cơ thấp hơn vì
     chỉ runner đọc chúng và runner cào tuần tự.
 

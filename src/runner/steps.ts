@@ -64,7 +64,7 @@ export async function buildSession(session: SessionKey): Promise<BuildResult> {
 }
 
 /**
- * `freshGaps` returns the `bot:watch` gaps that no recovery has covered yet (runner/recoveryPlan.ts). The recover step
+ * `freshGaps` returns the `bot:watch` gaps that no recovery has covered yet (src/runner/recoveryPlan.ts). The recover step
  * of a cycle only ever works on those: with none, a cycle triggered by the queue scrapes ONLY the queue.
  */
 export function realDeps(opts: { freshGaps: () => Gap[] }): CycleDeps {

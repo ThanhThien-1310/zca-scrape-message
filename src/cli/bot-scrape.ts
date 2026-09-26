@@ -12,7 +12,7 @@ import { MessageStore } from "../store/messageStore.js";
  * queued in the meantime stays, and a conversation that failed stays queued for a retry. An empty queue exits at once without touching
  * Zalo Desktop. Nothing here talks to `bot:watch`; it and `bot:runner` are the
  * only processes that drive Zalo Desktop's UI, and they exclude each other with
- * history/scrapeLock.ts. See history/scrapeQueue.ts and history/queueRun.ts.
+ * src/core/scrapeLock.ts. See src/scrape/scrapeQueue.ts and src/scrape/queueRun.ts.
  */
 async function main(): Promise<void> {
     const lock = acquireScrapeLock("bot:scrape");

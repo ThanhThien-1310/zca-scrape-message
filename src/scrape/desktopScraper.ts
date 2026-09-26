@@ -68,7 +68,7 @@ const readMsgIdentitySrc = `
  * `<realMsgId>@<cliMsgId>_<uidFrom>_<groupId>`. `realMsgId` matches
  * Zalo's own numeric `msgId` exactly — cross-checked character-for-
  * character against the realtime WS payload for the same message (see
- * history/realtimeListener.ts, which now saves photo rows under this same
+ * src/watch/realtimeListener.ts, which now saves photo rows under this same
  * id). `cliMsgId` is what the row's own `id` attribute was already using
  * as its trailing "timestamp" (close to, but not exactly, the server
  * `ts`). `uidFrom` is `"0"` for the account's own messages — same
@@ -181,7 +181,7 @@ const extractRowsFromMessageSrc = `
 
 /**
  * The whole bot, now: Zalo Desktop (Electron) is read over the Chrome
- * DevTools Protocol via history/cdp.ts, run on-demand or on a schedule
+ * DevTools Protocol via src/scrape/cdp.ts, run on-demand or on a schedule
  * (Task Scheduler at e.g. 08:00 and 12:00). There is no separate login —
  * this reuses whatever account is already signed into the desktop app, the
  * same way a person using it normally would be. See ensureZaloReady for why
@@ -247,7 +247,7 @@ export async function scrapeAndSaveTarget(page: CdpPage, store: MessageStore, ta
 /**
  * Reads only whatever's currently rendered in the open thread — no
  * scrolling, no sinceTs/untilTs filtering — used by the notification
- * watcher (history/watch.ts), where a new message is already visible at the
+ * watcher (src/watch/watch.ts), where a new message is already visible at the
  * bottom of the pane as soon as the thread is opened, so walking back
  * through the day's history on every trigger would just be wasted work.
  * Writes to the JSON store (dedup handles overlap with prior scrapes and
@@ -306,7 +306,7 @@ export async function ensureZaloReady(): Promise<void> {
 /**
  * Unconditionally kills and relaunches Zalo Desktop, even if its debug port
  * is already open — unlike `ensureZaloReady`, which only restarts when
- * necessary. The realtime WebSocket listener (history/realtimeListener.ts)
+ * necessary. The realtime WebSocket listener (src/watch/realtimeListener.ts)
  * needs to observe the one-time cipher-key frame sent right when Zalo
  * Desktop's own connection to its chat backend opens; if that connection
  * has been open since before we attached, the key frame already passed and
@@ -317,10 +317,10 @@ export async function ensureZaloReady(): Promise<void> {
  *
  * Deliberately does NOT wait for the debug port to come up (unlike
  * `ensureZaloReady`) — the caller must race straight into
- * `connectToZaloMainPageEarly` (history/cdp.ts) right after this returns, so
+ * `connectToZaloMainPageEarly` (src/scrape/cdp.ts) right after this returns, so
  * it's already polling for the main window (and enables `Network` the
  * instant it attaches) rather than losing time to a separate readiness
- * wait first. See history/watch.ts.
+ * wait first. See src/watch/watch.ts.
  */
 export async function forceRestartZalo(): Promise<void> {
     if (!config.autoLaunchZalo) {
@@ -481,7 +481,7 @@ async function setSidebarSearch(page: CdpPage, query: string): Promise<void> {
  * Compares by trimmed+whitespace-collapsed, NFC-normalized, zero-width-char-
  * stripped text rather than raw `===` — Vietnamese conversation names can
  * look identical between the sidebar and the notification popup (which is
- * what config.targets gets matched against first, in history/watch.ts's
+ * what config.targets gets matched against first, in src/watch/watch.ts's
  * resolveTarget) while differing in Unicode normalization form or carrying
  * invisible characters (soft-wrap zero-width spaces, NBSP), which would
  * otherwise make an exact string match fail silently forever.
@@ -568,7 +568,7 @@ async function scrollMessagePaneToTop(page: CdpPage): Promise<number | null> {
  * could be under-captured here, since only the *row's own* insertion is
  * observed, not each photo's. Not a practical concern today: photo content
  * for a live-arriving message already comes from the realtime WS source
- * (history/realtimeListener.ts), not this observer — this path mainly
+ * (src/watch/realtimeListener.ts), not this observer — this path mainly
  * matters for plain text in the currently-focused thread.
  */
 export async function installLiveMessageObserver(page: CdpPage, bindingName: string): Promise<boolean> {
@@ -615,7 +615,7 @@ export async function installLiveMessageObserver(page: CdpPage, bindingName: str
 
 /**
  * A photo row also gets its image copied out of Zalo's local download cache
- * into this conversation's image folder (store/imageStore.ts) — a synchronous
+ * into this conversation's image folder (src/store/imageStore.ts) — a synchronous
  * side effect, done here because this is the one place both the batch scrape
  * and the live observer turn a scraped row into a stored one. If Zalo never
  * downloaded that image to this machine there's nothing to copy, and the row

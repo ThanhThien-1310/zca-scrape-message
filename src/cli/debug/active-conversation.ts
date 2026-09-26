@@ -6,7 +6,7 @@ import { config } from "../../../config.js";
  * its display name, so we can spot which CSS class marks "this conversation
  * is currently open" (needed to fix installLiveMessageObserver leaking
  * messages from whatever thread the user manually switches to — see
- * history/desktopScraper.ts:installLiveMessageObserver).
+ * src/scrape/desktopScraper.ts:installLiveMessageObserver).
  *
  * Usage: open the conversation you consider "currently active" in Zalo
  * Desktop first, then run this script and paste its output.

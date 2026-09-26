@@ -2,7 +2,7 @@ import { MessageStore } from "../store/messageStore.js";
 import { exportThreadExcel, normalizeSenderName } from "../export/exportExcel.js";
 
 /**
- * CLI: npx tsx history/exportExcelCli.ts <groupId> [senderName]
+ * CLI: npx tsx src/cli/export-excel.ts <groupId> [senderName]
  * Reads already-scraped messages for <groupId> from the JSON store and
  * writes them to a .xlsx file under data/export, optionally filtered to one
  * sender's messages. Find groupId via the MCP server's list_threads tool or
@@ -11,7 +11,7 @@ import { exportThreadExcel, normalizeSenderName } from "../export/exportExcel.js
 async function main() {
     const [groupId, senderName] = process.argv.slice(2);
     if (!groupId) {
-        console.error("Usage: npx tsx history/exportExcelCli.ts <groupId> [senderName]");
+        console.error("Usage: npx tsx src/cli/export-excel.ts <groupId> [senderName]");
         process.exit(1);
     }
 
