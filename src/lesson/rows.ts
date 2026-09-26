@@ -1,10 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { DATA_SHEET_COLUMNS, FACILITY_TYPE_ID, QUANTITY_TYPE_ID, REPORT_TYPE_ID } from "./codes.js";
 import { excelDateSerial, excelTimeFraction } from "./time.js";
-import type { Report } from "./types.js";
-
-export type Cell = string | number | null;
-export type SheetRow = Cell[];
+import type { Cell, Report, SheetRow } from "../types/index.js";
 
 function schoolName(t: Report["data"]["truong"]): string {
     return t ? [t.capHoc, t.tenRieng, t.coSo].filter(Boolean).join(" ") : "";

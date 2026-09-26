@@ -9,7 +9,8 @@ import { consumeEcho } from "../chat/state.js";
 import { installRealtimeListener } from "./realtimeListener.js";
 import { swallow } from "../core/atomicWrite.js";
 import { enqueueTarget, importLegacyQueue } from "../scrape/scrapeQueue.js";
-import { beat, HEARTBEAT_INTERVAL_MS, startWatching, stopWatching as recordStop, type SourceStatus } from "./watchState.js";
+import { beat, HEARTBEAT_INTERVAL_MS, startWatching, stopWatching as recordStop } from "./watchState.js";
+import type { SourceStatus } from "../types/index.js";
 
 const NOTIFY_BINDING = "__zalobotNotify";
 

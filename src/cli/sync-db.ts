@@ -1,7 +1,8 @@
 import { MessageStore } from "../store/messageStore.js";
-import { toCrawlMessageRow, type CrawlMessageRow, type MappingWarning } from "../store/dbMapping.js";
+import { toCrawlMessageRow, type MappingWarning } from "../store/dbMapping.js";
 import { randomUUID } from "node:crypto";
 import { connectDb, sql } from "../store/db.js";
+import type { CrawlMessageRow } from "../types/index.js";
 
 /**
  * Pushes the scraped `data/<groupId>.json` files into the `Zalo_CrawlMessage`

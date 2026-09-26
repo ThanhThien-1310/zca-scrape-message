@@ -3,10 +3,10 @@ import path from "node:path";
 import { classifyTitle } from "../lesson/parseReport.js";
 import { messageKey } from "../lesson/recovery.js";
 import { sessionOf, vietnamDay } from "../lesson/time.js";
-import type { SourceMessage } from "../lesson/types.js";
-import { affectedSessions, type SessionKey } from "./affectedSessions.js";
+import { affectedSessions } from "./affectedSessions.js";
 import { DEFAULT_RUNNER_FILES } from "./runnerState.js";
 import { writeFileAtomic } from "../core/atomicWrite.js";
+import type { SessionKey, SourceMessage } from "../types/index.js";
 
 /**
  * The set of start/end-of-lesson reports (`messageKey`s) already built into an Excel. What still needs

@@ -1,4 +1,5 @@
-import { STALE_AFTER_MS, type Gap, type GapReason, type WatchState } from "./watchState.js";
+import { STALE_AFTER_MS } from "./watchState.js";
+import type { Gap, GapReason, WatchState } from "../types/index.js";
 
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 const pad = (n: number) => String(n).padStart(2, "0");

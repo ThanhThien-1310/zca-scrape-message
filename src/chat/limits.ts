@@ -1,4 +1,4 @@
-import type { Limits } from "./rules.js";
+import type { Limits } from "../types/index.js";
 
 export type LimitCheck = { ok: true } | { ok: false; reason: "cooldown" | "rate" };
 

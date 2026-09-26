@@ -1,4 +1,4 @@
-import type { Gap } from "../watch/watchState.js";
+import type { Gap } from "../types/index.js";
 
 /** Khóa của một khoảng gián đoạn trong một buổi: khoảng còn mở và khi đã đóng có khóa khác nhau (đóng rồi thì khôi phục thêm một lần). */
 export const recoveryKey = (gap: Gap, scope: string): string => `${scope}|${gap.from}|${gap.to ?? "open"}`;

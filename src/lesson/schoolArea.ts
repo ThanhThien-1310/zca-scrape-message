@@ -1,9 +1,4 @@
-import type { Truong } from "./types.js";
-
-export interface SchoolArea {
-    truong: Truong | null;
-    khuVuc: string | null;
-}
+import type { SchoolArea } from "../types/index.js";
 
 const AREAS: Array<{ code: string; names: string[] }> = [
     { code: "TP HCM", names: ["TP Hồ Chí Minh", "TP. HCM", "TP.HCM"] },

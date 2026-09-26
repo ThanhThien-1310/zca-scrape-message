@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { formatWatchStatus } from "../src/watch/watchStatusReport.js";
-import { STALE_AFTER_MS, type Gap, type WatchState } from "../src/watch/watchState.js";
+import { STALE_AFTER_MS } from "../src/watch/watchState.js";
 import { at } from "./fixtures.js";
+import type { Gap, WatchState } from "../src/types/index.js";
 
 const NOW = at(10, 0);
 const state = (over: Partial<WatchState> = {}): WatchState => ({

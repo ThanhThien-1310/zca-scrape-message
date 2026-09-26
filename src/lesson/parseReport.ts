@@ -1,12 +1,10 @@
-import type { LoaiBaoCao } from "./types.js";
+import type { FieldKey, ParsedLines, RoomInfo, TitleKind } from "../types/index.js";
 
 export function stripDiacritics(s: string): string {
     return s.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/g, "d").replace(/Đ/g, "D");
 }
 
 const fold = (s: string): string => stripDiacritics(s).toLowerCase().replace(/\s+/g, " ").trim();
-
-export type TitleKind = LoaiBaoCao | "gan_giong" | null;
 
 /** Classifies a message by its title line; `gan_giong` = mentions a start/end report but the title is not the standard one. */
 export function classifyTitle(content: string): TitleKind {
@@ -18,8 +16,6 @@ export function classifyTitle(content: string): TitleKind {
     if (/bao cao/.test(all) && /(dau|cuoi) buoi/.test(all)) return "gan_giong";
     return null;
 }
-
-export type FieldKey = "giaoVien" | "phongMay" | "loi" | "thieu" | "netSupport" | "internet" | "amThanh" | "mayLanh";
 
 export const FIELD_KEYS: FieldKey[] = ["giaoVien", "phongMay", "loi", "thieu", "netSupport", "internet", "amThanh", "mayLanh"];
 
@@ -38,11 +34,6 @@ const LABELS: Array<{ key: FieldKey; re: RegExp }> = [
 const IGNORED_LABEL = /^(ten tro giang|tong so may|so luong hs|ty le hoc sinh|gv quan nhiem|da tat|hs |ghe ngoi|ve sinh|tuan thu|viec tuan thu|danh sach vi pham)/;
 // An unrecognised label is only worth a review when it looks like one of the 8 wanted lines.
 const SUSPICIOUS_LABEL = /(tinh trang|phong|giao vien|loi|thieu|may )/;
-
-export interface ParsedLines {
-    values: Partial<Record<FieldKey, string>>;
-    unknownLabels: string[];
-}
 
 export function parseLines(content: string): ParsedLines {
     const values: Partial<Record<FieldKey, string>> = {};
@@ -64,11 +55,6 @@ export function parseLines(content: string): ParsedLines {
         }
     }
     return { values, unknownLabels };
-}
-
-export interface RoomInfo {
-    phongMay: string | null;
-    coSo: string | null;
 }
 
 export function parseRoom(value: string | undefined): RoomInfo {

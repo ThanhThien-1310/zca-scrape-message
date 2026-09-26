@@ -1,10 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { InboxEntry } from "../src/chat/inbox.js";
 import { foldText, hasMayLoi, matches, pickRule, renderReply } from "../src/chat/match.js";
 import { extractRaw } from "../src/lesson/build.js";
-import type { Rule } from "../src/chat/rules.js";
 import { COMPLETE, FAULTY_WITH_NOTE, IT_MAINTENANCE, SPECIALIST } from "./fixtures.js";
+import type { InboxEntry, Rule } from "../src/types/index.js";
 
 const entry = (text: string, over: Partial<InboxEntry> = {}): InboxEntry => ({ groupName: "bot test", groupId: "g1", msgId: "m1", senderId: "u1", senderName: "Cô Lan", ts: 1, text, ...over });
 const MAY_LOI: Rule = { id: "may-loi", when: { loaiBaoCao: ["DauBuoi", "CuoiBuoi"], mayLoi: true }, reply: "Đã nhận thông tin có máy lỗi. Cảm ơn {senderName}." };

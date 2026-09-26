@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import type { Override } from "./types.js";
+import type { Override } from "../types/index.js";
 
 /** Reads output/overrides.json; a missing file means "no corrections". */
 export function readOverrides(file: string): Override[] {

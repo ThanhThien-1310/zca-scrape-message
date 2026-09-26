@@ -1,23 +1,13 @@
 import { config } from "../../config.js";
-import type { Gap, WatchState } from "../watch/watchState.js";
 import { recoveryKey } from "./recoveryPlan.js";
 import { sessionWindow } from "../lesson/recovery.js";
 import { vietnamDay } from "../lesson/time.js";
+import type { Decision, Gap, QueueTimes, WatchState } from "../types/index.js";
 
 /** The queue must be quiet this long before a cycle runs (bursts of reports arrive together). */
 export const QUIET_MS = config.runner.quietSeconds * 1000;
 /** A cycle runs at the latest this long after the earliest group was queued, however busy the queue stays. */
 export const MAX_WAIT_MS = config.runner.maxWaitSeconds * 1000;
-
-export interface QueueTimes {
-    count: number;
-    /** When the earliest queued group was queued. Meaningless when `count` is 0. */
-    firstQueuedAt: number;
-    /** When the latest queued group was queued. Meaningless when `count` is 0. */
-    lastQueuedAt: number;
-}
-
-export type Decision = { action: "idle" } | { action: "wait"; runAt: number } | { action: "run"; reason: "quiet" | "max-wait" };
 
 /** Pure: is it time to run a cycle? "Has work" is simply `count > 0`; no separate flag is stored. */
 export function decide(q: QueueTimes, now: number, quietMs: number = QUIET_MS, maxWaitMs: number = MAX_WAIT_MS): Decision {

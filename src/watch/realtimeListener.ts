@@ -1,6 +1,7 @@
 import zlib from "node:zlib";
 import { webcrypto } from "node:crypto";
 import type { CdpPage } from "../scrape/cdp.js";
+import type { RealtimeMessageEvent, TextMessage } from "../types/index.js";
 
 /**
  * Reads Zalo Desktop's own WebSocket connection to its chat backend
@@ -83,17 +84,6 @@ async function decryptGroupMessagePayload(encData: string, cipherKey: string): P
     return JSON.parse(decompressed.toString("utf-8"));
 }
 
-/** A plain text message (msgType "webchat"): what `bot:chat` needs, straight from the WS frame. */
-export type TextMessage = {
-    msgId: string;
-    senderId: string;
-    senderName: string;
-    /** True for the account's own messages (the wire sends `uidFrom: "0"`); id and name are blank then. */
-    isSelf: boolean;
-    ts: number;
-    content: string;
-};
-
 function buildTextMessage(msg: RawMessage): TextMessage | undefined {
     if (msg.msgType !== "webchat" || typeof msg.content !== "string" || !msg.msgId) return undefined;
     const isSelf = msg.uidFrom === "0";
@@ -107,36 +97,6 @@ function buildTextMessage(msg: RawMessage): TextMessage | undefined {
         content: msg.content,
     };
 }
-
-export type RealtimeMessageEvent = {
-    groupId: string;
-    isGroup: boolean;
-    /**
-     * Present only for a photo message, whose WS frame already carries
-     * everything needed to save a row directly (unlike plain text, where
-     * DOM scrape remains the source of truth). `msgId` is Zalo's own
-     * numeric message id (`msg.msgId` on the wire) — confirmed live to
-     * match character-for-character the `data-qid` attribute the same
-     * message's DOM row carries (see extractRowsFromMessageSrc in
-     * history/desktopScraper.ts), so a save here dedupes correctly against
-     * whatever the DOM scrape saves for the same row. `senderId`/`senderName` are blank for the account's own messages
-     * (the wire format sends `uidFrom: "0"` for those, with no numeric id
-     * substitute available at this layer), matching how self-sent rows
-     * already look coming from the DOM path.
-     */
-    photoMessage?: {
-        msgId: string;
-        senderId: string;
-        senderName: string;
-        isSelf: boolean;
-        ts: number;
-        /** The photo's caption — empty string if it has none. */
-        content: string;
-        url: string;
-    };
-    /** Present for a plain text message; the source of truth for text content stays the DOM scrape. */
-    textMessage?: TextMessage;
-};
 
 function buildPhotoMessage(msg: RawMessage): RealtimeMessageEvent["photoMessage"] | undefined {
     if (typeof msg.content !== "object" || msg.content === null) return undefined;

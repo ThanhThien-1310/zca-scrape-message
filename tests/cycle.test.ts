@@ -1,11 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { QueueRunResult } from "../src/scrape/queueRun.js";
 import { messageKey } from "../src/lesson/recovery.js";
-import type { SourceMessage } from "../src/lesson/types.js";
-import type { SessionKey } from "../src/runner/affectedSessions.js";
-import { runCycle, type BuildResult, type CycleDeps } from "../src/runner/cycle.js";
+import { runCycle, type CycleDeps } from "../src/runner/cycle.js";
 import { at, COMPLETE, DAY, IT_MAINTENANCE, msg } from "./fixtures.js";
+import type { BuildResult, QueueRunResult, SessionKey, SourceMessage } from "../src/types/index.js";
 
 const SANG: SessionKey = { day: DAY, buoi: "sang" };
 const CHIEU: SessionKey = { day: DAY, buoi: "chieu" };

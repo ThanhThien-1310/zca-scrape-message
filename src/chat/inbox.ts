@@ -2,23 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "../../config.js";
 import { writeFileAtomic } from "../core/atomicWrite.js";
-
-/** Một tin chữ `bot:watch` đưa vào hộp thư chat. */
-export interface InboxEntry {
-    groupName: string;
-    groupId: string;
-    msgId: string;
-    senderId: string;
-    senderName: string;
-    ts: number;
-    text: string;
-}
-
-/** Một dòng đã đọc, kèm vị trí byte ngay sau nó (đặt con trỏ tới đó để coi như đã xử lý). */
-export interface InboxItem {
-    entry: InboxEntry;
-    end: number;
-}
+import type { InboxEntry, InboxItem } from "../types/index.js";
 
 /**
  * Hộp thư của `bot:chat`: `bot:watch` chỉ thêm dòng, `bot:chat` đọc từ con trỏ. Tách khỏi hàng chờ cào

@@ -1,6 +1,6 @@
 import { GAP_REASON_TEXT, hhmm } from "../watch/watchStatusReport.js";
 import type { RecoveryResult } from "./recoveryRun.js";
-import type { LoaiBaoCao } from "./types.js";
+import type { LoaiBaoCao } from "../types/index.js";
 
 const KIND_TEXT: Record<LoaiBaoCao, string> = { DauBuoi: "đầu buổi", CuoiBuoi: "cuối buổi" };
 

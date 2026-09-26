@@ -8,9 +8,9 @@ import { effectiveGaps } from "../watch/watchState.js";
 import { formatRecovery } from "../lesson/recoveryReport.js";
 import { acquireScrapeLock, releaseScrapeLock } from "../core/scrapeLock.js";
 import { runRecovery } from "../lesson/recoveryRun.js";
-import { currentSession, isBuoi, todayVietnam, type Buoi } from "../lesson/time.js";
-import type { SourceMessage } from "../lesson/types.js";
+import { currentSession, isBuoi, todayVietnam } from "../lesson/time.js";
 import { MessageStore } from "../store/messageStore.js";
+import type { Buoi, SourceMessage } from "../types/index.js";
 
 /**
  * Safety net for a `bot:watch` that died (or went blind) and missed messages.

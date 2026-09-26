@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chatIsTarget, sendReply, type ComposerState, type SendPage } from "../src/chat/send.js";
+import { chatIsTarget, sendReply, type SendPage } from "../src/chat/send.js";
+import type { ComposerState } from "../src/types/index.js";
 
 const norm = (s: string) => s.replace(/\s+/g, " ").trim();
 

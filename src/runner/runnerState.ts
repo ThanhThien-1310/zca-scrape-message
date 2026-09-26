@@ -3,8 +3,8 @@ import path from "node:path";
 import { outputDir } from "../core/paths.js";
 import { config } from "../../config.js";
 import { pidAlive, STALE_AFTER_MS } from "../watch/watchState.js";
-import type { SessionKey } from "./affectedSessions.js";
 import { writeFileAtomic } from "../core/atomicWrite.js";
+import type { CycleSummary, Health, RunnerFiles, RunnerPhase, RunnerState } from "../types/index.js";
 
 /**
  * What `bot:runner` leaves on disk, so that an agent (or a person) can tell whether it is alive,
@@ -16,63 +16,6 @@ import { writeFileAtomic } from "../core/atomicWrite.js";
 
 /** After this many failed cycles in a row the runner stops trying until it is restarted. */
 export const MAX_CONSECUTIVE_FAILURES = config.runner.maxConsecutiveFailures;
-
-export interface CycleSummary {
-    kind: "cycle" | "rebuild";
-    at: number;
-    ok: boolean;
-    /** Groups scraped from the queue. */
-    groups: string[];
-    /** Sessions rebuilt (or attempted). */
-    sessions: SessionKey[];
-    reviewCount: number;
-    /** Excel files written (a `_moi` path means the real one was open). */
-    excel: string[];
-    warnings: string[];
-    /** Failures that stop the cycle (scrape or sync); they count toward the 3-strike `error` state. */
-    errors: string[];
-    /** Sessions whose build failed; retried later, reported, but they do not stop the runner. */
-    buildErrors: string[];
-    /** How long the whole cycle took (ms). Absent in log lines written before timings existed. */
-    durationMs?: number;
-    /** Time spent per step (ms). `scrape` includes opening Zalo and the sidebar, so it is a little more than the sum of `timings`. */
-    stepMs?: StepMs;
-    /** How long each queued group took to scrape (ms), in scrape order; `ok` is false when the scrape of that group failed. */
-    timings?: GroupTiming[];
-}
-
-export interface StepMs {
-    recover: number;
-    scrape: number;
-    load: number;
-    sync: number;
-    build: number;
-}
-
-export interface GroupTiming {
-    target: string;
-    ms: number;
-    ok: boolean;
-    scraped?: number;
-    written?: number;
-}
-
-export type RunnerPhase = "idle" | "waiting" | "running" | "error" | "stopped";
-
-export interface RunnerState {
-    pid: number;
-    startedAt: number;
-    lastBeat: number;
-    state: RunnerPhase;
-    consecutiveFailures: number;
-    lastCycle?: CycleSummary;
-}
-
-export interface RunnerFiles {
-    state: string;
-    log: string;
-    built: string;
-}
 
 export const DEFAULT_RUNNER_FILES: RunnerFiles = {
     state: path.join(config.dataDir, ".runner-state.json"),
@@ -153,8 +96,6 @@ export function stopRunner(now: number, files: RunnerFiles = DEFAULT_RUNNER_FILE
     s.lastBeat = now;
     writeAtomic(files.state, s);
 }
-
-export type Health = "none" | "stopped" | "dead" | "error" | "alive";
 
 export function runnerHealth(state: RunnerState | null, now: number): Health {
     if (!state) return "none";

@@ -1,14 +1,7 @@
 import { config } from "../../config.js";
-import { gapOverlaps, type Gap } from "../watch/watchState.js";
+import { gapOverlaps } from "../watch/watchState.js";
 import { classifyTitle } from "./parseReport.js";
-import type { Buoi, SessionHours } from "./time.js";
-import type { LoaiBaoCao, SourceMessage } from "./types.js";
-
-/** A half-open range [from, to) of epoch milliseconds. */
-export interface Window {
-    from: number;
-    to: number;
-}
+import type { Buoi, Gap, LoaiBaoCao, MissingGroup, RecoveredMessage, SessionHours, SourceMessage, Window } from "../types/index.js";
 
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -28,11 +21,6 @@ export function sessionWindow(day: string, buoi: Buoi, hours: SessionHours = con
 
 export function gapsInWindow(gaps: Gap[], window: Window, now: number): Gap[] {
     return gaps.filter((g) => gapOverlaps(g, window, now));
-}
-
-export interface MissingGroup {
-    target: string;
-    missing: LoaiBaoCao[];
 }
 
 /** Targets that have no start and/or no end-of-lesson report in the window, in `targets` order. */
@@ -57,16 +45,6 @@ export function findMissingGroups(messages: SourceMessage[], targets: string[], 
 }
 
 export const messageKey = (m: Pick<SourceMessage, "groupId" | "msgId">): string => `${m.groupId}|${m.msgId}`;
-
-export interface RecoveredMessage {
-    groupName: string;
-    msgId: string;
-    ts: number;
-    /** Set when the message is a start/end-of-lesson report. */
-    kind: LoaiBaoCao | null;
-    /** First non-empty line of the message. */
-    preview: string;
-}
 
 function firstLine(content: string): string {
     const line = content.split(/\r?\n/).map((l) => l.trim()).find((l) => l !== "") ?? "";

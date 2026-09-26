@@ -1,25 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "../../config.js";
-
-export type NormalizedMessage = {
-    msgId: string;
-    /** Real Zalo conversation id (group: `g<digits>`; DM: the other party's numeric user id) — stable across renames, also used as the JSON filename. */
-    groupId: string;
-    /** Display name of the conversation at scrape time — informational only, never used as a storage key. */
-    groupName: string;
-    threadType: "user" | "group";
-    senderId: string;
-    senderName: string;
-    isSelf: boolean;
-    ts: number;
-    /** `"desktop.text"` for DOM-scraped rows (the only kind this scraper reads text content for); `"chat.photo"` for a photo message saved directly from the realtime WS payload — see history/realtimeListener.ts. Other Zalo msgTypes (sticker, voice, video, file...) aren't captured specially yet and fall through as an empty-content `"desktop.text"` row, same as before. */
-    msgType: string;
-    /** Message text. For `"chat.photo"`, this is the photo's caption (empty string if it has none) — the image itself is `url`, not `content`. */
-    content: string;
-    /** Path of the saved image file, relative to the data dir (`images/<groupId>/<msgId>.<ext>`, see store/imageStore.ts) — only present for `"chat.photo"` rows whose image could actually be saved. */
-    url?: string;
-};
+import type { NormalizedMessage } from "../types/index.js";
 
 /**
  * One JSON file per conversation (named by `groupId`, not the display name —

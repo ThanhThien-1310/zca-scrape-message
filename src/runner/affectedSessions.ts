@@ -1,12 +1,7 @@
 import { classifyTitle } from "../lesson/parseReport.js";
 import { messageKey } from "../lesson/recovery.js";
-import { sessionOf, vietnamDay, type Buoi } from "../lesson/time.js";
-import type { SourceMessage } from "../lesson/types.js";
-
-export interface SessionKey {
-    day: string;
-    buoi: Buoi;
-}
+import { sessionOf, vietnamDay } from "../lesson/time.js";
+import type { Buoi, SessionKey, SourceMessage } from "../types/index.js";
 
 const ORDER: Record<Buoi, number> = { sang: 0, chieu: 1, toi: 2 };
 

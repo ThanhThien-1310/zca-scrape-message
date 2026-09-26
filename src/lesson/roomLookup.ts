@@ -1,5 +1,6 @@
 import { connectDb, sql } from "../store/db.js";
-import { roomKeyString, type RoomLookup } from "./roomKey.js";
+import { roomKeyString } from "./roomKey.js";
+import type { RoomLookup } from "../types/index.js";
 
 interface Row {
     Room: string;

@@ -4,9 +4,9 @@ import { outputDir } from "../core/paths.js";
 import { extractAll } from "../lesson/extract.js";
 import { readOverrides } from "../lesson/overrides.js";
 import { lookupRoomIds } from "../lesson/roomLookup.js";
-import { currentSession, isBuoi, todayVietnam, type Buoi } from "../lesson/time.js";
-import type { SourceMessage } from "../lesson/types.js";
+import { currentSession, isBuoi, todayVietnam } from "../lesson/time.js";
 import { MessageStore } from "../store/messageStore.js";
+import type { Buoi, SourceMessage } from "../types/index.js";
 
 /**
  * Extracts every start/end-of-lesson report of ONE session (sáng/chiều/tối) of

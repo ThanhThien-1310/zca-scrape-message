@@ -1,7 +1,8 @@
 import { effectiveGaps, readState } from "../watch/watchState.js";
 import { formatWatchStatus } from "../watch/watchStatusReport.js";
 import { gapsInWindow, sessionWindow } from "../lesson/recovery.js";
-import { currentSession, isBuoi, todayVietnam, type Buoi } from "../lesson/time.js";
+import { currentSession, isBuoi, todayVietnam } from "../lesson/time.js";
+import type { Buoi } from "../types/index.js";
 
 /**
  * Quick look at whether `bot:watch` is alive, when it last gave a sign of life,

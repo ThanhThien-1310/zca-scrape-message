@@ -55,20 +55,3 @@ export const selectors = {
  */
 export const messageIdPrefix = "bb_msg_id_";
 
-export type ScrapedRow = {
-    externalId: string;
-    senderId: string;
-    senderName: string;
-    content: string;
-    ts: number | null;
-    isSelf: boolean;
-    /** Real Zalo conversation id (group: `g<digits>`; DM: the other party's numeric user id) — not derived from any display name, stable across renames. Null only if Zalo's internal data model couldn't be read for this row. */
-    groupId: string | null;
-    /** Display name of the conversation at scrape time — informational only; use `groupId` for identity. */
-    groupName: string | null;
-    isGroup: boolean;
-    /** True for a photo bubble (class-detected in extractRowsFromMessageSrc). */
-    isPhoto?: boolean;
-    /** Client message id parsed from data-qid — names the photo's file in Zalo's local download cache. */
-    cliMsgId?: string;
-};

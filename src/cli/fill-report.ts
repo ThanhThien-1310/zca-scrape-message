@@ -4,7 +4,7 @@ import path from "node:path";
 import { outputDir, repoRoot, scriptsDir, templatesDir } from "../core/paths.js";
 import { buildRows } from "../lesson/rows.js";
 import { isBuoi, reportFileName, todayVietnam } from "../lesson/time.js";
-import type { Report } from "../lesson/types.js";
+import type { Report } from "../types/index.js";
 
 /**
  * Fills a copy of templates/Temp_RoomFacility_rpt.xlsm with the reports of

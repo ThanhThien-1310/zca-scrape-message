@@ -1,7 +1,7 @@
 import { hhmm } from "../watch/watchStatusReport.js";
-import type { SessionKey } from "./affectedSessions.js";
-import { runnerHealth, type RunnerState } from "./runnerState.js";
+import { runnerHealth } from "./runnerState.js";
 import { seconds } from "./timingReport.js";
+import type { RunnerState, SessionKey } from "../types/index.js";
 
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 const pad = (n: number) => String(n).padStart(2, "0");

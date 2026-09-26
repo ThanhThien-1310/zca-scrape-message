@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runQueuedScrape, type QueueRunDeps } from "../src/scrape/queueRun.js";
-import type { CompleteResult, QueueSnapshot } from "../src/scrape/scrapeQueue.js";
+import type { CompleteResult, QueueSnapshot } from "../src/types/index.js";
 
 function harness(initial: string[], scrape: QueueRunDeps["scrape"], result: CompleteResult = { retrying: [], gaveUp: [] }) {
     let queue = [...initial];

@@ -1,5 +1,4 @@
-import type { TargetOutcome } from "./desktopScraper.js";
-import type { CompleteResult, QueueSnapshot } from "./scrapeQueue.js";
+import type { CompleteResult, QueueRunResult, QueueSnapshot, TargetOutcome } from "../types/index.js";
 
 export interface QueueRunDeps {
     /** The queued groups and how far the queue files were read (history/scrapeQueue.ts `takeSnapshot`). */
@@ -9,8 +8,6 @@ export interface QueueRunDeps {
     scrape(targets: string[]): Promise<TargetOutcome[]>;
     log(message: string): void;
 }
-
-export type QueueRunResult = { status: "empty" } | { status: "done"; targets: string[]; failed: string[]; gaveUp: string[]; outcomes: TargetOutcome[] };
 
 /**
  * Snapshot the queue, scrape exactly those targets, then mark exactly those as scraped. A failed target is not

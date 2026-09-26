@@ -1,24 +1,4 @@
-import type { NormalizedMessage } from "./messageStore.js";
-
-/**
- * Columns of the `Zalo_CrawlMessage` table (see Zalo_CrawlMessage.md) that
- * this project fills in. `Id`, `HasRead`, `StatusId` and `Created` are left
- * to the database (defaults / generated) and are deliberately not here.
- */
-export type CrawlMessageRow = {
-    MessageId: string;
-    MessageType: "text" | "image";
-    IsSelf: boolean;
-    SenderId: string;
-    SenderName: string;
-    GroupId: string;
-    GroupName: string;
-    Timestamp: number;
-    TextContent: string;
-    Url: string | null;
-    /** 1 = normal, 2 = recalled. Recall tracking isn't implemented on the scraper side yet, so always 1. */
-    MessageStatus: 1 | 2;
-};
+import type { CrawlMessageRow, NormalizedMessage } from "../types/index.js";
 
 export const GROUP_NAME_MAX = 50;
 

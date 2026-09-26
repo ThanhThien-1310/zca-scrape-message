@@ -3,10 +3,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { diffRecovered, findMissingGroups, gapsInWindow, messageKey, sessionWindow } from "../src/lesson/recovery.js";
 import { runRecovery, type RecoveryDeps } from "../src/lesson/recoveryRun.js";
-import type { Gap } from "../src/watch/watchState.js";
 import { sessionOf } from "../src/lesson/time.js";
-import type { SourceMessage } from "../src/lesson/types.js";
 import { at, COMPLETE, DAY, IT_MAINTENANCE, msg, SPECIALIST } from "./fixtures.js";
+import type { Gap, SourceMessage } from "../src/types/index.js";
 
 const A = { groupId: "gA", groupName: "A" };
 const B = { groupId: "gB", groupName: "B" };

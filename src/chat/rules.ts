@@ -1,33 +1,6 @@
 import fs from "node:fs";
 import { chatRulesPath } from "../core/paths.js";
-import type { LoaiBaoCao } from "../lesson/types.js";
-
-/** Điều kiện của một tình huống: mọi khóa có mặt phải cùng khớp. */
-export interface When {
-    loaiBaoCao?: LoaiBaoCao[];
-    mayLoi?: true;
-    keywords?: string[];
-}
-
-export interface Rule {
-    id: string;
-    when: When;
-    reply: string;
-}
-
-export interface Limits {
-    maxRepliesPerMinute: number;
-    maxReplyDelaySeconds: number;
-    cooldownSecondsPerRule: number;
-}
-
-export interface ChatRules {
-    version: 1;
-    dryRun: boolean;
-    limits: Limits;
-    /** `scrape: false` = chat-only group: never queued for scraping, never recovered (default true). */
-    groups: Record<string, { rules: Rule[]; scrape: boolean }>;
-}
+import type { ChatRules, Limits, LoaiBaoCao, Rule, When } from "../types/index.js";
 
 export const DEFAULT_LIMITS: Limits = { maxRepliesPerMinute: 6, maxReplyDelaySeconds: 180, cooldownSecondsPerRule: 60 };
 

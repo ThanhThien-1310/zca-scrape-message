@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { beat, effectiveGaps, gapOverlaps, readGaps, readState, startWatching, stopWatching, STALE_AFTER_MS, type WatchFiles } from "../src/watch/watchState.js";
+import { beat, effectiveGaps, gapOverlaps, readGaps, readState, startWatching, stopWatching, STALE_AFTER_MS } from "../src/watch/watchState.js";
+import type { WatchFiles } from "../src/types/index.js";
 
 const files = (): WatchFiles => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "watch-"));

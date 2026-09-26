@@ -1,28 +1,4 @@
-import type { StepMs } from "./runnerState.js";
-
-export interface GroupStat {
-    target: string;
-    /** Scrapes timed. */
-    count: number;
-    /** How many of them failed. */
-    failures: number;
-    avgMs: number;
-    p95Ms: number;
-    maxMs: number;
-    /** Average new messages saved per scrape, over the scrapes that reported it; null when none did. */
-    avgWritten: number | null;
-}
-
-export interface TimingSummary {
-    /** Cycles that recorded a duration. */
-    cycles: number;
-    cycleAvgMs: number;
-    cycleMaxMs: number;
-    /** Average time per step over the cycles that recorded steps. */
-    stepAvgMs: StepMs;
-    /** Slowest average first. */
-    groups: GroupStat[];
-}
+import type { GroupStat, StepMs, TimingSummary } from "../types/index.js";
 
 const STEPS: (keyof StepMs)[] = ["recover", "scrape", "load", "sync", "build"];
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);

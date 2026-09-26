@@ -1,7 +1,6 @@
-import { extractRaw, type RawFields } from "../lesson/build.js";
+import { extractRaw } from "../lesson/build.js";
 import { classifyTitle, stripDiacritics } from "../lesson/parseReport.js";
-import type { InboxEntry } from "./inbox.js";
-import type { Rule, When } from "./rules.js";
+import type { InboxEntry, RawFields, Rule, When } from "../types/index.js";
 
 /** Bỏ dấu, hạ chữ thường, gộp khoảng trắng: dùng để so từ khóa. */
 export const foldText = (s: string): string => stripDiacritics(s).toLowerCase().replace(/\s+/g, " ").trim();

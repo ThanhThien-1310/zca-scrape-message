@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { STALE_AFTER_MS } from "../src/watch/watchState.js";
 import { formatRunnerStatus } from "../src/runner/runnerStatusReport.js";
-import type { CycleSummary, RunnerState } from "../src/runner/runnerState.js";
 import { at, DAY } from "./fixtures.js";
+import type { CycleSummary, RunnerState } from "../src/types/index.js";
 
 const NOW = at(10, 0);
 const state = (over: Partial<RunnerState> = {}): RunnerState => ({ pid: 777, startedAt: at(7, 0), lastBeat: NOW - 5_000, state: "idle", consecutiveFailures: 0, ...over });

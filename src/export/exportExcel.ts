@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import XLSX from "xlsx";
 import { config } from "../../config.js";
-import type { NormalizedMessage } from "../store/messageStore.js";
+import type { NormalizedMessage } from "../types/index.js";
 
 const exportDir = path.join(config.dataDir, "export");
 

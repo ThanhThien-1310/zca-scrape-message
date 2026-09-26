@@ -1,6 +1,6 @@
 import { acquireScrapeLock, releaseScrapeLock } from "../core/scrapeLock.js";
 import { importLegacyQueue, readQueue, readQueueMeta, readQueueSeen } from "../scrape/scrapeQueue.js";
-import { effectiveGaps, HEARTBEAT_INTERVAL_MS, readState, type Gap } from "../watch/watchState.js";
+import { effectiveGaps, HEARTBEAT_INTERVAL_MS, readState } from "../watch/watchState.js";
 import { gapsInWindow, sessionWindow } from "../lesson/recovery.js";
 import { currentSession, todayVietnam } from "../lesson/time.js";
 import { dirtySessions, initBuiltBaseline, readBuilt } from "../runner/builtReports.js";
@@ -9,6 +9,7 @@ import { beatRunner, readRunnerState, recordCycle, setPhase, startRunner, stopRu
 import { selectFreshGaps } from "../runner/recoveryPlan.js";
 import { decide, DIRTY_CHECK_MS, DIRTY_RETRY_MS, POLL_MS, settledGaps, toQueueTimes, watchWarmingUp } from "../runner/schedule.js";
 import { loadMessages, realDeps } from "../runner/steps.js";
+import type { Gap } from "../types/index.js";
 
 /**
  * Long-running orchestrator. `bot:watch` only detects and queues; this process notices work, waits for a

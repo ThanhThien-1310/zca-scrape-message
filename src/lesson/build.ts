@@ -1,26 +1,6 @@
-import { computerGrade, FIELD_KEYS, isValidFacilityGrade, parseCount, parseGrade, parseLines, parseNote, parseRoom, type FieldKey } from "./parseReport.js";
+import { computerGrade, FIELD_KEYS, isValidFacilityGrade, parseCount, parseGrade, parseLines, parseNote, parseRoom } from "./parseReport.js";
 import { parseGroupName } from "./schoolArea.js";
-import type { CoSoVatChat, LoaiBaoCao, Report, SourceMessage, Sua, Truong } from "./types.js";
-
-/** Everything read straight from one message, before any derived value (grades, status) is computed. */
-export interface RawFields {
-    phongMay: string | null;
-    coSoPhong: string | null;
-    giaoVien: string | null;
-    thieu: number | null;
-    loi: number | null;
-    ghiChuLoi: string | null;
-    thieuText: string | null;
-    loiText: string | null;
-    amThanh: string | null;
-    netSupport: string | null;
-    mayLanh: string | null;
-    internet: string | null;
-    truong: Truong | null;
-    khuVuc: string | null;
-    missing: FieldKey[];
-    unknownLabels: string[];
-}
+import type { CoSoVatChat, FieldKey, LoaiBaoCao, RawFields, Report, SourceMessage, Sua } from "../types/index.js";
 
 export function extractRaw(content: string, groupName: string): RawFields {
     const { values, unknownLabels } = parseLines(content);

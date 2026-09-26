@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateConfig, type ConfigShape } from "../src/config/configCheck.js";
+import { validateConfig } from "../src/config/configCheck.js";
+import type { ConfigShape } from "../src/types/index.js";
 
 const good = (): ConfigShape => ({
     targets: ["bot test", "LC_HoaSen1_TĐ"],

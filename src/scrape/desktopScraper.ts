@@ -1,12 +1,12 @@
 import { resolveUntilTs } from "./scrapeWindow.js";
 import { exec, spawn } from "node:child_process";
 import { config } from "../../config.js";
-import type { NormalizedMessage } from "../store/messageStore.js";
 import { MessageStore } from "../store/messageStore.js";
 import { copyImageFromZaloCache } from "../store/imageStore.js";
 import { CdpPage, connectToZaloMainPage, isCdpReachable } from "./cdp.js";
-import { messageIdPrefix, selectors, type ScrapedRow } from "./scrapeSelectors.js";
+import { messageIdPrefix, selectors } from "./scrapeSelectors.js";
 import { nextStableRounds } from "./scrollStability.js";
+import type { NormalizedMessage, ScrapeTargetResult, ScrapedRow, TargetOutcome } from "../types/index.js";
 
 /**
  * Browser-context JS snippet (interpolated into both `extractVisibleRows`
@@ -187,9 +187,6 @@ const extractRowsFromMessageSrc = `
  * same way a person using it normally would be. See ensureZaloReady for why
  * that sometimes means restarting the app first.
  */
-/** `ms` is how long the group took (opening it, scrolling back, saving); `scraped`/`written` are the messages read and the new ones saved. */
-export type TargetOutcome = { target: string; error?: string; ms?: number; scraped?: number; written?: number };
-
 /**
  * Scrapes the given conversations (default: everything in `config.targets`)
  * one after another. An error in one conversation is recorded in its outcome
@@ -225,8 +222,6 @@ export async function runScrape(store: MessageStore, targets: string[] = config.
     }
     return outcomes;
 }
-
-export type ScrapeTargetResult = { scraped: number; written: number };
 
 /** Scrapes one target thread's full window (scrolls back to sinceTs) and writes it to the JSON store — used by the scheduled one-shot run (bot/index.ts) and by watch.ts's on-demand control server. */
 export async function scrapeAndSaveTarget(page: CdpPage, store: MessageStore, target: string, sinceTs?: number, untilTs?: number | null): Promise<ScrapeTargetResult> {

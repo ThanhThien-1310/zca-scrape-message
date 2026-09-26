@@ -1,4 +1,5 @@
 import type { CdpPage } from "../scrape/cdp.js";
+import type { ComposerState, SendResult } from "../types/index.js";
 
 /** Phần của một trang CDP mà việc gửi cần; tiêm được để kiểm thử bằng trang giả. */
 export interface SendPage {
@@ -10,21 +11,6 @@ export const toSendPage = (page: CdpPage): SendPage => ({
     evaluate: (expression) => page.evaluate(expression),
     input: (method, params) => page.dispatchInput(method, params as Record<string, unknown>),
 });
-
-export interface ComposerState {
-    /** Tên nhóm đang được chọn ở thanh bên. */
-    title: string | null;
-    /** `placeholder` của ô soạn tin, dạng "Nhập @, tin nhắn tới  <tên nhóm>". */
-    placeholder: string | null;
-    /** Ô soạn tin đang trống (class `empty`). */
-    empty: boolean | null;
-    text: string | null;
-}
-
-export type SendResult =
-    | { status: "sent" }
-    | { status: "skipped"; reason: "draft" | "not-opened" }
-    | { status: "failed"; reason: string; unconfirmed?: boolean };
 
 /** Móc gọi đúng lúc, để người gọi ghi sổ TRƯỚC khi có gì đó ra ngoài. */
 export interface SendHooks {

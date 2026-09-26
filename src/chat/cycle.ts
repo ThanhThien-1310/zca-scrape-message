@@ -1,9 +1,8 @@
-import type { InboxItem } from "./inbox.js";
 import { isStale, type Limiter } from "./limits.js";
 import { pickRule, renderReply } from "./match.js";
-import type { ChatRules } from "./rules.js";
-import type { SendHooks, SendResult } from "./send.js";
+import type { SendHooks } from "./send.js";
 import { SKIP_BACKOFF_MS } from "./timing.js";
+import type { ChatRules, ChatSummary, InboxItem, SendResult } from "../types/index.js";
 
 export { SKIP_BACKOFF_MS };
 
@@ -28,16 +27,6 @@ export interface ChatDeps {
     /** Công tắc dừng nhanh (tệp `data/.chat-off`). */
     off(): boolean;
     log(message: string): void;
-}
-
-export interface ChatSummary {
-    sent: number;
-    dryRun: number;
-    /** Không trả lời (không khớp, nhóm không có rules, quá hạn, cooldown, công tắc dừng): coi như xong. */
-    ignored: number;
-    /** Chưa gửi được lúc này (khóa bận, ô soạn tin đang có chữ, quá tốc độ): giữ lại cho vòng sau. */
-    deferred: number;
-    failed: number;
 }
 
 /**

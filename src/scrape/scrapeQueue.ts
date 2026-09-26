@@ -3,6 +3,7 @@ import path from "node:path";
 import { config } from "../../config.js";
 import { vietnamDay } from "../lesson/time.js";
 import { writeFileAtomic } from "../core/atomicWrite.js";
+import type { CompleteOptions, CompleteResult, QueueMark, QueueSnapshot } from "../types/index.js";
 
 /**
  * The scrape queue: which groups (as named in `config.targets`) have new messages that nobody has scraped yet.
@@ -26,15 +27,6 @@ export const DEFAULT_QUEUE_PATH = path.join(config.dataDir, ".scrape-events.json
 export const LEGACY_QUEUE_PATH = path.join(config.dataDir, ".scrape-queue.json");
 
 const DAY_MS = 86_400_000;
-
-/** For every event file that existed when the snapshot was taken, the byte offset up to which it was read. */
-export type QueueMark = Record<string, number>;
-
-export interface QueueSnapshot {
-    /** The queued groups at the time of the snapshot, oldest first. */
-    targets: string[];
-    mark: QueueMark;
-}
 
 interface Entry {
     start: number;
@@ -301,21 +293,6 @@ export function takeSnapshot(file: string = DEFAULT_QUEUE_PATH): QueueSnapshot {
     const p = v.pending();
     const targets = [...p.entries()].sort((a, b) => a[1].first - b[1].first || (a[0] < b[0] ? -1 : 1)).map(([t]) => t);
     return { targets, mark: v.mark() };
-}
-
-export interface CompleteOptions {
-    /** Groups of the snapshot whose scrape failed: they stay queued and are tried again, up to `maxAttempts` times in all. */
-    failed?: string[];
-    file?: string;
-    now?: number;
-    maxAttempts?: number;
-}
-
-export interface CompleteResult {
-    /** Failed groups that stay queued for another try. */
-    retrying: string[];
-    /** Failed groups that reached the maximum number of attempts and were dropped. */
-    gaveUp: string[];
 }
 
 /**

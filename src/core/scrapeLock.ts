@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "../../config.js";
 import { pidAlive } from "../watch/watchState.js";
+import type { LockHolder, LockResult } from "../types/index.js";
 
 /**
  * One lock for everything that drives Zalo Desktop's UI (`bot:scrape` and every `bot:runner`
@@ -9,14 +10,6 @@ import { pidAlive } from "../watch/watchState.js";
  * whose process is gone (crash) is stale and is taken over.
  */
 export const DEFAULT_LOCK_PATH = path.join(config.dataDir, ".scrape.lock");
-
-export interface LockHolder {
-    pid: number;
-    owner: string;
-    at: number;
-}
-
-export type LockResult = { ok: true } | { ok: false; heldBy: LockHolder };
 
 function readHolder(file: string): LockHolder | null {
     try {

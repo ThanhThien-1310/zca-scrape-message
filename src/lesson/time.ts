@@ -1,4 +1,5 @@
 import { config } from "../../config.js";
+import type { Buoi, SessionHours } from "../types/index.js";
 
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -24,14 +25,6 @@ export function excelDateSerial(ts: number): number {
 export function excelTimeFraction(ts: number): number {
     const d = new Date(ts + VN_OFFSET_MS);
     return (d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds()) / 86400;
-}
-
-export type Buoi = "sang" | "chieu" | "toi";
-
-/** Hours (Vietnam time) at which the afternoon and the evening start; the morning runs from 00:00 to `chieuFromHour`. */
-export interface SessionHours {
-    chieuFromHour: number;
-    toiFromHour: number;
 }
 
 /**

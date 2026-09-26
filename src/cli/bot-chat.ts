@@ -4,13 +4,14 @@ import { runChatCycle } from "../chat/cycle.js";
 import { CHAT_HEARTBEAT_MS, CHAT_POLL_MS } from "../chat/timing.js";
 import { DEFAULT_CURSOR_PATH, DEFAULT_INBOX_PATH, readInbox, writeCursor } from "../chat/inbox.js";
 import { createLimiter } from "../chat/limits.js";
-import { DEFAULT_RULES_PATH, loadRules, type ChatRules } from "../chat/rules.js";
+import { DEFAULT_RULES_PATH, loadRules } from "../chat/rules.js";
 import { sendReply, toSendPage } from "../chat/send.js";
 import { loadDone, markDone, recordSent } from "../chat/state.js";
 import { config } from "../../config.js";
 import { connectToZaloMainPage } from "../scrape/cdp.js";
 import { acquireScrapeLock, releaseScrapeLock } from "../core/scrapeLock.js";
 import { writeFileAtomic } from "../core/atomicWrite.js";
+import type { ChatRules } from "../types/index.js";
 
 /**
  * Trả lời tự động theo kịch bản `chat-rules.json`. Chỉ ĐỌC hộp thư `data/.chat-inbox.jsonl` (do `bot:watch` ghi)

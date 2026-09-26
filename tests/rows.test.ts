@@ -2,9 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DATA_SHEET_COLUMNS } from "../src/lesson/codes.js";
 import { extractAll } from "../src/lesson/extract.js";
-import { roomKeyString, type RoomLookup } from "../src/lesson/roomKey.js";
+import { roomKeyString } from "../src/lesson/roomKey.js";
 import { buildRows } from "../src/lesson/rows.js";
 import { at, COMPLETE, DAY, FAULTY_WITH_NOTE, msg } from "./fixtures.js";
+import type { RoomLookup } from "../src/types/index.js";
 
 const col = (name: (typeof DATA_SHEET_COLUMNS)[number]) => DATA_SHEET_COLUMNS.indexOf(name);
 const roomId = (id: number | null): RoomLookup => async (keys) => new Map(keys.map((k) => [roomKeyString(k), id]));

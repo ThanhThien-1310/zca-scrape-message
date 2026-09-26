@@ -1,15 +1,5 @@
-import type { QueueRunResult } from "../scrape/queueRun.js";
-import type { SourceMessage } from "../lesson/types.js";
-import { type SessionKey } from "./affectedSessions.js";
 import { dirtySessions, sessionReportKeys } from "./builtReports.js";
-import type { CycleSummary, StepMs } from "./runnerState.js";
-
-export interface BuildResult {
-    reviewCount: number;
-    /** Path of the Excel written; null when the session had no report with a known room. */
-    excel: string | null;
-    warnings: string[];
-}
+import type { BuildResult, CycleSummary, QueueRunResult, SessionKey, SourceMessage, StepMs } from "../types/index.js";
 
 export interface CycleDeps {
     now(): number;

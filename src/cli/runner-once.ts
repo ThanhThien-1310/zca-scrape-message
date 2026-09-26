@@ -1,8 +1,9 @@
 import { acquireScrapeLock, releaseScrapeLock } from "../core/scrapeLock.js";
-import { currentSession, isBuoi, todayVietnam, type Buoi } from "../lesson/time.js";
+import { currentSession, isBuoi, todayVietnam } from "../lesson/time.js";
 import { readBuilt, sessionReportKeys, writeBuilt } from "../runner/builtReports.js";
-import { appendLog, type CycleSummary } from "../runner/runnerState.js";
+import { appendLog } from "../runner/runnerState.js";
 import { buildSession, loadMessages } from "../runner/steps.js";
+import type { Buoi, CycleSummary } from "../types/index.js";
 
 /**
  * Rebuilds ONE session's outputs without scraping: extract (applying output/overrides.json),

@@ -7,17 +7,15 @@ import { config } from "../../config.js";
 import { runScrape } from "../scrape/desktopScraper.js";
 import { runQueuedScrape } from "../scrape/queueRun.js";
 import { completeSnapshot, takeSnapshot } from "../scrape/scrapeQueue.js";
-import type { Gap } from "../watch/watchState.js";
 import { runRecovery } from "../lesson/recoveryRun.js";
 import { currentSession, reportFileName, todayVietnam } from "../lesson/time.js";
-import type { SourceMessage } from "../lesson/types.js";
 import { MessageStore } from "../store/messageStore.js";
-import type { SessionKey } from "./affectedSessions.js";
-import type { BuildResult, CycleDeps } from "./cycle.js";
+import type { CycleDeps } from "./cycle.js";
 import { readBuilt, writeBuilt } from "./builtReports.js";
 import { makeRecoverStep } from "./recoveryPlan.js";
 import { safeReplace } from "./safeReplace.js";
 import { scrapeSinceTs } from "./schedule.js";
+import type { BuildResult, Gap, SessionKey, SourceMessage } from "../types/index.js";
 
 const outDir = outputDir;
 

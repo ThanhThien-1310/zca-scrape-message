@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "../../config.js";
 import { writeFileAtomic } from "../core/atomicWrite.js";
+import type { Gap, WatchFiles, WatchState } from "../types/index.js";
 
 /**
  * `bot:watch` is the only thing that notices new messages, and a dead watcher
@@ -20,35 +21,6 @@ export const HEARTBEAT_INTERVAL_MS = config.watch.heartbeatSeconds * 1000;
 export const STALE_AFTER_MS = config.watch.deadAfterSeconds * 1000;
 /** A blind spell (both sources down) shorter than this is start-up noise, not a gap. */
 export const MIN_BLIND_GAP_MS = config.watch.minBlindSeconds * 1000;
-
-export type SourceStatus = "connecting" | "active" | "down";
-
-export interface WatchState {
-    pid: number;
-    startedAt: number;
-    lastBeat: number;
-    state: "running" | "stopped";
-    stoppedAt?: number;
-    lastDetectionAt?: number;
-    detections: number;
-    sources: { ws: SourceStatus; notification: SourceStatus };
-    /** Since when neither source has been active; cleared when one comes back. */
-    blindSince?: number;
-}
-
-export type GapReason = "crash" | "stopped" | "blind" | "fatal" | "unknown";
-
-/** A period during which new messages could have gone unnoticed. `to: null` = still going on. */
-export interface Gap {
-    from: number;
-    to: number | null;
-    reason: GapReason;
-}
-
-export interface WatchFiles {
-    state: string;
-    gaps: string;
-}
 
 export const DEFAULT_FILES: WatchFiles = {
     state: path.join(config.dataDir, ".watch-state.json"),

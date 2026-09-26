@@ -4,19 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { STALE_AFTER_MS } from "../src/watch/watchState.js";
-import {
-    appendLog,
-    beatRunner,
-    MAX_CONSECUTIVE_FAILURES,
-    readRunnerState,
-    recordCycle,
-    runnerHealth,
-    setPhase,
-    startRunner,
-    stopRunner,
-    type CycleSummary,
-    type RunnerFiles,
-} from "../src/runner/runnerState.js";
+import { appendLog, beatRunner, MAX_CONSECUTIVE_FAILURES, readRunnerState, recordCycle, runnerHealth, setPhase, startRunner, stopRunner } from "../src/runner/runnerState.js";
+import type { CycleSummary, RunnerFiles } from "../src/types/index.js";
 
 function files(): RunnerFiles {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "runner-"));
