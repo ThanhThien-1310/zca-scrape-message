@@ -250,6 +250,14 @@ export const config = {
          * Tin cùng nội dung do người gõ sau khoảng này thì không bị nuốt. Đơn vị: giây.
          */
         echoWindowSeconds: 120,
+
+        /**
+         * Sau khi gửi xong một câu trả lời, bot có mở lại cuộc trò chuyện mà Zalo Desktop đang hiện TRƯỚC ĐÓ hay không.
+         * false (mặc định): ở lại nhóm vừa trả lời (ví dụ bot test), ít thao tác giao diện hơn và bạn thấy ngay kết quả khi thử.
+         * true: quay về nhóm cũ, dùng khi có người đang xem Zalo Desktop này và không muốn màn hình bị đổi. Ví dụ: runner vừa
+         * cào nhóm LC_A và để nó mở; đặt true thì sau khi trả lời ở bot test, Zalo quay về LC_A. Kiểu: true hoặc false.
+         */
+        restorePreviousConversation: false,
     },
 
     // ═══════════════════════════════════════════════════════════════════════

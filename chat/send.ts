@@ -37,6 +37,8 @@ export interface SendHooks {
 export interface SendDeps extends SendHooks {
     delay(ms: number): Promise<void>;
     log(message: string): void;
+    /** Sau khi xong, mở lại cuộc trò chuyện đang mở trước đó (mặc định true; `bot:chat` truyền `config.chat.restorePreviousConversation`). */
+    restorePrevious?: boolean;
 }
 
 const norm = (s: string): string => s.normalize("NFC").replace(/[​-‍﻿]/g, "").replace(/\s+/g, " ").trim();
@@ -115,7 +117,7 @@ async function clearDraft(page: SendPage, guarded: () => Promise<ComposerState |
  * Gửi một tin vào nhóm `target` qua giao diện Zalo Desktop. Người gọi phải giữ khóa `data/.scrape.lock`.
  * Trước MỖI thao tác gõ hoặc Enter đều đọc lại trạng thái và kiểm `chatIsTarget`; sai thì dừng, không gõ tiếp.
  * Lỗi sau khi đã bấm Enter mà không xác nhận được thì báo `unconfirmed` và KHÔNG tự gửi lại (tránh gửi trùng).
- * Luôn mở lại cuộc trò chuyện đang mở trước đó (chỉ điều hướng).
+ * Mở lại cuộc trò chuyện đang mở trước đó (chỉ điều hướng) trừ khi `deps.restorePrevious` là false.
  */
 export async function sendReply(page: SendPage, target: string, text: string, deps: SendDeps): Promise<SendResult> {
     const read = () => page.evaluate<ComposerState>(STATE);
@@ -173,7 +175,7 @@ export async function sendReply(page: SendPage, target: string, text: string, de
         if (final.empty === true && norm(lastRow).includes(norm(text))) return { status: "sent" };
         return { status: "failed", reason: "đã bấm Enter nhưng không xác nhận được tin đã gửi", unconfirmed: true };
     } finally {
-        if (previous && norm(previous) !== norm(target)) {
+        if (deps.restorePrevious !== false && previous && norm(previous) !== norm(target)) {
             try {
                 await open(page, previous, deps);
             } catch {

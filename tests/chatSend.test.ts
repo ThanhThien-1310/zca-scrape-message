@@ -102,6 +102,29 @@ test("a normal send opens the target, types the reply, presses Enter once, confi
     assert.equal(f.st.title, "LC_KhacNhom"); // restored (navigation only)
 });
 
+test("with restorePrevious false the chat stays on the target after sending", async () => {
+    const f = fake("bot test");
+    const r = await sendReply(f.page, "bot test", "Đã nhận thông tin có máy lỗi.", { ...deps, restorePrevious: false });
+    assert.deepEqual(r, { status: "sent" });
+    assert.deepEqual(f.searches, ["bot test"]); // the previous chat is never searched for
+    assert.equal(f.st.title, "bot test");
+});
+
+test("with restorePrevious false a skipped send still leaves the chat where it was opened, and nothing is typed", async () => {
+    const f = fake("bot test", { draft: true });
+    const r = await sendReply(f.page, "bot test", "x", { ...deps, restorePrevious: false });
+    assert.deepEqual(r, { status: "skipped", reason: "draft" });
+    assert.equal(f.inputs.length, 0);
+    assert.deepEqual(f.searches, ["bot test"]);
+});
+
+test("restorePrevious true is the same as leaving it out: the previous chat is reopened", async () => {
+    const f = fake("bot test");
+    await sendReply(f.page, "bot test", "x", { ...deps, restorePrevious: true });
+    assert.deepEqual(f.searches, ["bot test", "LC_KhacNhom"]);
+    assert.equal(f.st.title, "LC_KhacNhom");
+});
+
 test("if the target cannot be opened nothing is typed, and the previous chat is restored", async () => {
     const f = fake("bot test", { opens: false });
     const r = await sendReply(f.page, "bot test", "x", deps);

@@ -17,7 +17,7 @@ export interface ConfigShape {
         queueKeepDays: number;
     };
     recovery: { marginMinutes: number };
-    chat: { pollSeconds: number; heartbeatSeconds: number; skipBackoffSeconds: number; sentLedgerMinutes: number; echoWindowSeconds: number };
+    chat: { pollSeconds: number; heartbeatSeconds: number; skipBackoffSeconds: number; sentLedgerMinutes: number; echoWindowSeconds: number; restorePreviousConversation: boolean };
     sessions: { chieuFromHour: number; toiFromHour: number };
 }
 
@@ -75,6 +75,7 @@ export function validateConfig(cfg: ConfigShape): string[] {
         }
     }
 
+    if (typeof cfg.chat.restorePreviousConversation !== "boolean") errors.push(`chat.restorePreviousConversation phải là true hoặc false (đang là ${JSON.stringify(cfg.chat.restorePreviousConversation)}).`);
     if (isPositiveInt(cfg.chat.sentLedgerMinutes) && isPositiveInt(cfg.chat.echoWindowSeconds) && cfg.chat.sentLedgerMinutes * 60 <= cfg.chat.echoWindowSeconds) {
         errors.push(`chat.sentLedgerMinutes (${cfg.chat.sentLedgerMinutes} phút) phải dài hơn chat.echoWindowSeconds (${cfg.chat.echoWindowSeconds} giây).`);
     }

@@ -123,7 +123,7 @@ Các thông số vận hành nằm trong các đối tượng con (mặc định
 | `watch` | `heartbeatSeconds` 30, `deadAfterSeconds` 90, `minBlindSeconds` 60 |
 | `runner` | `quietSeconds` 120, `maxWaitSeconds` 600, `pollSeconds` 5, `dirtyCheckSeconds` 60, `dirtyRetrySeconds` 300, `watchWarmupSeconds` 90, `maxConsecutiveFailures` 3 |
 | `recovery` | `marginMinutes` 5 |
-| `chat` | `pollSeconds` 3, `heartbeatSeconds` 30, `skipBackoffSeconds` 45, `sentLedgerMinutes` 10, `echoWindowSeconds` 120 |
+| `chat` | `pollSeconds` 3, `heartbeatSeconds` 30, `skipBackoffSeconds` 45, `sentLedgerMinutes` 10, `echoWindowSeconds` 120, `restorePreviousConversation` false |
 | `sessions` | `chieuFromHour` 12, `toiFromHour` 18 |
 
 **Ví dụ khung giờ:**

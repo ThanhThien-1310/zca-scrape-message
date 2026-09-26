@@ -19,7 +19,7 @@ test("the old keys are all still there with the same types", () => {
 test("the new sections exist and hold numbers", () => {
     for (const section of [config.watch, config.runner, config.recovery, config.chat, config.sessions]) {
         assert.ok(Object.keys(section).length > 0);
-        for (const value of Object.values(section)) assert.equal(typeof value, "number");
+        for (const [key, value] of Object.entries(section)) assert.equal(typeof value, key === "restorePreviousConversation" ? "boolean" : "number", key);
     }
     for (const key of ["quietSeconds", "maxWaitSeconds", "pollSeconds", "dirtyCheckSeconds", "dirtyRetrySeconds", "watchWarmupSeconds", "maxConsecutiveFailures"]) {
         assert.equal(typeof (config.runner as Record<string, unknown>)[key], "number", key);

@@ -39,6 +39,13 @@ test("every entry belongs to one of the 8 sections and names who reads it and wh
     }
 });
 
+test("chat.restorePreviousConversation is documented, off by default, and read by bot:chat", () => {
+    const s = SETTINGS.find((x) => x.path === "chat.restorePreviousConversation");
+    assert.ok(s);
+    assert.equal(s.default, false);
+    assert.deepEqual(s.readers, ["bot:chat"]);
+});
+
 test("the documented defaults are exactly what the code used before the config was centralised", () => {
     const pinned: Record<string, number> = {
         "watch.heartbeatSeconds": 30, "watch.deadAfterSeconds": 90, "watch.minBlindSeconds": 60,

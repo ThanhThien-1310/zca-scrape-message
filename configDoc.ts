@@ -59,6 +59,7 @@ export const SETTINGS: Setting[] = [
     { section: SECTIONS[6], path: "chat.skipBackoffSeconds", unit: "giây", default: 45, readers: ["bot:chat"], note: "Sau một lần gửi bị hoãn, không đụng vào Zalo lại trong bấy nhiêu giây." },
     { section: SECTIONS[6], path: "chat.sentLedgerMinutes", unit: "phút", default: 10, readers: ["bot:chat", "bot:watch"], note: "Giữ sổ câu bot vừa gửi bấy nhiêu phút." },
     { section: SECTIONS[6], path: "chat.echoWindowSeconds", unit: "giây", default: 120, readers: ["bot:watch"], note: "Cửa sổ nhận ra tin dội lại của bot." },
+    { section: SECTIONS[6], path: "chat.restorePreviousConversation", unit: "true/false", default: false, readers: ["bot:chat"], note: "Sau khi trả lời, quay về nhóm Zalo đang mở trước đó (true) hay ở lại nhóm vừa trả lời (false)." },
 
     { section: SECTIONS[7], path: "sessions.chieuFromHour", unit: "giờ", default: 12, readers: ["bot:runner", "extract:reports", "recover:missing"], note: "Giờ bắt đầu buổi chiều." },
     { section: SECTIONS[7], path: "sessions.toiFromHour", unit: "giờ", default: 18, readers: ["bot:runner", "extract:reports", "recover:missing"], note: "Giờ bắt đầu buổi tối." },

@@ -111,7 +111,7 @@ async function main(): Promise<void> {
             send: async (group, text, hooks) => {
                 const page = await connectToZaloMainPage(config.cdpUrl);
                 try {
-                    return await sendReply(toSendPage(page), group, text, { delay, log, ...hooks });
+                    return await sendReply(toSendPage(page), group, text, { delay, log, restorePrevious: config.chat.restorePreviousConversation, ...hooks });
                 } finally {
                     page.close();
                 }
