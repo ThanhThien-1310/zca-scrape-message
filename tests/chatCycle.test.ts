@@ -6,7 +6,7 @@ import { createLimiter } from "../src/chat/limits.js";
 import { parseRules } from "../src/chat/rules.js";
 import type { SendHooks } from "../src/chat/send.js";
 import { COMPLETE, FAULTY_WITH_NOTE } from "./fixtures.js";
-import type { InboxEntry, InboxItem, SendResult } from "../src/types/index.js";
+import type { InboxEntry, InboxItem, OutgoingReply, SendResult } from "../src/types/index.js";
 
 const NOW = 1_000_000;
 const rules = (over: Record<string, unknown> = {}) =>
@@ -22,7 +22,7 @@ const rules = (over: Record<string, unknown> = {}) =>
     );
 const item = (n: number, text: string, over: Partial<InboxEntry> = {}): InboxItem => ({ entry: { groupName: "bot test", groupId: "g1", msgId: `m${n}`, senderId: "u", senderName: "Cô Lan", ts: NOW - 5_000, text, ...over }, end: n * 100 });
 
-function harness(items: InboxItem[], opts: { rules?: ReturnType<typeof rules>; send?: (g: string, t: string, hooks: SendHooks) => Promise<SendResult>; locked?: boolean; off?: boolean; done?: string[]; clock?: { now: number } } = {}) {
+function harness(items: InboxItem[], opts: { rules?: ReturnType<typeof rules>; send?: (g: string, r: OutgoingReply, hooks: SendHooks) => Promise<SendResult>; locked?: boolean; off?: boolean; done?: string[]; clock?: { now: number } } = {}) {
     const r = opts.rules ?? rules();
     const calls: string[] = [];
     const done = new Set(opts.done ?? []);
@@ -41,9 +41,9 @@ function harness(items: InboxItem[], opts: { rules?: ReturnType<typeof rules>; s
         withLock: async (fn) => (opts.locked ? { acquired: false } : { acquired: true, result: await fn() }),
         send:
             opts.send ??
-            (async (g, t, hooks) => {
+            (async (g, r, hooks) => {
                 hooks.beforeType?.();
-                calls.push(`send:${g}:${t}`);
+                calls.push(`send:${g}:${r.text}`);
                 hooks.beforeEnter?.();
                 return { status: "sent" };
             }),
@@ -195,4 +195,64 @@ test("a skipped send backs off: the next cycles do not touch Zalo again until th
     clock.now = NOW + 46_000;
     await runChatCycle(h.deps);
     assert.equal(attempts, 2);
+});
+
+// ---- tagging ----
+const taggedRules = () =>
+    rules({
+        groups: {
+            "bot test": {
+                rules: [{ id: "may-loi", when: { loaiBaoCao: ["DauBuoi", "CuoiBuoi"], mayLoi: true }, mention: ["Nguyễn Trọng Phúc"], reply: "{chiTietLoi}. Ghi nhận kiểm tra." }],
+            },
+        },
+    });
+
+test("a rule with mention hands the people to tag to the sender, with the variables filled in", async () => {
+    const seen: OutgoingReply[] = [];
+    const h = harness([item(1, FAULTY_WITH_NOTE)], {
+        rules: taggedRules(),
+        send: async (_g, reply, hooks) => {
+            seen.push(reply);
+            hooks.beforeType?.();
+            hooks.beforeEnter?.();
+            return { status: "sent" };
+        },
+    });
+    const s = await runChatCycle(h.deps);
+    assert.equal(s.sent, 1);
+    assert.deepEqual(seen, [{ text: "máy 35 không lên; máy 41 hỏng màn hình. Ghi nhận kiểm tra.", mentions: ["Nguyễn Trọng Phúc"] }]);
+});
+
+test("the echo ledger gets the full text as it will appear in the chat, including the @name", async () => {
+    const h = harness([item(1, FAULTY_WITH_NOTE)], { rules: taggedRules() });
+    await runChatCycle(h.deps);
+    assert.deepEqual(h.sentLedger, [["bot test", "@Nguyễn Trọng Phúc máy 35 không lên; máy 41 hỏng màn hình. Ghi nhận kiểm tra."]]);
+});
+
+test("a rule without mention sends an empty list of people to tag", async () => {
+    const seen: OutgoingReply[] = [];
+    const h = harness([item(1, "máy hỏng")], {
+        send: async (_g, reply) => {
+            seen.push(reply);
+            return { status: "sent" };
+        },
+    });
+    await runChatCycle(h.deps);
+    assert.deepEqual(seen, [{ text: "Đã nhận Cô Lan.", mentions: [] }]);
+});
+
+test("when the tag fails nothing is sent, the message is marked done and not retried", async () => {
+    let attempts = 0;
+    const h = harness([item(1, FAULTY_WITH_NOTE)], {
+        rules: taggedRules(),
+        send: async () => {
+            attempts++;
+            return { status: "failed", reason: "gắn thẻ @Nguyễn Trọng Phúc: không thấy trong danh sách; đã xóa bản nháp, chưa gửi gì" };
+        },
+    });
+    const s = await runChatCycle(h.deps);
+    assert.equal(s.failed, 1);
+    assert.equal(h.done.has("m1"), true);
+    await runChatCycle(h.deps);
+    assert.equal(attempts, 1);
 });

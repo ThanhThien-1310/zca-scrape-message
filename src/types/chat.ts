@@ -60,6 +60,8 @@ export interface Rule {
     id: string;
     when: When;
     reply: string;
+    /** Tên những người bot gắn thẻ (@) ở đầu câu trả lời, đúng như hiện trong danh sách thành viên của nhóm. */
+    mention?: string[];
 }
 
 export interface Limits {
@@ -84,6 +86,12 @@ export interface ComposerState {
     /** Ô soạn tin đang trống (class `empty`). */
     empty: boolean | null;
     text: string | null;
+}
+
+/** Thứ bot gửi: câu trả lời và những người cần gắn thẻ (gắn trước, theo thứ tự). */
+export interface OutgoingReply {
+    text: string;
+    mentions: string[];
 }
 
 export type SendResult =

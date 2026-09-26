@@ -1,8 +1,9 @@
 import { isStale, type Limiter } from "./limits.js";
+import { echoText } from "./mentions.js";
 import { pickRule, renderReply } from "./match.js";
 import type { SendHooks } from "./send.js";
 import { SKIP_BACKOFF_MS } from "./timing.js";
-import type { ChatRules, ChatSummary, InboxItem, SendResult } from "../types/index.js";
+import type { ChatRules, ChatSummary, InboxItem, OutgoingReply, SendResult } from "../types/index.js";
 
 export { SKIP_BACKOFF_MS };
 
@@ -23,7 +24,7 @@ export interface ChatDeps {
     /** Chạy `fn` khi giữ khóa giao diện Zalo; `acquired: false` khi người khác đang giữ. */
     withLock(fn: () => Promise<SendResult>): Promise<{ acquired: true; result: SendResult } | { acquired: false }>;
     /** Gửi thật; phải gọi `hooks.beforeType` và `hooks.beforeEnter` đúng lúc. */
-    send(group: string, text: string, hooks: SendHooks): Promise<SendResult>;
+    send(group: string, reply: OutgoingReply, hooks: SendHooks): Promise<SendResult>;
     /** Công tắc dừng nhanh (tệp `data/.chat-off`). */
     off(): boolean;
     log(message: string): void;
@@ -88,7 +89,8 @@ export async function runChatCycle(deps: ChatDeps): Promise<ChatSummary> {
             break;
         }
 
-        const text = renderReply(rule, entry);
+        const reply: OutgoingReply = { text: renderReply(rule, entry), mentions: rule.mention ?? [] };
+        const text = echoText(reply); // như sẽ hiện trong nhóm, gồm cả @tên
         if (deps.rules.dryRun) {
             deps.log(`[chat] [dry-run] sẽ trả lời "${entry.groupName}" (${rule.id}): ${text}`);
             deps.limiter.record(entry.groupName, rule.id, now);
@@ -106,7 +108,7 @@ export async function runChatCycle(deps: ChatDeps): Promise<ChatSummary> {
         };
         let outcome: { acquired: true; result: SendResult } | { acquired: false };
         try {
-            outcome = await deps.withLock(() => deps.send(entry.groupName, text, hooks));
+            outcome = await deps.withLock(() => deps.send(entry.groupName, reply, hooks));
         } catch (err) {
             outcome = { acquired: true, result: { status: "failed", reason: (err as Error).message } };
         }

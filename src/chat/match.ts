@@ -33,6 +33,25 @@ export function pickRule(rules: Rule[], entry: InboxEntry): Rule | null {
     return rules.find((r) => matches(r.when, entry)) ?? null;
 }
 
+/**
+ * Hai biến về lỗi lấy từ dòng "Tổng số máy bị lỗi" của báo cáo: `soMayLoi` là số (hoặc chữ như "IT bảo trì") và `chiTietLoi` là ghi chú
+ * trong ngoặc ("máy 35 không lên; máy 41 hỏng màn hình"); không có ghi chú thì là "<n> máy lỗi". Không có lỗi hoặc không phải báo cáo thì rỗng.
+ */
+export function faultVariables(raw: RawFields): { soMayLoi: string; chiTietLoi: string } {
+    const soMayLoi = raw.loi !== null ? String(raw.loi) : (raw.loiText ?? "").trim();
+    const note = (raw.ghiChuLoi ?? "").trim();
+    let chiTietLoi = "";
+    if (note !== "") chiTietLoi = note;
+    else if (raw.loi !== null) chiTietLoi = raw.loi > 0 ? `${raw.loi} máy lỗi` : "";
+    else chiTietLoi = (raw.loiText ?? "").trim();
+    return { soMayLoi, chiTietLoi };
+}
+
 export function renderReply(rule: Rule, entry: InboxEntry): string {
-    return rule.reply.replace(/\{senderName\}/g, entry.senderName.trim() || "bạn");
+    let fault: ReturnType<typeof faultVariables> | undefined;
+    return rule.reply.replace(/\{(senderName|soMayLoi|chiTietLoi)\}/g, (_m, key: "senderName" | "soMayLoi" | "chiTietLoi") => {
+        if (key === "senderName") return entry.senderName.trim() || "bạn";
+        fault ??= faultVariables(extractRaw(entry.text, entry.groupName));
+        return fault[key];
+    });
 }

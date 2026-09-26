@@ -109,10 +109,10 @@ async function main(): Promise<void> {
                     releaseScrapeLock();
                 }
             },
-            send: async (group, text, hooks) => {
+            send: async (group, reply, hooks) => {
                 const page = await connectToZaloMainPage(config.cdpUrl);
                 try {
-                    return await sendReply(toSendPage(page), group, text, { delay, log, restorePrevious: config.chat.restorePreviousConversation, ...hooks });
+                    return await sendReply(toSendPage(page), group, reply, { delay, log, restorePrevious: config.chat.restorePreviousConversation, ...hooks });
                 } finally {
                     page.close();
                 }

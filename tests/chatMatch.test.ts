@@ -53,3 +53,26 @@ test("renderReply fills {senderName} and falls back to 'bạn' when the name is 
     assert.equal(renderReply(MAY_LOI, entry("x", { senderName: "" })), "Đã nhận thông tin có máy lỗi. Cảm ơn bạn.");
     assert.equal(renderReply(KEYWORD, entry("x")), "Đã nhận.");
 });
+
+// ---- reply variables about the fault ----
+const FAULT_REPLY: Rule = { id: "t", when: { mayLoi: true }, reply: "{soMayLoi} | {chiTietLoi}" };
+const withLoi = (value: string) => COMPLETE.replace("Tổng số máy bị lỗi: 0", `Tổng số máy bị lỗi: ${value}`);
+
+test("renderReply: {soMayLoi} is the reported number and {chiTietLoi} the note in brackets", () => {
+    assert.equal(renderReply(FAULT_REPLY, entry(FAULTY_WITH_NOTE)), "3 | máy 35 không lên; máy 41 hỏng màn hình");
+});
+
+test("renderReply: without a note {chiTietLoi} falls back to the count, and text such as IT maintenance is passed on as it is", () => {
+    assert.equal(renderReply(FAULT_REPLY, entry(withLoi("2"))), "2 | 2 máy lỗi");
+    assert.equal(renderReply(FAULT_REPLY, entry(IT_MAINTENANCE)), "IT bảo trì | IT bảo trì");
+});
+
+test("renderReply: no fault or no report leaves the fault variables empty instead of printing the placeholder", () => {
+    assert.equal(renderReply(FAULT_REPLY, entry(COMPLETE)), "0 | ");
+    assert.equal(renderReply(FAULT_REPLY, entry("chào cả nhà")), " | ");
+});
+
+test("renderReply: the variables can be mixed with {senderName}", () => {
+    const rule: Rule = { id: "t", when: { mayLoi: true }, reply: "Cảm ơn {senderName}, {chiTietLoi}." };
+    assert.equal(renderReply(rule, entry(FAULTY_WITH_NOTE)), "Cảm ơn Cô Lan, máy 35 không lên; máy 41 hỏng màn hình.");
+});

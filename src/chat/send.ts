@@ -1,5 +1,6 @@
 import type { CdpPage } from "../scrape/cdp.js";
-import type { ComposerState, SendResult } from "../types/index.js";
+import { isEveryone, nameKey } from "./mentions.js";
+import type { ComposerState, OutgoingReply, SendResult } from "../types/index.js";
 
 /** Phần của một trang CDP mà việc gửi cần; tiêm được để kiểm thử bằng trang giả. */
 export interface SendPage {
@@ -84,6 +85,92 @@ async function open(page: SendPage, name: string, deps: SendDeps): Promise<void>
 
 const key = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 };
 
+interface MentionItem {
+    text: string;
+    /** Mục đang được tô sáng (Enter sẽ chọn mục này). */
+    active: boolean;
+}
+
+interface MentionList {
+    open: boolean;
+    items: MentionItem[];
+}
+
+/** Danh sách gợi ý khi gõ "@" (`#mentionPopover`): mỗi người là một `.mention-popover__item`, đầu tiên là "Báo cho cả nhóm @All". */
+const MENTIONS = `/*mentions*/(() => {
+    const p = document.getElementById("mentionPopover");
+    if (!p) return { open: false, items: [] };
+    const items = Array.from(p.querySelectorAll(".mention-popover__item")).map((e) => ({ text: (e.innerText || "").replace(/\\s+/g, " ").trim(), active: /active-bg/.test(e.className) }));
+    return { open: items.length > 0, items };
+})()`;
+
+/** Ô soạn tin có một phần tử đại diện cho thẻ của `name` (chữ thường gõ tay chỉ là văn bản trực tiếp trong dòng, không có phần tử riêng). */
+const chip = (name: string) => `/*chip*/(() => {
+    const spec = { "name": ${JSON.stringify(name)} };
+    const n = (s) => s.normalize("NFC").replace(/[\\u200B-\\u200D\\uFEFF]/g, "").replace(/\\s+/g, " ").trim().toLowerCase();
+    const r = document.getElementById("richInput");
+    if (!r) return false;
+    const want = n(spec.name);
+    return Array.from(r.querySelectorAll("*")).some((e) => !/^input_line_/.test(e.id || "") && n(e.textContent || "").replace(/^@/, "") === want);
+})()`;
+
+const arrow = (name: "ArrowDown" | "ArrowUp") => ({ key: name, code: name, windowsVirtualKeyCode: name === "ArrowDown" ? 40 : 38, nativeVirtualKeyCode: name === "ArrowDown" ? 40 : 38 });
+
+async function tap(page: SendPage, k: object): Promise<void> {
+    await page.input("Input.dispatchKeyEvent", { type: "rawKeyDown", ...k });
+    await page.input("Input.dispatchKeyEvent", { type: "keyUp", ...k });
+}
+
+/** Vị trí các mục khớp đúng tên người (không bao giờ tính mục "cả nhóm"). */
+const matchesOf = (list: MentionList, name: string): number[] => list.items.flatMap((it, i) => (!isEveryone(it.text) && nameKey(it.text) === nameKey(name) ? [i] : []));
+
+/**
+ * Gắn thẻ một người: gõ "@", đọc danh sách gợi ý, tìm ĐÚNG người theo tên (một mục duy nhất, không phải "cả nhóm"), đưa mục
+ * sáng tới người đó bằng phím mũi tên, Enter để chọn (chưa gửi gì), rồi kiểm tra ô soạn tin thật sự có thẻ. Trả về lý do
+ * thất bại, hoặc null khi xong. Trước mỗi phím đều kiểm tra lại đang ở đúng nhóm; người gọi lo xóa bản nháp khi thất bại.
+ */
+async function insertMention(page: SendPage, name: string, deps: SendDeps, guarded: () => Promise<ComposerState | null>): Promise<string | null> {
+    const read = () => page.evaluate<MentionList>(MENTIONS);
+    await page.input("Input.insertText", { text: "@" });
+    await deps.delay(600);
+    let list = await read();
+    if (!list.open) return "danh sách thẻ @ không hiện";
+
+    let hits = matchesOf(list, name);
+    if (hits.length === 0) {
+        // Không có trong các gợi ý đầu (nhóm đông người): gõ tên để Zalo lọc.
+        if (!(await guarded())) return "nhóm đang mở đã đổi";
+        await page.input("Input.insertText", { text: name });
+        await deps.delay(600);
+        list = await read();
+        if (!list.open) return `không thấy "${name}" trong danh sách thẻ`;
+        hits = matchesOf(list, name);
+    }
+    if (hits.length === 0) return `không thấy "${name}" trong danh sách thẻ`;
+    if (hits.length > 1) return `có ${hits.length} người tên "${name}" trong nhóm, không biết chọn ai`;
+
+    for (let step = 0; ; step++) {
+        const wanted = matchesOf(list, name);
+        const active = list.items.findIndex((i) => i.active);
+        if (wanted.length !== 1) return "danh sách thẻ đổi khi đang chọn";
+        if (active < 0) return "không biết mục nào đang được chọn";
+        if (active === wanted[0]) break;
+        if (step >= 30) return "không chuyển được sang đúng người";
+        if (!(await guarded())) return "nhóm đang mở đã đổi";
+        await tap(page, arrow(wanted[0] > active ? "ArrowDown" : "ArrowUp"));
+        await deps.delay(150);
+        list = await read();
+        if (!list.open) return "danh sách thẻ đóng khi đang chọn";
+    }
+
+    if (!(await guarded())) return "nhóm đang mở đã đổi";
+    await tap(page, key); // chọn người; chưa phải gửi vì danh sách đang mở
+    await deps.delay(700);
+    if ((await read()).open) return "danh sách thẻ vẫn mở sau khi chọn";
+    if (!(await page.evaluate<boolean>(chip(name)))) return "thẻ chưa được tạo (tên chỉ thành chữ thường)";
+    return null;
+}
+
 /** Ô soạn tin chứa đúng dòng đầu của câu trả lời (so sau khi chuẩn hóa khoảng trắng, kể cả NBSP). */
 const holds = (composer: ComposerState, text: string): boolean => norm(composer.text ?? "").includes(norm(text.split("\n")[0]));
 
@@ -105,7 +192,8 @@ async function clearDraft(page: SendPage, guarded: () => Promise<ComposerState |
  * Lỗi sau khi đã bấm Enter mà không xác nhận được thì báo `unconfirmed` và KHÔNG tự gửi lại (tránh gửi trùng).
  * Mở lại cuộc trò chuyện đang mở trước đó (chỉ điều hướng) trừ khi `deps.restorePrevious` là false.
  */
-export async function sendReply(page: SendPage, target: string, text: string, deps: SendDeps): Promise<SendResult> {
+export async function sendReply(page: SendPage, target: string, reply: string | OutgoingReply, deps: SendDeps): Promise<SendResult> {
+    const { text, mentions } = typeof reply === "string" ? { text: reply, mentions: [] as string[] } : reply;
     const read = () => page.evaluate<ComposerState>(STATE);
     const guarded = async (): Promise<ComposerState | null> => {
         const s = await read();
@@ -126,6 +214,14 @@ export async function sendReply(page: SendPage, target: string, text: string, de
 
         if (!(await guarded())) return { status: "failed", reason: "nhóm đang mở đã đổi trước khi gõ" };
         deps.beforeType?.();
+        for (const name of mentions) {
+            const problem = await insertMention(page, name, deps, guarded);
+            if (problem !== null) {
+                await clearDraft(page, guarded);
+                return { status: "failed", reason: `gắn thẻ @${name}: ${problem}; đã xóa bản nháp, chưa gửi gì` };
+            }
+            await page.input("Input.insertText", { text: " " });
+        }
         await page.input("Input.insertText", { text });
         await deps.delay(500);
 

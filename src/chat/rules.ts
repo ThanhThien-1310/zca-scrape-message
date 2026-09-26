@@ -1,11 +1,14 @@
 import fs from "node:fs";
 import { chatRulesPath } from "../core/paths.js";
+import { isEveryone, nameKey } from "./mentions.js";
 import type { ChatRules, Limits, LoaiBaoCao, Rule, When } from "../types/index.js";
 
 export const DEFAULT_LIMITS: Limits = { maxRepliesPerMinute: 6, maxReplyDelaySeconds: 180, cooldownSecondsPerRule: 60 };
 
 export const DEFAULT_RULES_PATH = chatRulesPath;
 
+const REPLY_VARIABLES = ["senderName", "soMayLoi", "chiTietLoi"];
+const MAX_MENTIONS = 5;
 const WHEN_KEYS = ["loaiBaoCao", "mayLoi", "keywords"];
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -43,9 +46,22 @@ function parseRule(r: unknown, where: string, seen: Set<string>, errors: string[
     }
 
     if (typeof r.reply !== "string" || r.reply.trim() === "") errors.push(`${where}: thiếu "reply".`);
-    else for (const m of r.reply.matchAll(/\{([^}]*)\}/g)) if (m[1] !== "senderName") errors.push(`${where}: "reply" có biến lạ {${m[1]}} (chỉ có {senderName}).`);
+    else for (const m of r.reply.matchAll(/\{([^}]*)\}/g)) if (!REPLY_VARIABLES.includes(m[1])) errors.push(`${where}: "reply" có biến lạ {${m[1]}} (chỉ có ${REPLY_VARIABLES.map((v) => `{${v}}`).join(", ")}).`);
 
-    return errors.length > before ? null : { id: r.id as string, when, reply: r.reply as string };
+    let mention: string[] | undefined;
+    if ("mention" in r) {
+        const v = r.mention;
+        if (!Array.isArray(v) || v.length === 0 || !v.every((x) => typeof x === "string" && x.trim() !== "")) errors.push(`${where}: "mention" phải là mảng tên (chuỗi không rỗng) của những người cần gắn thẻ.`);
+        else if (v.length > MAX_MENTIONS) errors.push(`${where}: "mention" tối đa ${MAX_MENTIONS} người.`);
+        else {
+            const names = (v as string[]).map((x) => x.trim());
+            if (new Set(names.map(nameKey)).size !== names.length) errors.push(`${where}: "mention" có tên trùng.`);
+            else if (names.some(isEveryone)) errors.push(`${where}: "mention" không được gắn thẻ cả nhóm (@All); chỉ ghi tên từng người.`);
+            else mention = names;
+        }
+    }
+
+    return errors.length > before ? null : { id: r.id as string, when, reply: r.reply as string, ...(mention ? { mention } : {}) };
 }
 
 /** Kiểm chặt: mọi lỗi được gom lại và ném một lần. `targets` là `config.targets`. */
