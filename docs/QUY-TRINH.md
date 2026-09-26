@@ -1,0 +1,324 @@
+# Quy trình báo cáo buổi dạy
+
+Tài liệu mô tả chi tiết cách hệ thống biến tin nhắn báo cáo đầu/cuối buổi dạy trong các nhóm Zalo thành file Excel báo cáo theo từng buổi. Muốn cài đặt và chạy tự động với agent, xem [GUIDE.md](GUIDE.md) (kèm mục xử lý sự cố nhanh cho các bot chạy nền). Các quy tắc trích xuất từng trường nằm ở skill `Teach-lesson-skills-V2/SKILL.md`; bản thiết kế gốc nằm ở `docs/superpowers/specs/`.
+
+## 1. Tổng quan
+
+Đầu vào là tin nhắn Zalo của giáo viên trong các nhóm (ví dụ `LC_HoaSen1_TĐ`). Đầu ra là một file Excel cho **một buổi của một ngày**, ví dụ buổi sáng 25/09/2026:
+
+```
+data/export/baocaobuoisang_250926.xlsm
+```
+
+Quy trình có hai cách chạy: **tự động** (bình thường: `bot:runner` làm cả chuỗi, agent giám sát, xem mục 3b) và **chạy tay** (các bước 0 đến 7 ở mục 3, dùng khi runner không chạy). Hệ thống gồm:
+
+| Thành phần | Vai trò | Ghi vào đâu |
+|---|---|---|
+| `bot:watch` | Đứng chạy liên tục, **nơi duy nhất nghe tin**. Mỗi tin nó chia vào hai luồng: hàng chờ cào (cho runner) và hộp thư chat (cho `bot:chat`) | `data/.scrape-queue.json`, `data/.chat-inbox.jsonl` |
+| `bot:runner` | Chạy nền, tự làm cả chuỗi khi hàng chờ có nhóm: cào, đồng bộ DB, trích xuất, ghi đè Excel, đánh dấu tin | `data/<groupId>.json`, `output/`, `data/export/` |
+| `bot:scrape` | Cào tay các nhóm đang trong hàng chờ (khi runner không chạy) | `data/<groupId>.json` |
+| `bot:chat` | (Tùy chọn) trả lời tin trong các nhóm liệt kê ở `chat-rules.json` theo kịch bản | Gửi qua giao diện Zalo |
+| Script trích xuất và điền Excel | Làm toàn bộ việc trích xuất, tra DB, điền Excel | `output/`, `data/export/` |
+| Agent (OpenClaw) | **Giám sát**: kiểm tra runner, đọc và sửa các mục cần xem, dựng lại buổi sau khi sửa | `output/overrides.json` |
+
+```
+  Zalo Desktop
+      │  (WebSocket + popup thông báo)
+      ▼
+  bot:watch ──ghi tên nhóm──▶ data/.scrape-queue.json ──────────────┐
+      │                                                              │ (hàng chờ có nhóm + yên lặng)
+      └──ghi tin chữ──▶ data/.chat-inbox.jsonl ──▶ bot:chat          ▼
+                        (chỉ nhóm có trong chat-rules.json)     bot:runner  (hoặc bot:scrape chạy tay)
+                                                                       │  cào đúng các nhóm đó
+                                                                       ▼
+                                                               data/<groupId>.json
+                                                                       │
+                     ┌─────────────────────────────────────────────────┴──────────────┐
+                     ▼                                                                ▼
+            sync:db --apply                                                 extract:reports --buoi X
+       (tin thô ─▶ Zalo_CrawlMessage)                                    (script trích xuất + tra RoomId)
+                                                                                      │
+                                                                    output/{output,marks,review,meta}.json
+                                                                                      │
+                                                          agent xem review_<ngày>_<buổi>.json ─ sửa ─▶ overrides.json
+                                                                                      │ (runner:once dựng lại)
+                                                                                      ▼
+                                                                          fill:report (Excel + macro)
+                                                                                      │
+                                                                  data/export/baocaobuoi<buoi>_<ddMMyy>.xlsm
+                                                                                      │
+                                                                  mark:messages (StatusId, HasRead ─▶ DB)
+```
+
+## 2. Khái niệm cần biết
+
+**Buổi.** Mỗi lần chạy chỉ xử lý tin nhắn của một buổi, tính theo giờ gửi tin (giờ Việt Nam). Ranh giới nằm ở `config.sessions` (`chieuFromHour`, `toiFromHour`); bảng dưới là giá trị mặc định:
+
+| Buổi | Giá trị `--buoi` | Khoảng giờ mặc định |
+|---|---|---|
+| Sáng | `sang` | 00:00–11:59 |
+| Chiều | `chieu` | 12:00–17:59 |
+| Tối | `toi` | 18:00–23:59 |
+
+Không truyền `--buoi` thì dùng buổi của thời điểm chạy. Khi chạy theo lịch, luôn truyền tường minh. Đổi giờ chia buổi (ví dụ `toiFromHour: 17`) chỉ ảnh hưởng dữ liệu mới; báo cáo đã dựng theo ranh giới cũ không tự dựng lại.
+
+**Ngày.** `--day YYYY-MM-DD`, mặc định hôm nay theo giờ Việt Nam.
+
+**Tin nhắn báo cáo.** Tin có dòng đầu là `BÁO CÁO ĐẦU BUỔI DẠY` hoặc `BÁO CÁO CUỐI BUỔI DẠY`. `BÁO CÁO CHUYÊN MÔN`, tin thường, ảnh và tin của bot không phải báo cáo (`StatusId = -1`).
+
+**`StatusId` / `maTrangThai`.**
+
+| Giá trị | Ý nghĩa |
+|---|---|
+| `-1` | Không phải báo cáo đầu/cuối buổi |
+| `1` | Báo cáo đầy đủ và phòng khớp DB |
+| `2` | Báo cáo có thiếu hoặc sai một phần, hoặc phòng không có trong DB |
+
+**Hàng chờ.** File `data/.scrape-queue.json` là mảng tên nhóm (đúng như trong `config.targets`), không trùng. `bot:watch` chỉ thêm vào; runner (hoặc `bot:scrape`) chụp lại hàng chờ, cào, rồi xóa đúng những nhóm vừa xử lý. Nhóm được thêm trong lúc đang cào vẫn còn cho lần sau; tin đến cho một nhóm **đang nằm sẵn trong hàng chờ** được ghi nhớ (`data/.scrape-queue-seen.json`) để nhóm đó không bị xóa nhầm nếu tin ấy đến sau lúc bắt đầu cào. Thời điểm từng nhóm vào hàng chờ nằm ở `data/.scrape-queue-meta.json` (dùng cho thời gian chờ yên lặng của runner). Thêm nhóm vào hàng chờ bằng tay: `npm run scrape:add -- "Tên nhóm"`.
+
+**Nhóm chỉ chat.** Nhóm được đặt `"scrape": false` trong `chat-rules.json` không bao giờ vào hàng chờ cào và không bị khôi phục (mục 3, bước 1b).
+
+**Khóa Zalo.** Mọi thứ điều khiển giao diện Zalo Desktop (`bot:scrape` chạy tay, mỗi vòng của runner, mỗi lần gửi của `bot:chat`, `recover:missing`, `runner:once` vì dùng chung `output/`) giữ `data/.scrape.lock`; cái đến sau thấy khóa còn hiệu lực thì từ chối hoặc chờ.
+
+## 3. Các bước chạy (chạy tay)
+
+Mọi lệnh chạy trong thư mục `zca-scrape-message/`. Khi `bot:runner` đang chạy, nó làm thay các bước 1, 1b, 2, 3, 5, 6 (xem mục 3b); các bước dưới đây dùng khi runner không chạy hoặc để hiểu từng bước.
+
+### Bước 0 — `bot:watch` chạy nền
+
+```
+npm run bot:watch
+```
+
+Chạy liên tục. Khi Zalo Desktop có tin mới ở một nhóm trong `config.targets`, nó in `[watch] queued "<tên nhóm>"` và thêm nhóm vào hàng chờ (trừ nhóm chỉ chat). Nếu nhóm nằm trong `chat-rules.json`, tin chữ của nhóm cũng được ghi vào hộp thư chat. Nó **không** mở giao diện Zalo và không cào. Khởi động sẽ tắt và mở lại Zalo Desktop để quan sát được kết nối WebSocket.
+
+### Bước 1 — Cào tin nhắn
+
+```
+npm run bot:scrape
+```
+
+- Đọc hàng chờ. **Hàng chờ rỗng** thì in `[scrape] hàng chờ rỗng, không có gì để cào.`, thoát ngay và không đụng Zalo Desktop.
+- Nếu có nhóm: giữ khóa Zalo, mở Zalo Desktop (khởi động lại nếu cổng debug chưa mở), mở từng nhóm, cuộn lấy lịch sử, ghi vào `data/<groupId>.json` (khử trùng theo `msgId`), rồi xóa các nhóm đã xử lý khỏi hàng chờ. Nếu đang có `bot:runner` hoặc `bot:chat` giữ khóa thì lệnh từ chối và báo ai đang giữ.
+- Chỉ lấy tin từ mốc `config.sinceTs` (mặc định 06:00 hôm nay) và tối đa `config.targetMessageCount` tin mỗi nhóm; `config.untilTs` (nếu đặt) chặn trên. Lưu ý: chỉ `bot:scrape` chạy tay dùng `untilTs`; runner và khôi phục luôn cào đến hiện tại, và runner tự tính lại mốc đầu ngày mỗi vòng thay vì dùng `sinceTs` (cố định lúc bot khởi động).
+- Nhóm lỗi hoặc không có tin vẫn bị xóa khỏi hàng chờ và được ghi log; lệnh thoát mã 1 nếu có nhóm lỗi. Không kết nối được Zalo Desktop thì không xóa gì.
+
+### Bước 0 và 1b — Kiểm tra `bot:watch` và khôi phục khi bị gián đoạn
+
+`bot:watch` chỉ phát hiện được tin khi nó đang chạy. Khi nó chết, tin đến mà không nhóm nào vào hàng chờ. Để biết **khi nào** nó ngừng và **tin nào** có thể đã lỡ, hệ thống để lại bằng chứng:
+
+| File | Nội dung |
+|---|---|
+| `data/.watch-state.json` | Nhịp tim (mặc định mỗi 30 giây, `config.watch.heartbeatSeconds`): `pid`, giờ khởi động, lần đập cuối, trạng thái hai nguồn (WebSocket, thông báo), lần phát hiện gần nhất và tổng số lần |
+| `data/.watch-gaps.json` | Mọi khoảng `bot:watch` không lắng nghe: `crash` (chết đột ngột), `stopped` (dừng có chủ ý), `blind` (còn sống nhưng mất cả hai nguồn từ `config.watch.minBlindSeconds`, mặc định 60 giây, trở lên), `fatal` (thoát vì lỗi nghiêm trọng), `unknown` (chưa có dữ liệu) |
+| `output/recovery.json` | Kết quả của lần khôi phục tay gần nhất |
+
+Chết đột ngột được nhận ra ở hai thời điểm: khi `bot:watch` khởi động lại (thấy trạng thái cũ vẫn là "đang chạy" với nhịp tim đã cũ), hoặc khi kiểm tra lúc nó vẫn chưa được khởi động lại (nhịp tim cũ quá `config.watch.deadAfterSeconds`, mặc định 90 giây). Hệ thống không thể biết tin nào đã lỡ; nó biết **khoảng thời gian** bị lỡ, rồi cào lại để biết chính xác.
+
+```
+npm run watch:status [-- --day YYYY-MM-DD --buoi sang|chieu|toi]  # xem bot:watch còn sống không, đã chết lúc nào; có --buoi thì thoát mã 2 nếu có gián đoạn trong buổi
+npm run recover:missing -- --day YYYY-MM-DD --buoi sang|chieu|toi [--dry-run]
+```
+
+**Agent quyết định bằng mã thoát của bước 0 (khi runner không chạy).** Trước khi cào, agent chạy `npm run watch:status -- --day <ngày> --buoi <buổi>`. Mã `0`: không có khoảng gián đoạn nào chồng lên buổi, bỏ qua bước 1b. Mã `2`: log ghi nhận `bot:watch` chết, dừng hoặc mù trong buổi, agent chạy `recover:missing` sau bước 1. Mã `1` (lỗi lệnh): agent coi như không xác định và chạy khôi phục. Nếu `bot:watch` đang không hoạt động ngay lúc chạy, agent nêu trong thông báo cuối là cần khởi động lại, không tự khởi động lại.
+
+`recover:missing`:
+
+1. Lấy các khoảng gián đoạn chồng lên buổi. **Không có khoảng nào thì thoát, không làm gì.**
+2. Tìm các nhóm trong `config.targets` chưa có báo cáo đầu buổi và/hoặc cuối buổi trong buổi đó, **trừ** `config.recoveryIgnoreTargets` (mặc định `bot test`) và các nhóm chỉ chat (`"scrape": false`). Bước này chỉ đọc `data/*.json`.
+3. Cào lại **riêng các nhóm đó**, từ `config.recovery.marginMinutes` (mặc định 5) phút trước khoảng gián đoạn (không phải mốc 06:00 cố định, và không lùi quá đầu buổi).
+4. So sánh trước và sau: các tin của buổi mới xuất hiện sau lần cào lại chính là **những tin `bot:watch` đã bỏ lỡ**. Lệnh in danh sách (giờ, nhóm, tiêu đề dòng đầu) và các nhóm vẫn thiếu báo cáo, và ghi `output/recovery.json`.
+
+Lệnh (thật, không phải `--dry-run`) giữ khóa Zalo, và thoát mã 1 nếu có nhóm không cào được. Nhóm vẫn thiếu sau khi cào lại không phải lỗi: có thể giáo viên chưa gửi hoặc nhóm không có lớp buổi đó. Tin cào về bằng cách này cũng làm buổi đó có báo cáo chưa dựng, nên runner (nếu chạy) tự dựng lại.
+
+### Bước 2 — Đưa tin lên DB
+
+```
+npm run sync:db                # chạy thử: chỉ in, không ghi
+npm run sync:db -- --apply     # ghi thật
+```
+
+Ghi các tin trong `data/*.json` vào bảng `Zalo_CrawlMessage`. Dòng mới có `StatusId = -1`, `HasRead = 0`. Dòng đã có (cùng `GroupId` và `MessageId`) chỉ được làm mới `MessageType` và `Url`, không bị ghi đè `StatusId` hay `HasRead`, nên chạy lại nhiều lần an toàn.
+
+### Bước 3 — Trích xuất
+
+```
+npm run extract:reports -- [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--no-db]
+```
+
+Đọc mọi `data/<groupId>.json`, chỉ giữ tin của ngày và buổi được chọn. Với mỗi tin:
+
+1. Phân loại theo tiêu đề. Tin không phải báo cáo được ghi `-1`; tin nhắc tới báo cáo đầu/cuối buổi nhưng tiêu đề lạ được ghi `-1` **và** đưa vào `review.json`.
+2. Với báo cáo: tách tên nhóm thành `truong` và `khuVuc`, đọc 8 dòng cần lấy, tính xếp loại máy tính và `maTrangThai` (xem mục 5).
+3. Tra `maPhong` (`Room.Id`) bằng `dbo.fn_LookupRoomIds`, một lần cho cả lô. Khi tra, bỏ tiền tố `PM` khỏi tên phòng (`PM1` → `1`) vì bảng `Room` lưu `1`, `2`, `H002`. Không tìm thấy phòng: `maPhong = null` và `maTrangThai = 2`.
+4. Áp dụng `output/overrides.json` (nếu có) trước khi tính xếp loại và trạng thái.
+
+`--no-db` bỏ qua bước tra `maPhong` (dùng khi không có kết nối DB).
+
+Kết quả trong `output/` (luôn ghi đủ bốn file, kể cả khi rỗng) và bản tóm tắt in ra màn hình:
+
+| File | Nội dung |
+|---|---|
+| `output.json` | Các báo cáo hợp lệ (đầu vào của bước 5) |
+| `marks.json` | `maTrangThai` của mọi tin nhắn đã xét (đầu vào của bước 6) |
+| `review.json` | Các báo cáo cần agent xem, kèm nguyên văn tin nhắn (của buổi vừa chạy gần nhất) |
+| `meta.json` | `{ "day", "buoi" }` của lần chạy, để bước 5 đặt tên file |
+
+Các file này dùng chung cho mọi lần chạy, nên **không chạy hai lần song song**. Runner còn lưu thêm `output/review_<ngày>_<buổi>.json` cho từng buổi để agent đọc đúng bản của buổi mình cần.
+
+### Bước 4 — Agent giám sát
+
+Agent đọc bản tóm tắt và các mục cần xem (`output/review_<ngày>_<buổi>.json` khi runner chạy, hoặc `output/review.json` khi chạy tay). Mỗi mục có `key`, `lyDo`, `raw` (nguyên văn), `draft` (kết quả của script) và `truongCanXem`. Agent **đối chiếu `draft` với `raw`** rồi quyết định giữ nguyên hoặc sửa.
+
+| `lyDo` | Ý nghĩa | Thường làm |
+|---|---|---|
+| `so_khong_hop_le` | Số máy lỗi hoặc thiếu là chữ (ví dụ `IT bảo trì`) | Để nguyên (`maTrangThai = 2` là đúng), trừ khi tin có số mà script bỏ sót |
+| `thieu_dong` | Thiếu một trong 8 dòng cần lấy | Nếu dòng có nhưng nhãn viết lạ thì sửa; nếu thật sự thiếu thì để nguyên |
+| `khong_nhan_ra_nhan` | Dòng giống dòng cần lấy nhưng nhãn lạ | Xem `raw` và sửa giá trị |
+| `gan_giong_tieu_de` | Tiêu đề không chuẩn | Đúng là báo cáo thì sửa `loaiBaoCao`; không thì để nguyên (`-1`) |
+| `phong_khong_tim_thay` | DB không có phòng này | Sửa `phongMay` nếu sai chính tả; thật sự không có thì để nguyên |
+| `truong_khong_nhan_ra` | Không xác định trường hoặc khu vực từ tên nhóm | Sửa `truong` và `khuVuc` |
+
+Để sửa, agent ghi `output/overrides.json` rồi **dựng lại buổi đó**: chạy lại bước 3 (chạy tay), hoặc `npm run runner:once -- --day <ngày> --buoi <buổi>` (khi runner chạy; lệnh này dựng lại Excel và đánh dấu tin mà không cào, và tự từ chối nếu đang có vòng của runner).
+
+```json
+[
+  { "key": { "maNhom": "g5639872021926770946", "maTinNhan": "8298999766806" },
+    "sua": { "loi": 5, "ghiChuLoi": "IT đang sửa" } }
+]
+```
+
+Trường được phép trong `sua`: `loaiBo` (loại tin khỏi báo cáo, gán `-1`), `loaiBaoCao`, `phongMay`, `giaoVien`, `truong` (`{ capHoc, tenRieng, coSo }`), `khuVuc`, `thieu`, `loi` (số), `ghiChuLoi`, `amThanh`, `netSupport`, `mayLanh`, `internet` (`T`/`B`/`K`). Agent **không** ghi `xepLoai` của máy tính hay `maTrangThai`: script luôn tự tính lại. Nếu một `key` không khớp tin nhắn nào, script in `CẢNH BÁO` và bỏ qua mục đó.
+
+### Bước 5 — Điền Excel
+
+```
+npm run fill:report -- output/output.json [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--template <đường dẫn>] [--out <đường dẫn>]
+```
+
+Ngày và buổi lấy từ `output/meta.json` nếu không truyền. Script:
+
+1. Dựng các dòng phẳng cho sheet `data` của file mẫu (mục 6). Báo cáo có `maPhong = null` bị bỏ qua.
+2. Sao chép `../templates/Temp_RoomFacility_rpt.xlsm` (không sửa bản gốc), mở bằng Excel (PowerShell/COM) với sự kiện tắt, ghi sheet `data` từ ô `A2`, bật lại sự kiện, gọi `ThisWorkbook.Workbook_Open`. Macro của file mẫu điền 5 bảng: MAY TINH, INTERNET, NETSUPPORT, LOA, MAY LANH.
+3. Lưu thành `data/export/baocaobuoi<buoi>_<ddMMyy>.xlsm` (ghi đè nếu trùng ngày và buổi), hoặc vào đường dẫn của `--out`. Log ở `output/fill.log`.
+
+Với mỗi phòng trong ngày, macro chỉ hiển thị **báo cáo mới nhất** (theo `Timestamp`), không phải mọi báo cáo. Nếu không có báo cáo nào có `maPhong`, lệnh in thông báo và không tạo file. Runner dùng `--out` để ghi vào một tệp tạm rồi đổi tên đè lên tệp chính (mục 3b).
+
+### Bước 6 — Cập nhật DB
+
+```
+npm run mark:messages -- output/marks.json --dry-run   # chạy thử
+npm run mark:messages -- output/marks.json             # ghi thật
+```
+
+Với mỗi phần tử của `marks.json`, đặt `StatusId = maTrangThai` và `HasRead = 1` cho dòng `Zalo_CrawlMessage` có `GroupId` và `MessageId` khớp. Chạy trong một transaction (lỗi thì hoàn tác); phần tử không có dòng tương ứng chỉ cảnh báo. Chỉ tin trong buổi đã chọn được cập nhật.
+
+### Bước 7 — Thông báo
+
+Thành công: agent trả đúng một từ `xong`. Có lỗi: trả thông báo lỗi chi tiết (lệnh nào lỗi và thông báo).
+
+Lưu ý về hàng chờ rỗng: khi agent chạy trọn quy trình chạy tay, hàng chờ rỗng ở bước 1 **không** làm dừng quy trình. Dữ liệu có thể đã được cào từ trước (ví dụ có người chạy `bot:scrape` tay), nên agent vẫn chạy tiếp các bước 2–6 với dữ liệu đã có. Chỉ khi bước 3 báo `xét 0 tin` thì dừng và báo không có tin nhắn trong buổi.
+
+## 3b. Chế độ tự động với `bot:runner`
+
+Các bước 1, 1b, 2, 3, 5, 6 ở trên do `bot:runner` tự làm; khi đó agent chỉ giám sát (xem mục "Chế độ giám sát khi `bot:runner` đang chạy" của skill). Quy trình chạy tay ở mục 3 vẫn dùng được khi runner không chạy.
+
+**Kích hoạt.** `bot:watch` xếp nhóm có tin mới vào hàng chờ (kèm thời điểm). Hàng chờ rỗng: runner không làm gì. Có nhóm: runner đợi hàng chờ yên lặng `config.runner.quietSeconds` (mặc định 120 giây, tính từ tin mới nhất của nhóm) rồi chạy một vòng, tối đa `config.runner.maxWaitSeconds` (mặc định 600 giây) kể từ nhóm đầu tiên. Runner xem lại hàng chờ mỗi `config.runner.pollSeconds` (5 giây) và không làm gì trong `config.runner.watchWarmupSeconds` (90 giây) sau khi `bot:watch` khởi động (nó tự mở lại Zalo). Nếu `bot:watch` chết nên không ai xếp hàng, một khoảng gián đoạn mới chồng lên buổi hiện tại cũng tự kích hoạt một vòng khôi phục. Một buổi có báo cáo nằm trên đĩa mà chưa dựng cũng tự kích hoạt một vòng (kiểm mỗi `config.runner.dirtyCheckSeconds`, 60 giây).
+
+**Một vòng, theo thứ tự:**
+
+1. Khôi phục, **chỉ với các khoảng gián đoạn của `bot:watch` chưa được khôi phục** (mỗi khoảng khôi phục hai lần: lúc nó còn mở và thêm một lần khi nó đóng). Không có khoảng mới thì bước này không làm gì và không cào nhóm nào ngoài hàng chờ. (Chạy tay `recover:missing` thì vẫn xét mọi khoảng gián đoạn của buổi.)
+2. Cào các nhóm trong hàng chờ, từ đầu ngày hôm nay và không chặn trên (bỏ qua `sinceTs`, `untilTs`). Không cào được (Zalo không kết nối) thì vòng lỗi, hàng chờ nguyên.
+3. Xác định buổi cần dựng: mọi buổi có báo cáo đầu/cuối buổi nằm trên đĩa mà chưa có trong `data/.runner-built.json`; rồi đồng bộ DB.
+4. Với mỗi buổi: trích xuất (áp `output/overrides.json`), điền Excel vào tệp tạm rồi đổi tên đè lên `data/export/baocaobuoi<buổi>_<ddMMyy>.xlsm`, rồi `mark:messages`. Dựng thành công thì báo cáo của buổi đó được ghi vào `data/.runner-built.json`.
+5. Ghi một dòng vào `output/runner-log.jsonl` và cập nhật `data/.runner-state.json`.
+
+**Ghi đè Excel.** Kết quả cuối luôn là một tệp. Nếu tệp đang mở trong Excel thì bản mới lưu thành `..._moi.xlsm`, bản cũ giữ nguyên; vòng sau tệp gốc đã đóng thì tự đè và xóa `_moi`.
+
+**Độ bền.** Runner chết giữa vòng (hoặc ai đó cào tay) thì báo cáo đã có trên đĩa nhưng chưa dựng vẫn được nhận ra ở lần kiểm tra kế tiếp và buổi đó được dựng dù không có tin mới. Một buổi dựng lỗi được báo (`lỗi dựng`) và thử lại sau `config.runner.dirtyRetrySeconds` (300 giây), nhưng không làm runner ngừng cào. Sau `config.runner.maxConsecutiveFailures` (3) vòng lỗi liên tiếp (lỗi cào hoặc đồng bộ) runner ngừng tự thử (`runner:status` báo `LỖI`), hàng chờ vẫn nguyên; sửa nguyên nhân rồi chạy lại `npm run bot:runner`.
+
+**Xem trạng thái:** `npm run runner:status` (thoát mã 2 nếu runner không sống). **Dựng lại một buổi không cào** (sau khi sửa `overrides.json`): `npm run runner:once -- --day <ngày> --buoi <buổi>`. Mọi giá trị ở trên chỉnh trong `config.ts` (xem `npm run config:show`).
+
+## 3c. Bot chat (tùy chọn)
+
+`bot:chat` đọc hộp thư chat `data/.chat-inbox.jsonl` (do `bot:watch` ghi, chỉ tin chữ của các nhóm có trong `chat-rules.json`), tìm tình huống khớp đầu tiên theo thứ tự trong file, rồi trả lời bằng câu có sẵn qua giao diện Zalo Desktop. Điều kiện `mayLoi` dùng đúng bộ phân tích báo cáo ở bước 3 (số máy lỗi lớn hơn 0 hoặc có ghi chú như `IT bảo trì`), nên dòng `Tổng số máy bị lỗi: 0` không bao giờ khớp. Câu bot gửi được ghi vào `data/.chat-sent.json` **trước khi** gửi để `bot:watch` nhận ra tin dội lại và bỏ qua nó ở cả hai luồng (không cào thừa, không tự trả lời chính mình). Cách bật, dừng khẩn cấp (`data/.chat-off`) và giới hạn tốc độ: [GUIDE.md](GUIDE.md) mục 8.1c.
+
+## 4. Chạy lại có an toàn không
+
+- `extract:reports` và `fill:report` tạo lại file mỗi lần chạy: cùng ngày và buổi thì ghi đè kết quả cũ.
+- `sync:db` không ghi đè `StatusId` và `HasRead` của dòng đã có.
+- `mark:messages` ghi đè `StatusId` và `HasRead` theo `marks.json` hiện có. Chạy lại sau khi sửa `overrides.json` sẽ cập nhật trạng thái mới.
+- `output/overrides.json` được giữ giữa các lần chạy; mỗi mục gắn với một tin nhắn cụ thể nên không ảnh hưởng các buổi khác.
+- Runner chạy lại cùng dữ liệu cho cùng kết quả (trích xuất đọc từ `data/*.json`, không phụ thuộc `StatusId`); khi một buổi không có báo cáo nào có `maPhong` thì Excel cũ (nếu có) được giữ nguyên.
+- File Excel đích đang mở thì `fill:report` chạy tay báo lỗi (đóng file rồi chạy lại); qua runner thì bản mới lưu thành `..._moi.xlsm` (mục 3b).
+
+## 5. Quy tắc trích xuất tóm tắt
+
+Chỉ lấy 8 dòng: `Tên giáo viên`, `Phòng máy`, `Tổng số máy bị lỗi`, `Số máy còn thiếu cho HS`, `Tình trạng Netsupport`, `Tình trạng internet`, `Tình trạng loa, âm ly`, `Tình trạng máy lạnh, máy quạt`. Các dòng khác (`Tên Trợ Giảng`, `Tổng số máy`, `Số lượng HS`...) bỏ qua. Nhãn không phân biệt hoa thường, dấu, và chịu được thiếu dấu cách sau `:` (`Internet:T`).
+
+| Trường | Quy tắc | `maTrangThai = 2` khi |
+|---|---|---|
+| `phongMay` | Giữ đúng chữ giáo viên viết (`PM1`, `H002`), bỏ ghi chú trong `()`; `CS<n>` ghi đè `truong.coSo` | Trống hoặc thiếu dòng |
+| `giaoVien` | Giữ nguyên chữ người báo cáo viết | Trống hoặc thiếu dòng |
+| Loa, NetSupport, máy lạnh, Internet | `T`, `B` hoặc `K` (chữ thường được viết hoa) | Giá trị khác, trống hoặc thiếu dòng |
+| Máy tính | `Thieu` và `Loi` lấy số ở đầu giá trị; ghi chú trong `()` sau số; xếp loại theo bảng dưới | Thiếu một trong hai số |
+| `maPhong` | Tra từ DB | Không tìm thấy |
+
+Xếp loại máy tính:
+
+| Thieu | Loi | Xếp loại |
+|---|---|---|
+| 0 | 0 | A |
+| 0 | 1–5 | B |
+| 0 | 6–9 | C |
+| 0 | ≥ 10 | D |
+| > 0 | 0–9 | C |
+| > 0 | ≥ 10 | D |
+
+`truong` và `khuVuc` tách từ tên nhóm theo skill `school-and-area-extraction` (ví dụ `LC_HoaSen1_TĐ` → cấp `LC`, tên `HOA SEN 1`, khu vực `TĐ`).
+
+## 6. Sheet `data` của file Excel mẫu
+
+20 cột theo đúng thứ tự: `Id`, `MessageId`, `SenderId`, `GroupId`, `Timestamp`, `Date`, `Time`, `TypeId`, `Employee`, `RoomId`, `School`, `Area`, `Room`, `FacilityId`, `FacilityTypeId`, `FacilityGrade`, `FacilityNote`, `QuantityTypeId`, `Quantity`, `QuantityNote`.
+
+Dạng phẳng: mỗi cơ sở vật chất một dòng; máy tính hai dòng (thiếu, lỗi). Các cột của báo cáo lặp lại trên mọi dòng của báo cáo đó. `Id` và `FacilityId` là GUID mới; `Date` là số ngày kiểu Excel; `Time` là phần thập phân của ngày; `School` dạng `LC HOA SEN 1`; `Area` là mã khu vực (`TĐ`, `BTAN`); `Room` giữ nguyên chữ trong tin nhắn.
+
+Bảng mã:
+
+| Nhóm | Giá trị |
+|---|---|
+| `TypeId` (loại báo cáo) | 1 = đầu buổi, 2 = cuối buổi |
+| `FacilityTypeId` | 1 = máy tính, 2 = NetSupport, 3 = Internet, 4 = loa, 5 = máy lạnh |
+| `QuantityTypeId` | 1 = số máy thiếu, 2 = số máy lỗi |
+
+## 7. Xử lý sự cố
+
+Bảng dưới là các sự cố của quy trình trích xuất và chạy tay. Sự cố của các bot chạy nền (runner chưa cào, runner báo `LỖI`, watch chết, bot chat không trả lời, lỗi cấu hình) nằm ở [GUIDE.md](GUIDE.md) mục 11.
+
+| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
+|---|---|---|
+| `bot:scrape` in `hàng chờ rỗng` | `bot:watch` chưa chạy hoặc chưa thấy tin mới, hoặc runner đã cào xong | Kiểm tra `bot:watch` đang chạy; xem `data/.scrape-queue.json`; xếp nhóm bằng `npm run scrape:add -- "Tên nhóm"` nếu cần cào ngay |
+| `bot:scrape` hoặc `recover:missing` báo đang có `bot:runner`/`bot:chat` điều khiển Zalo | Khóa `data/.scrape.lock` đang được giữ | Chờ vòng của runner xong rồi chạy lại |
+| Số tin sau khi cào bằng 0, hoặc `sidebar item ... not found` | Zalo cập nhật giao diện, hoặc tên trong `config.targets` lệch tên nhóm | Xem mục "Bảo trì" trong README; sửa `history/scrapeSelectors.ts` hoặc `config.targets` |
+| `watch:status` báo `CÓ VẺ ĐÃ CHẾT` | Tiến trình `bot:watch` đã thoát, máy ngủ hoặc khởi động lại | Khởi động lại `npm run bot:watch`; runner tự khôi phục (hoặc chạy `recover:missing` cho buổi bị ảnh hưởng) |
+| `watch:status` báo `ĐANG CHẠY NHƯNG MÙ` | Zalo Desktop bị đóng hoặc mất kết nối, cả hai nguồn phát hiện đều mất | Mở lại Zalo Desktop; khởi động lại `bot:watch` |
+| `recover:missing` báo nhóm vẫn thiếu | Giáo viên chưa gửi báo cáo, hoặc nhóm không có lớp buổi đó | Nhắc người phụ trách; thêm nhóm không dạy vào `config.recoveryIgnoreTargets` (hoặc đặt `"scrape": false` nếu nó chỉ dùng cho chat) |
+| `extract:reports` báo lỗi kết nối DB | Sai `.env`, DB không truy cập được | Chạy `npx tsx dbCheck.ts`; tạm dùng `--no-db` |
+| `extract:reports` ra 0 báo cáo | Sai `--day` hoặc `--buoi`, hoặc tin nằm ở buổi khác | Chạy lại với đúng ngày và buổi; kiểm tra `data/<groupId>.json` và `config.sessions` |
+| `output/overrides.json ... is not valid JSON` | File sửa tay bị sai cú pháp | Sửa file; script nêu rõ tên file |
+| `CẢNH BÁO: override ... không khớp tin nhắn nào` | Gõ sai `maNhom` hoặc `maTinNhan` | Chép lại `key` từ file review |
+| `fill:report` lỗi `being used by another process` | File Excel đích đang mở | Đóng file rồi chạy lại |
+| Có thêm file `baocaobuoi..._moi.xlsm` | Runner không ghi đè được tệp gốc vì nó đang mở trong Excel | Đóng tệp gốc; vòng sau tự đè và xóa `_moi` |
+| `fill:report` báo macro lỗi hoặc bảng trống | Excel chặn macro, hoặc chưa cài Excel | Xem mục cài đặt trong GUIDE.md |
+| Báo cáo không có trong Excel | `maPhong = null` (phòng không có trong DB) | Xem file review (`phong_khong_tim_thay`); sửa `phongMay` nếu sai chính tả |
+| Xếp loại máy tính để trống | Số máy lỗi hoặc thiếu không phải số | Bình thường theo quy tắc; sửa bằng `overrides.json` nếu biết số |
+
+## 8. Kiểm tra nhanh
+
+```
+npm test                 # unit test (trích xuất, hàng chờ, runner, chat, cấu hình...)
+npm run typecheck        # kiểm tra kiểu
+npm run config:show      # xem toàn bộ cấu hình đang dùng
+npm run extract:reports -- --day 2026-09-24 --buoi sang --no-db   # chạy thử trên dữ liệu đã cào
+npm run watch:status && npm run runner:status && npm run chat:status   # tình trạng các bot
+```

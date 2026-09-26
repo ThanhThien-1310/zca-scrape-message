@@ -6,7 +6,7 @@ import { MessageStore } from "../store/messageStore.js";
 /**
  * Exposes the message store (filled by realtime.ts + history/playwrightClient.ts)
  * to any MCP client — Claude Code, Claude Desktop, etc. — as read-only tools.
- * This process never touches the Zalo API itself; it only reads the JSONL
+ * This process never touches the Zalo API itself; it only reads the JSON
  * files bot/index.ts already wrote to disk, so it can run independently of
  * whether the bot is currently logged in.
  */

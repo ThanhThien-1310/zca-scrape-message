@@ -1,0 +1,181 @@
+import "./helpers/pinConfig.js";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { extractAll } from "../lesson/extract.js";
+import { roomKeyString, type RoomLookup } from "../lesson/roomKey.js";
+import { at, COLLEGE_ROOM, COMPLETE, DAY, FAULTY_WITH_NOTE, IT_MAINTENANCE, msg, NO_INTERNET_LINE, SPECIALIST, YESTERDAY } from "./fixtures.js";
+
+// Room "1" of HOA SEN 1 exists as Room.Id 399; everything else is unknown.
+const lookup: RoomLookup = async (keys) =>
+    new Map(keys.map((k) => [roomKeyString(k), k.room === "1" && k.tenRieng === "HOA SEN 1" && k.khuVuc === "TĐ" ? 399 : null]));
+
+test("a complete start report is extracted with status 1 and its room id", async () => {
+    const m = msg(COMPLETE, at(8));
+    const r = await extractAll([m], { day: DAY, lookupRoomIds: lookup });
+    assert.equal(r.reports.length, 1);
+    const rep = r.reports[0];
+    assert.equal(rep.maTinNhan, m.msgId);
+    assert.equal(rep.loaiBaoCao, "DauBuoi");
+    assert.equal(rep.data.maTrangThai, 1);
+    assert.equal(rep.data.maPhong, 399);
+    assert.deepEqual(rep.data.truong, { capHoc: "LC", tenRieng: "HOA SEN 1", coSo: null });
+    assert.equal(rep.data.khuVuc, "TĐ");
+    assert.equal(rep.data.phongMay, "PM1");
+    assert.equal(rep.data.giaoVien, "Nguyễn Văn A");
+    assert.deepEqual(
+        rep.data.coSoVatChat.map((f) => [f.loai, f.xepLoai]),
+        [["AmThanh", "B"], ["NetSupport", "T"], ["MayLanh", "K"], ["Internet", "T"], ["MayTinh", "A"]],
+    );
+    assert.deepEqual(rep.data.coSoVatChat[4].soLuong, [{ loai: "Thieu", so: 0 }, { loai: "Loi", so: 0, ghiChu: null }]);
+    assert.deepEqual(r.marks, [{ maNhom: "g1", maTinNhan: m.msgId, maTrangThai: 1 }]);
+    assert.equal(r.review.length, 0);
+});
+
+test("non-numeric fault count gives status 2 and a review item", async () => {
+    const m = msg(IT_MAINTENANCE, at(11));
+    const r = await extractAll([m], { day: DAY, lookupRoomIds: lookup });
+    assert.equal(r.reports[0].loaiBaoCao, "CuoiBuoi");
+    assert.equal(r.reports[0].data.maTrangThai, 2);
+    assert.equal(r.reports[0].data.coSoVatChat[4].xepLoai, null);
+    assert.deepEqual(r.review.map((x) => x.lyDo), [["so_khong_hop_le"]]);
+    assert.deepEqual(r.review[0].truongCanXem, ["loi"]);
+    assert.equal(r.review[0].raw, IT_MAINTENANCE);
+});
+
+test("a missing wanted line gives status 2 and a review item naming the line", async () => {
+    const r = await extractAll([msg(NO_INTERNET_LINE, at(8))], { day: DAY, lookupRoomIds: lookup });
+    assert.equal(r.reports[0].data.maTrangThai, 2);
+    assert.equal(r.reports[0].data.coSoVatChat[3].xepLoai, null);
+    assert.deepEqual(r.review[0].lyDo, ["thieu_dong"]);
+    assert.deepEqual(r.review[0].truongCanXem, ["internet"]);
+});
+
+test("a room that is not in the database gives status 2 and phong_khong_tim_thay", async () => {
+    const r = await extractAll([msg(COLLEGE_ROOM, at(8))], { day: DAY, lookupRoomIds: lookup });
+    assert.equal(r.reports[0].data.maPhong, null);
+    assert.equal(r.reports[0].data.maTrangThai, 2);
+    assert.deepEqual(r.review[0].lyDo, ["phong_khong_tim_thay"]);
+});
+
+test("without a lookup the room id stays null and is not an error", async () => {
+    const r = await extractAll([msg(COMPLETE, at(8))], { day: DAY });
+    assert.equal(r.reports[0].data.maPhong, null);
+    assert.equal(r.reports[0].data.maTrangThai, 1);
+    assert.equal(r.review.length, 0);
+});
+
+test("fault note in parentheses is kept", async () => {
+    const r = await extractAll([msg(FAULTY_WITH_NOTE, at(8))], { day: DAY, lookupRoomIds: lookup });
+    const mayTinh = r.reports[0].data.coSoVatChat[4];
+    assert.equal(mayTinh.xepLoai, "B");
+    assert.deepEqual(mayTinh.soLuong?.[1], { loai: "Loi", so: 3, ghiChu: "máy 35 không lên; máy 41 hỏng màn hình" });
+});
+
+test("other messages are marked -1 and never enter the reports", async () => {
+    const photo = msg("", at(8), { msgType: "chat.photo" });
+    const specialist = msg(SPECIALIST, at(9));
+    const chatter = msg("test báo cáo", at(10));
+    const r = await extractAll([photo, specialist, chatter], { day: DAY, lookupRoomIds: lookup });
+    assert.equal(r.reports.length, 0);
+    assert.deepEqual(r.marks.map((x) => x.maTrangThai), [-1, -1, -1]);
+    assert.equal(r.review.length, 0);
+});
+
+test("a near-miss title is marked -1 and sent to review", async () => {
+    const m = msg("Xin gửi\nbáo cáo đầu buổi hôm nay", at(8));
+    const r = await extractAll([m], { day: DAY, lookupRoomIds: lookup });
+    assert.deepEqual(r.marks, [{ maNhom: "g1", maTinNhan: m.msgId, maTrangThai: -1 }]);
+    assert.deepEqual(r.review.map((x) => x.lyDo), [["gan_giong_tieu_de"]]);
+    assert.equal(r.review[0].draft, null);
+});
+
+test("only messages of the requested Vietnam day are considered", async () => {
+    const old = msg(COMPLETE, YESTERDAY);
+    const r = await extractAll([old, msg(COMPLETE, at(8))], { day: DAY, lookupRoomIds: lookup });
+    assert.equal(r.reports.length, 1);
+    assert.equal(r.summary.xet, 1);
+});
+
+test("overrides correct raw fields and the derived values are recomputed", async () => {
+    const m = msg(IT_MAINTENANCE, at(11));
+    const r = await extractAll([m], {
+        day: DAY,
+        lookupRoomIds: lookup,
+        overrides: [{ key: { maNhom: "g1", maTinNhan: m.msgId }, sua: { loi: 7, ghiChuLoi: "IT đang sửa" } }],
+    });
+    const mayTinh = r.reports[0].data.coSoVatChat[4];
+    assert.equal(mayTinh.xepLoai, "C");
+    assert.deepEqual(mayTinh.soLuong?.[1], { loai: "Loi", so: 7, ghiChu: "IT đang sửa" });
+    assert.equal(r.reports[0].data.maTrangThai, 1);
+    assert.equal(r.review.length, 0);
+});
+
+test("an override can include a near-miss title and can drop a message; unknown keys are ignored", async () => {
+    const near = msg(COMPLETE.replace("BÁO CÁO ĐẦU BUỔI DẠY", "Gửi báo cáo đầu buổi"), at(8));
+    const drop = msg(COMPLETE, at(9));
+    const r = await extractAll([near, drop], {
+        day: DAY,
+        lookupRoomIds: lookup,
+        overrides: [
+            { key: { maNhom: "g1", maTinNhan: near.msgId }, sua: { loaiBaoCao: "DauBuoi" } },
+            { key: { maNhom: "g1", maTinNhan: drop.msgId }, sua: { loaiBo: true } },
+            { key: { maNhom: "gX", maTinNhan: "nope" }, sua: { loaiBo: true } },
+        ],
+    });
+    assert.equal(r.reports.length, 1);
+    assert.equal(r.reports[0].maTinNhan, near.msgId);
+    assert.deepEqual(r.marks.map((x) => x.maTrangThai), [1, -1]);
+});
+
+test("the room-line branch overrides the school branch and is part of the lookup key", async () => {
+    const seen: string[] = [];
+    const spy: RoomLookup = async (keys) => {
+        seen.push(...keys.map(roomKeyString));
+        return new Map();
+    };
+    await extractAll([msg(COMPLETE.replace("Phòng Máy: PM1", "Phòng Máy: PM1 - CS2"), at(8))], { day: DAY, lookupRoomIds: spy });
+    assert.deepEqual(seen, ["1|LC|HOA SEN 1|CS2|TĐ"]);
+});
+
+test("a group name without an area goes to review and never crashes", async () => {
+    const r = await extractAll([msg(COMPLETE, at(8), { groupName: "bot test" })], { day: DAY, lookupRoomIds: lookup });
+    assert.equal(r.reports.length, 1);
+    assert.equal(r.reports[0].data.khuVuc, null);
+    assert.equal(r.reports[0].data.maTrangThai, 2);
+    assert.deepEqual(r.review[0].lyDo, ["truong_khong_nhan_ra"]);
+    assert.deepEqual(r.review[0].truongCanXem, ["khuVuc"]);
+});
+
+test("with a session, only that session's messages are considered and marked", async () => {
+    const morning = msg(COMPLETE, at(8));
+    const afternoon = msg(COMPLETE, at(14));
+    const evening = msg("xin chào", at(19));
+    const r = await extractAll([morning, afternoon, evening], { day: DAY, buoi: "sang", lookupRoomIds: lookup });
+    assert.deepEqual(r.reports.map((x) => x.maTinNhan), [morning.msgId]);
+    assert.deepEqual(r.marks.map((x) => x.maTinNhan), [morning.msgId]);
+    assert.equal(r.summary.xet, 1);
+});
+
+test("the morning/afternoon boundary is 12:00 Vietnam time", async () => {
+    const lastMorning = msg(COMPLETE, at(11, 59));
+    const firstAfternoon = msg(COMPLETE, at(12, 0));
+    const sang = await extractAll([lastMorning, firstAfternoon], { day: DAY, buoi: "sang", lookupRoomIds: lookup });
+    const chieu = await extractAll([lastMorning, firstAfternoon], { day: DAY, buoi: "chieu", lookupRoomIds: lookup });
+    assert.deepEqual(sang.reports.map((x) => x.maTinNhan), [lastMorning.msgId]);
+    assert.deepEqual(chieu.reports.map((x) => x.maTinNhan), [firstAfternoon.msgId]);
+});
+
+test("an override whose key matches no scraped message is reported, one for another session is not", async () => {
+    const morning = msg(COMPLETE, at(8));
+    const afternoon = msg(COMPLETE, at(14));
+    const r = await extractAll([morning, afternoon], {
+        day: DAY,
+        buoi: "sang",
+        lookupRoomIds: lookup,
+        overrides: [
+            { key: { maNhom: "g1", maTinNhan: afternoon.msgId }, sua: { loi: 1 } },
+            { key: { maNhom: "g1", maTinNhan: "typo-id" }, sua: { loi: 1 } },
+        ],
+    });
+    assert.deepEqual(r.unknownOverrides, [{ maNhom: "g1", maTinNhan: "typo-id" }]);
+});

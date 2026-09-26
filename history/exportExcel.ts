@@ -6,18 +6,7 @@ import type { NormalizedMessage } from "../store/messageStore.js";
 
 const exportDir = path.join(config.dataDir, "export");
 
-function formatVN(ts: number): string {
-    return new Intl.DateTimeFormat("vi-VN", {
-        timeZone: "Asia/Ho_Chi_Minh",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: false,
-    }).format(new Date(ts));
-}
+const JSON_COLUMNS = ["msgId", "groupId", "groupName", "threadType", "senderId", "senderName", "isSelf", "ts", "msgType", "content", "url", "source"];
 
 function todayStamp(): string {
     const d = new Date();
@@ -58,16 +47,23 @@ export function exportThreadExcel(groupId: string, messages: NormalizedMessage[]
         .slice()
         .sort((a, b) => a.ts - b.ts)
         .map((m) => ({
-            "Thời gian": formatVN(m.ts),
-            "Người gửi": m.senderName,
-            "Sender ID": m.senderId,
-            "Nội dung": typeof m.content === "string" ? m.content : JSON.stringify(m.content),
-            "Loại": m.msgType,
-            "MsgId": m.msgId,
+            msgId: m.msgId,
+            groupId: m.groupId,
+            groupName: m.groupName,
+            threadType: m.threadType,
+            senderId: m.senderId,
+            senderName: m.senderName,
+            isSelf: m.isSelf,
+            ts: m.ts,
+            msgType: m.msgType,
+            content: m.content,
+            url: m.url ?? "",
+            source: (m as NormalizedMessage & { source?: string }).source ?? "",
         }));
 
-    const sheet = XLSX.utils.json_to_sheet(rows);
-    sheet["!cols"] = [{ wch: 20 }, { wch: 22 }, { wch: 22 }, { wch: 60 }, { wch: 14 }, { wch: 28 }];
+    // Same column order as the keys in data/<groupId>.json.
+    const sheet = XLSX.utils.json_to_sheet(rows, { header: JSON_COLUMNS });
+    sheet["!cols"] = [{ wch: 18 }, { wch: 22 }, { wch: 24 }, { wch: 11 }, { wch: 22 }, { wch: 22 }, { wch: 8 }, { wch: 15 }, { wch: 14 }, { wch: 60 }, { wch: 40 }, { wch: 14 }];
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Messages");

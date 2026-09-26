@@ -10,7 +10,22 @@
         "zalo:debug": "tsx debug-zalo.ts",
         "export:excel": "tsx history/exportExcelCli.ts",
         "mcp": "tsx mcp/server.ts",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "sync:db": "tsx syncDb.ts",
+        "test": "node --import tsx --test \"tests/**/*.test.ts\"",
+        "extract:reports": "tsx extractLessonReports.ts",
+        "fill:report": "tsx fillRoomFacilityReport.ts",
+        "recover:missing": "tsx recoverMissing.ts",
+        "watch:status": "tsx watchStatus.ts",
+        "bot:runner": "tsx bot-runner.ts",
+        "runner:once": "tsx runnerOnce.ts",
+        "runner:status": "tsx runnerStatus.ts",
+        "bot:chat": "tsx bot-chat.ts",
+        "chat:status": "tsx chatStatus.ts",
+        "config:show": "tsx configShow.ts",
+        "scrape:add": "tsx scrapeAdd.ts",
+        "export:lesson-report": "tsx exportLessonReport.ts",
+        "mark:messages": "tsx markMessages.ts"
     },
     "repository": {
         "type": "git",
@@ -28,10 +43,12 @@
     "license": "MIT",
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.12.0",
+        "mssql": "^12.7.2",
         "xlsx": "^0.18.5",
         "zod": "^3.23.8"
     },
     "devDependencies": {
+        "@types/mssql": "^12.3.0",
         "@types/node": "^20.14.10",
         "tsx": "^4.19.0",
         "typescript": "^5.5.3"

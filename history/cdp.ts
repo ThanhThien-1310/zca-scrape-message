@@ -25,6 +25,7 @@ export class CdpPage {
     private nextId = 0;
     private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>();
     private bindingListeners = new Set<(name: string, payload: string) => void>();
+    private wsFrameListeners = new Set<(opcode: number, payloadBase64: string) => void>();
     private closeListeners = new Set<() => void>();
     private readonly ws: WebSocket;
     private readonly ready: Promise<void>;
@@ -47,6 +48,10 @@ export class CdpPage {
             // CDP "events" (pushed by the browser, not replies to a command) have no id.
             if (msg.method === "Runtime.bindingCalled") {
                 for (const listener of this.bindingListeners) listener(msg.params.name, msg.params.payload);
+            }
+            if (msg.method === "Network.webSocketFrameReceived") {
+                const { opcode, payloadData } = msg.params.response;
+                for (const listener of this.wsFrameListeners) listener(opcode, payloadData);
             }
         });
         this.ws.addEventListener("close", () => {
@@ -88,6 +93,11 @@ export class CdpPage {
         await this.send("Runtime.enable");
     }
 
+    /** Sends a raw CDP `Input.*` command (typing into the page); used by `bot:chat`. */
+    async dispatchInput(method: string, params: Record<string, unknown> = {}): Promise<void> {
+        await this.send(method, params);
+    }
+
     /** Evaluate an expression in the page and return its structured-cloned value. */
     async evaluate<T>(expression: string): Promise<T> {
         const result = await this.send("Runtime.evaluate", {
@@ -115,6 +125,25 @@ export class CdpPage {
     /** Registers a callback for every `window.<boundName>(payload)` call made from page-side code (see addBinding). */
     onBindingCalled(listener: (name: string, payload: string) => void): void {
         this.bindingListeners.add(listener);
+    }
+
+    /**
+     * Enables the `Network` domain so the browser itself reports every raw
+     * WebSocket frame the page sends/receives — including the one Zalo
+     * Desktop's own renderer already has open to its chat backend — without
+     * injecting any JS into the page. Only reports frames on connections
+     * created *after* this is called, so callers that need the connection's
+     * initial handshake (e.g. a cipher key sent once at connect time — see
+     * history/realtimeListener.ts) must call this before that connection is
+     * (re)established, not after.
+     */
+    async enableNetwork(): Promise<void> {
+        await this.send("Network.enable");
+    }
+
+    /** Registers a callback for every binary WebSocket frame received on this page (see enableNetwork). `payloadBase64` is the raw frame body as CDP reports it. */
+    onWsFrameReceived(listener: (opcode: number, payloadBase64: string) => void): void {
+        this.wsFrameListeners.add(listener);
     }
 
     /** Registers a callback for when the underlying WebSocket connection closes (page navigated away, Zalo Desktop restarted/crashed, etc.). */
@@ -164,6 +193,43 @@ export async function connectToZaloMainPage(cdpUrl: string, timeoutMs = 20_000):
             return page;
         }
         await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    throw new Error(
+        `Could not find Zalo's main window among CDP targets at ${cdpUrl} within ${timeoutMs}ms (saw: ${lastTargets.map((t) => t.title).join(", ") || "none"}).`,
+    );
+}
+
+/**
+ * Like `connectToZaloMainPage`, but matches on URL alone (`index.html`),
+ * without requiring `title === "Zalo"` — and polls every 100ms instead of
+ * 500ms. The title is only set once the page finishes loading its own JS,
+ * by which point Zalo Desktop's own WebSocket connection to its chat
+ * backend has typically already opened and sent its one-time cipher-key
+ * frame (see history/realtimeListener.ts) — attaching via the stricter,
+ * slower-polling `connectToZaloMainPage` reliably arrives too late to
+ * observe it. Only needed by the realtime WS listener's startup path; every
+ * other caller (scraping) can keep using `connectToZaloMainPage`.
+ */
+export async function connectToZaloMainPageEarly(cdpUrl: string, timeoutMs = 20_000): Promise<CdpPage> {
+    const deadline = Date.now() + timeoutMs;
+    let lastTargets: CdpTarget[] = [];
+
+    while (Date.now() < deadline) {
+        try {
+            lastTargets = await listCdpTargets(cdpUrl);
+        } catch {
+            // debug port not up yet (e.g. called right after spawning Zalo Desktop) — keep polling
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            continue;
+        }
+        const mainTarget = lastTargets.find((t) => t.type === "page" && t.url.includes("index.html"));
+        if (mainTarget) {
+            const page = new CdpPage(mainTarget.webSocketDebuggerUrl);
+            await page.connect();
+            return page;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
     throw new Error(

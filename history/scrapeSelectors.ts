@@ -45,9 +45,13 @@ export const selectors = {
 };
 
 /**
- * Each message row's `id` attribute is `bb_msg_id_<unix-ms timestamp>` —
- * confirmed live (the trailing number matches wall-clock time of the
- * message), so there's no separate timestamp element to parse.
+ * Each message row's `id` attribute is `bb_msg_id_<cliMsgId>` (a client-
+ * generated id close to, but not exactly, the message's server `ts`) —
+ * confirmed live. Superseded as the primary identity source by the row's
+ * `[data-qid]` descendant(s), which carry Zalo's own real numeric message
+ * id (see `extractRowsFromMessageSrc` in `history/desktopScraper.ts`); this
+ * prefix is now only used as a fallback for a row with no `[data-qid]` at
+ * all.
  */
 export const messageIdPrefix = "bb_msg_id_";
 
@@ -63,4 +67,8 @@ export type ScrapedRow = {
     /** Display name of the conversation at scrape time — informational only; use `groupId` for identity. */
     groupName: string | null;
     isGroup: boolean;
+    /** True for a photo bubble (class-detected in extractRowsFromMessageSrc). */
+    isPhoto?: boolean;
+    /** Client message id parsed from data-qid — names the photo's file in Zalo's local download cache. */
+    cliMsgId?: string;
 };
