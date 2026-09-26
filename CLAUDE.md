@@ -36,6 +36,7 @@ npm run runner:status                          # is bot:runner alive? last cycle
 npm run runner:once -- [--day D] [--buoi B]    # rebuild ONE session's outputs without scraping (after editing output/overrides.json)
 npm run bot:chat                               # auto-reply from chat-rules.json: reads data/.chat-inbox.jsonl (written by bot:watch), sends via Zalo Desktop's UI
 npm run chat:status                            # is bot:chat alive? dry-run or live, groups, pending inbox (exit 2 when not alive)
+npm run config:show                            # print every tunable in config.ts by section (value, unit, default, which bot reads it); values that differ from the default are marked *
 npm run recover:missing -- [--day D] [--buoi B] [--dry-run]   # only if bot:watch had a gap: re-scrape just the groups missing a report, list what was missed
 ```
 
@@ -72,6 +73,9 @@ Both share:
 - **`mcp/server.ts`** — read-only MCP server (`list_threads`, `get_recent_messages`, `search_messages`) exposing `store/messageStore.ts` data to MCP clients (Claude Code/Desktop). Never touches Zalo/CDP itself — just reads the JSON files the scraper already wrote, so it works whether or not the scraper is currently running.
 
 ## Config (`config.ts`) — the one file you edit for day-to-day changes
+
+`config.ts` is the single place for every tunable, in 8 documented sections (Zalo, targets, scraping, watch, runner, recovery, chat, sessions). Modules derive their timing constants from it (they no longer hard-code numbers, e.g. `QUIET_MS = config.runner.quietSeconds * 1000`); `configCheck.ts` rejects bad values at startup with the offending key; `configDoc.ts` documents each key for `npm run config:show`. Bots read it only at startup, so restart the affected bot after editing. Session hours (`config.sessions`) are the one source for both `sessionOf` (lesson/time.ts) and `sessionWindow` (lesson/recovery.ts).
+
 
 `config.targets` (exact display names as shown in the Zalo Desktop sidebar)
 and the `sinceTs`/`untilTs` time window (via the `todayAt(hour, minute)`

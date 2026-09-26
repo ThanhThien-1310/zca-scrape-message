@@ -141,6 +141,22 @@ openclaw approvals allowlist add "C:\Program Files\nodejs\npm.cmd"
 
 Cần biết các lệnh agent sẽ chạy **có ghi vào DB**: `npm run sync:db -- --apply` (thêm dòng vào `Zalo_CrawlMessage`) và `npm run mark:messages` (cập nhật `StatusId`, `HasRead`). Chỉ cho phép khi bạn đã kiểm tra thủ công (mục 5) và tin vào kết quả.
 
+## Chỉnh cấu hình
+
+Mọi thông số vận hành nằm ở `config.ts`, chia 8 mục và có chú thích ngay cạnh từng giá trị.
+
+- **Xem:** `npm run config:show` in toàn bộ giá trị theo mục (đơn vị, mặc định, bot nào đọc). Giá trị khác mặc định có dấu `*` ở đầu dòng.
+- **Sửa:** mở `config.ts`, đổi giá trị, rồi **khởi động lại bot liên quan** (bot chỉ đọc file lúc khởi động). Sai giá trị thì bot không khởi động và báo tên khóa sai.
+
+Ba tình huống thường gặp:
+
+1. **Runner cào nhanh hơn hoặc chậm hơn:** đổi `runner.quietSeconds` (mặc định 120). Ví dụ nhóm nhắn lúc 08:00:20, đặt 120 thì cào lúc 08:02:20, đặt 30 thì cào lúc 08:00:50. Giá trị nhỏ hơn thì nhiều vòng nhỏ hơn chiếm giao diện Zalo. Phải nhỏ hơn hoặc bằng `runner.maxWaitSeconds`.
+2. **Đổi ranh giới buổi chiều:** đổi `sessions.toiFromHour` (mặc định 18). Ví dụ 17 thì chiều là 12:00 đến 17:00 và tối từ 17:00; nhớ dời lịch chạy buổi chiều thành 17:05. Đổi giờ chỉ ảnh hưởng dữ liệu mới.
+3. **Thêm nhóm mới:** thêm tên nhóm đúng như thanh bên Zalo vào `targets`, khởi động lại `bot:watch`; nhóm cần được cào ít nhất một lần thì mới nghe được tin qua WebSocket.
+
+Lưu ý: `sinceTs` chỉ được tính một lần lúc bot khởi động, nên bot chạy qua đêm giữ mốc của ngày hôm qua (`bot:runner` tự tính lại mỗi vòng nên không bị ảnh hưởng).
+
+
 ## 8. Chạy tự động
 
 Có hai phần chạy độc lập: `bot:watch` (luôn chạy nền) và agent (chạy theo lịch).

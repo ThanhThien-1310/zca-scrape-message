@@ -75,6 +75,23 @@ cục bộ của app, không phải trong tiến trình.
 
 ## Cấu hình (`config.ts`)
 
+`config.ts` là **nơi duy nhất** để chỉnh thông số vận hành của các bot, chia 8 mục: Zalo, Nhóm theo dõi, Cào, Watch, Runner, Khôi phục, Chat, Buổi học. Mỗi thông số có chú thích ý nghĩa, đơn vị và ví dụ cách đặt ngay trong file. Đổi giá trị xong thì **khởi động lại bot liên quan** (bot chỉ đọc file lúc khởi động). Giá trị sai (âm, không nguyên, `runner.quietSeconds` lớn hơn `runner.maxWaitSeconds`, giờ buổi không tăng dần...) làm bot từ chối chạy và báo tên khóa sai. `chat-rules.json` là kịch bản trả lời riêng, không thuộc `config.ts`.
+
+```bash
+npm run config:show     # in toàn bộ giá trị theo mục kèm đơn vị, mặc định, bot nào đọc; khóa khác mặc định có dấu *
+```
+
+Các mục mới (ngoài các khóa cũ `cdpPort`, `targets`, `sinceTs`, `scrollDelayMs`...):
+
+| Đối tượng | Khóa (mặc định) |
+|---|---|
+| `watch` | `heartbeatSeconds` 30, `deadAfterSeconds` 90, `minBlindSeconds` 60 |
+| `runner` | `quietSeconds` 120, `maxWaitSeconds` 600, `pollSeconds` 5, `dirtyCheckSeconds` 60, `dirtyRetrySeconds` 300, `watchWarmupSeconds` 90, `maxConsecutiveFailures` 3 |
+| `recovery` | `marginMinutes` 5 |
+| `chat` | `pollSeconds` 3, `heartbeatSeconds` 30, `skipBackoffSeconds` 45, `sentLedgerMinutes` 10, `echoWindowSeconds` 120 |
+| `sessions` | `chieuFromHour` 12, `toiFromHour` 18 |
+
+
 | Trường | Ý nghĩa |
 |---|---|
 | `cdpPort` / `cdpUrl` | Cổng debug CDP dùng để mở/kết nối Zalo Desktop (mặc định `9222`). |
