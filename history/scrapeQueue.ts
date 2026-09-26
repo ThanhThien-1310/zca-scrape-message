@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.js";
+import { writeFileAtomic } from "./atomicWrite.js";
 
 /**
  * Durable set of target names (as in `config.targets`) that `bot:watch` saw new
@@ -26,10 +27,7 @@ export function readQueue(file: string = DEFAULT_QUEUE_PATH): string[] {
 }
 
 function writeJson(value: unknown, file: string): void {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(value, null, 2), "utf8");
-    fs.renameSync(tmp, file);
+    writeFileAtomic(file, JSON.stringify(value, null, 2));
 }
 
 /** `.scrape-queue.json` -> `.scrape-queue-meta.json`: when each queued group was queued (epoch ms), for the runner's debounce. */

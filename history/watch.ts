@@ -7,6 +7,7 @@ import { appendInbox } from "../chat/inbox.js";
 import { makeGroupNameReader } from "../chat/rules.js";
 import { consumeEcho } from "../chat/state.js";
 import { installRealtimeListener } from "./realtimeListener.js";
+import { swallow } from "./atomicWrite.js";
 import { enqueueTarget } from "./scrapeQueue.js";
 import { beat, HEARTBEAT_INTERVAL_MS, startWatching, stopWatching as recordStop, type SourceStatus } from "./watchState.js";
 
@@ -58,7 +59,8 @@ export async function watch(): Promise<void> {
     const sources: { ws: SourceStatus; notification: SourceStatus } = { ws: "connecting", notification: "connecting" };
     const setSource = (name: "ws" | "notification", status: SourceStatus) => {
         sources[name] = status;
-        beat(Date.now(), { sources: { [name]: status } });
+        // A heartbeat that cannot be written (Windows EPERM while another process reads the file) must never kill the watcher.
+        swallow("ghi trạng thái nguồn", () => beat(Date.now(), { sources: { [name]: status } }));
     };
 
     const store = new MessageStore();
@@ -74,8 +76,13 @@ export async function watch(): Promise<void> {
     mainPage.onClose(() => setSource("ws", "down"));
 
     function enqueue(target: string, sourceTag: string): void {
-        beat(Date.now(), { detection: true });
-        if (enqueueTarget(target)) console.log(`[watch] queued "${target}" (${sourceTag})`);
+        swallow("ghi nhịp phát hiện", () => beat(Date.now(), { detection: true }));
+        try {
+            if (enqueueTarget(target)) console.log(`[watch] queued "${target}" (${sourceTag})`);
+        } catch (err) {
+            // Do not lose the trigger silently: say so loudly (the next message for this group queues it again).
+            console.error(`[watch] KHÔNG xếp được "${target}" vào hàng chờ (${sourceTag}): ${(err as Error).message}`);
+        }
     }
 
     // `groupIdToTarget` starts empty and is filled in just below — the
@@ -125,7 +132,7 @@ export async function watch(): Promise<void> {
     // own the way a normal long-lived socket would — without this, the
     // process exits right after setup even though the connections are
     // still open, since nothing else is pending.
-    setInterval(() => beat(Date.now(), {}), HEARTBEAT_INTERVAL_MS);
+    setInterval(() => swallow("ghi nhịp tim", () => beat(Date.now(), {})), HEARTBEAT_INTERVAL_MS);
 
     notifPage.onBindingCalled((name, payload) => {
         if (name !== NOTIFY_BINDING) return;

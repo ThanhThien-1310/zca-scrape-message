@@ -6,6 +6,7 @@ import { sessionOf, vietnamDay } from "../lesson/time.js";
 import type { SourceMessage } from "../lesson/types.js";
 import { affectedSessions, type SessionKey } from "./affectedSessions.js";
 import { DEFAULT_RUNNER_FILES } from "./runnerState.js";
+import { writeFileAtomic } from "../history/atomicWrite.js";
 
 /**
  * The set of start/end-of-lesson reports (`messageKey`s) already built into an Excel. What still needs
@@ -43,10 +44,7 @@ export function readBuilt(file: string = DEFAULT_RUNNER_FILES.built): Set<string
 }
 
 export function writeBuilt(keys: Set<string>, file: string = DEFAULT_RUNNER_FILES.built): void {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify([...keys].sort(), null, 2), "utf8");
-    fs.renameSync(tmp, file);
+    writeFileAtomic(file, JSON.stringify([...keys].sort(), null, 2));
 }
 
 /**

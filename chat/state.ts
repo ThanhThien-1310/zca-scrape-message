@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.js";
+import { writeFileAtomic } from "../history/atomicWrite.js";
 
 export const DEFAULT_DONE_PATH = path.join(config.dataDir, ".chat-done.json");
 export const DEFAULT_SENT_PATH = path.join(config.dataDir, ".chat-sent.json");
@@ -9,11 +10,7 @@ const KEEP_SENT_MS = 10 * 60_000;
 const ECHO_WINDOW_MS = 2 * 60_000;
 
 function writeAtomic(file: string, value: unknown): void {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    // Tên tạm riêng cho từng tiến trình: `bot:watch` và `bot:chat` cùng ghi sổ tin đã gửi và không được dẫm lên tệp tạm của nhau.
-    const tmp = `${file}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(value, null, 2), "utf8");
-    fs.renameSync(tmp, file);
+    writeFileAtomic(file, JSON.stringify(value, null, 2));
 }
 
 function readJson(file: string): unknown {

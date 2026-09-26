@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.js";
+import { writeFileAtomic } from "../history/atomicWrite.js";
 
 /** Một tin chữ `bot:watch` đưa vào hộp thư chat. */
 export interface InboxEntry {
@@ -41,10 +42,7 @@ function readCursor(cursorFile: string): number {
 }
 
 export function writeCursor(offset: number, cursorFile: string = DEFAULT_CURSOR_PATH): void {
-    fs.mkdirSync(path.dirname(cursorFile), { recursive: true });
-    const tmp = `${cursorFile}.tmp`;
-    fs.writeFileSync(tmp, String(offset), "utf8");
-    fs.renameSync(tmp, cursorFile);
+    writeFileAtomic(cursorFile, String(offset));
 }
 
 function isEntry(v: unknown): v is InboxEntry {

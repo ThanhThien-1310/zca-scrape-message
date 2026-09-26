@@ -9,6 +9,7 @@ import { loadDone, markDone, recordSent } from "./chat/state.js";
 import { config } from "./config.js";
 import { connectToZaloMainPage } from "./history/cdp.js";
 import { acquireScrapeLock, releaseScrapeLock } from "./history/scrapeLock.js";
+import { writeFileAtomic } from "./history/atomicWrite.js";
 
 /**
  * Trả lời tự động theo kịch bản `chat-rules.json`. Chỉ ĐỌC hộp thư `data/.chat-inbox.jsonl` (do `bot:watch` ghi)
@@ -25,10 +26,7 @@ const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 const log = (m: string) => console.log(`${new Date().toISOString()} ${m}`);
 
 function writeState(value: object): void {
-    fs.mkdirSync(path.dirname(STATE_PATH), { recursive: true });
-    const tmp = `${STATE_PATH}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(value, null, 2), "utf8");
-    fs.renameSync(tmp, STATE_PATH);
+    writeFileAtomic(STATE_PATH, JSON.stringify(value, null, 2));
 }
 
 function rulesMtime(): number {

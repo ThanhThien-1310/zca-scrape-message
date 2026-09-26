@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.js";
+import { writeFileAtomic } from "./atomicWrite.js";
 
 /**
  * `bot:watch` is the only thing that notices new messages, and a dead watcher
@@ -55,10 +56,7 @@ export const DEFAULT_FILES: WatchFiles = {
 };
 
 function writeAtomic(file: string, value: unknown): void {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(value, null, 2), "utf8");
-    fs.renameSync(tmp, file);
+    writeFileAtomic(file, JSON.stringify(value, null, 2));
 }
 
 function readJson(file: string): unknown {

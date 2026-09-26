@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
 import { pidAlive, STALE_AFTER_MS } from "../history/watchState.js";
 import type { SessionKey } from "./affectedSessions.js";
+import { writeFileAtomic } from "../history/atomicWrite.js";
 
 /**
  * What `bot:runner` leaves on disk, so that an agent (or a person) can tell whether it is alive,
@@ -59,10 +60,7 @@ export const DEFAULT_RUNNER_FILES: RunnerFiles = {
 };
 
 function writeAtomic(file: string, value: unknown): void {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(value, null, 2), "utf8");
-    fs.renameSync(tmp, file);
+    writeFileAtomic(file, JSON.stringify(value, null, 2));
 }
 
 const PHASES: RunnerPhase[] = ["idle", "waiting", "running", "error", "stopped"];
