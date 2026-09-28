@@ -82,9 +82,9 @@ test("NETSUPPORT: same shape as INTERNET, keyed by netsupport in perMessage", ()
     assert.deepEqual(buildNetSupportRows([r], perMessage), [{ A: 1, B: "CHU VĂN AN", C: "BTAN", G: 5, I: "K" }]);
 });
 
-test("MÁY TÍNH: SM LỖI, SM THIẾU, XẾP LOẠI (by count) and GHI CHÚ (the lỗi note) are filled", () => {
+test("MÁY TÍNH: SM LỖI, SM THIẾU, XẾP LOẠI (by count) are filled, and the lỗi note goes into HIỆN TRẠNG (not GHI CHÚ)", () => {
     const r = report("m1", "PM1", [facility("MayTinh", "A", [{ loai: "Thieu", so: 2 }, { loai: "Loi", so: 7, ghiChu: "máy 5 hỏng nguồn" }])]);
-    assert.deepEqual(buildMayTinhRows([r]), [{ A: 1, B: "CHU VĂN AN", C: "BTAN", F: 7, G: 2, K: "C", N: "máy 5 hỏng nguồn" }]);
+    assert.deepEqual(buildMayTinhRows([r]), [{ A: 1, B: "CHU VĂN AN", C: "BTAN", F: 7, G: 2, I: "máy 5 hỏng nguồn", K: "C" }]);
 });
 
 test("MÁY TÍNH: a report without a MayTinh entry at all produces no row", () => {
@@ -94,5 +94,5 @@ test("MÁY TÍNH: a report without a MayTinh entry at all produces no row", () =
 
 test("MÁY TÍNH: no ghi chú (undefined) becomes null, not the string 'undefined'", () => {
     const r = report("m1", "PM1", [facility("MayTinh", "A", [{ loai: "Thieu", so: 0 }, { loai: "Loi", so: 0 }])]);
-    assert.equal(buildMayTinhRows([r])[0].N, null);
+    assert.equal(buildMayTinhRows([r])[0].I, null);
 });

@@ -77,7 +77,8 @@ export function buildMayTinhRows(reports: Report[]): Array<Record<string, Cell>>
         const loi = quantity(mayTinh, "Loi");
         const thieu = quantity(mayTinh, "Thieu");
         stt++;
-        rows.push({ A: stt, B: r.data.truong?.tenRieng ?? "", C: r.data.khuVuc ?? "", F: loi.so, G: thieu.so, K: mayTinhGrade(loi.so), N: loi.ghiChu });
+        // Ghi chú trong ngoặc của "Tổng số máy bị lỗi: N (...)" vào HIỆN TRẠNG, không phải GHI CHÚ (theo yêu cầu của người dùng).
+        rows.push({ A: stt, B: r.data.truong?.tenRieng ?? "", C: r.data.khuVuc ?? "", F: loi.so, G: thieu.so, I: loi.ghiChu, K: mayTinhGrade(loi.so) });
     }
     return rows;
 }

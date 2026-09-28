@@ -86,13 +86,14 @@ Một dòng cho mỗi báo cáo có mục `MayTinh` (luôn có, vì mọi báo c
 | Cột | Nguồn |
 |---|---|
 | A STT, B TÊN TRƯỜNG, C KHU VỰC | như trên |
-| D PM, I HIỆN TRẠNG, J TƯƠNG TÁC, L SẮP XẾP IT, M NGUỒN TT | để trống |
+| D PM, J TƯƠNG TÁC, L SẮP XẾP IT, M NGUỒN TT | để trống |
 | E TỔNG SM | để trống (không thêm trích xuất "tổng số máy") |
 | F SM LỖI | `soLuong[Loi].so` |
 | G SM THIẾU | `soLuong[Thieu].so` |
 | H SM BỔ SUNG | để trống |
 | K XẾP LOẠI | theo `SM LỖI`: 0→A, 1–5→B, 6–9→C, ≥10→D |
-| N GHI CHÚ | `soLuong[Loi].ghiChu` (phần trong ngoặc của "Tổng số máy bị lỗi: N (...)") |
+| I HIỆN TRẠNG | `soLuong[Loi].ghiChu` (phần trong ngoặc của "Tổng số máy bị lỗi: N (...)") — **không phải GHI CHÚ** |
+| N GHI CHÚ | để trống |
 
 Không có cột SỐ LẦN trong file này — không áp dụng bộ đếm.
 
@@ -156,3 +157,4 @@ Một script PowerShell dùng chung cho cả 5 file, nhận vào một file JSON
 ## Cập nhật sau khi duyệt
 
 - 2026-09-28: thêm yêu cầu — mỗi lần chạy vẫn xuất đủ **cả 10 file** (không chỉ 5 file có dữ liệu); 5 file chưa có nguồn được chép nguyên trạng sang thư mục xuất, giữ trống. Đã sửa mục 1, mục 2, mục 3 (thêm đường dẫn xuất) và mục 6 (thêm bước 0).
+- 2026-09-28 (trong lúc triển khai): sửa mục 4.4 — ghi chú trong ngoặc của "Tổng số máy bị lỗi: N (...)" vào cột **HIỆN TRẠNG** của file MÁY TÍNH, không phải GHI CHÚ như bản đầu (người dùng chỉnh lại). Đã sửa `src/lesson/statusRows.ts` (`buildMayTinhRows`) và test tương ứng.
