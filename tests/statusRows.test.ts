@@ -54,9 +54,9 @@ test("BO SUNG: STT numbers only the rows that qualify, in the order given", () =
     assert.deepEqual(rows.map((r) => r.J), ["PM2", "PM3"]);
 });
 
-test("LOA: a room with an AmThanh grade gets a row with that grade; PM is never written", () => {
+test("LOA: a room with an AmThanh grade gets a row with that grade and PM (tên phòng máy)", () => {
     const r = report("m1", "PM1", [facility("AmThanh", "K")]);
-    assert.deepEqual(buildLoaRows([r]), [{ A: 1, B: "CHU VĂN AN", C: "BTAN", G: "K" }]);
+    assert.deepEqual(buildLoaRows([r]), [{ A: 1, B: "CHU VĂN AN", C: "BTAN", D: "PM1", G: "K" }]);
 });
 
 test("LOA: no AmThanh grade (missing facility or null xepLoai) produces no row", () => {
@@ -65,26 +65,42 @@ test("LOA: no AmThanh grade (missing facility or null xepLoai) produces no row",
     assert.deepEqual(buildLoaRows([missing, nullGrade]), []);
 });
 
-test("INTERNET: XẾP LOẠI is the raw T/B/K, SỐ LẦN comes from perMessage keyed by internet", () => {
+test("LOA: rows are sorted by XẾP LOẠI in the order T, B, K (STT renumbered after sort)", () => {
+    const t = report("m1", "PM1", [facility("AmThanh", "T")]);
+    const b = report("m2", "PM2", [facility("AmThanh", "B")]);
+    const k = report("m3", "PM3", [facility("AmThanh", "K")]);
+    const rows = buildLoaRows([b, k, t]);
+    assert.deepEqual(rows.map((r) => [r.A, r.G]), [[1, "T"], [2, "B"], [3, "K"]]);
+});
+
+test("INTERNET: XẾP LOẠI is the raw T/B/K, PM is the room name, SỐ LẦN comes from perMessage keyed by internet", () => {
     const r = report("m1", "PM1", [facility("Internet", "K")]);
     const perMessage = new Map([["m1|internet", 2]]);
-    assert.deepEqual(buildInternetRows([r], perMessage), [{ A: 1, B: "CHU VĂN AN", C: "BTAN", G: 2, I: "K" }]);
+    assert.deepEqual(buildInternetRows([r], perMessage), [{ A: 1, B: "CHU VĂN AN", C: "BTAN", D: "PM1", G: 2, I: "K" }]);
 });
 
 test("INTERNET: a message missing from perMessage defaults SỐ LẦN to 0", () => {
     const r = report("m1", "PM1", [facility("Internet", "T")]);
-    assert.deepEqual(buildInternetRows([r], new Map()), [{ A: 1, B: "CHU VĂN AN", C: "BTAN", G: 0, I: "T" }]);
+    assert.deepEqual(buildInternetRows([r], new Map()), [{ A: 1, B: "CHU VĂN AN", C: "BTAN", D: "PM1", G: 0, I: "T" }]);
 });
 
-test("NETSUPPORT: same shape as INTERNET, keyed by netsupport in perMessage", () => {
+test("INTERNET: rows are sorted by XẾP LOẠI in the order T, B, K", () => {
+    const k = report("m1", "PM1", [facility("Internet", "K")]);
+    const t = report("m2", "PM2", [facility("Internet", "T")]);
+    const b = report("m3", "PM3", [facility("Internet", "B")]);
+    const rows = buildInternetRows([k, t, b], new Map());
+    assert.deepEqual(rows.map((r) => r.I), ["T", "B", "K"]);
+});
+
+test("NETSUPPORT: same shape as INTERNET, keyed by netsupport in perMessage, sorted T, B, K", () => {
     const r = report("m1", "PM1", [facility("NetSupport", "K")]);
     const perMessage = new Map([["m1|netsupport", 5]]);
-    assert.deepEqual(buildNetSupportRows([r], perMessage), [{ A: 1, B: "CHU VĂN AN", C: "BTAN", G: 5, I: "K" }]);
+    assert.deepEqual(buildNetSupportRows([r], perMessage), [{ A: 1, B: "CHU VĂN AN", C: "BTAN", D: "PM1", G: 5, I: "K" }]);
 });
 
-test("MÁY TÍNH: SM LỖI, SM THIẾU, XẾP LOẠI (by count) are filled, and the lỗi note goes into HIỆN TRẠNG (not GHI CHÚ)", () => {
+test("MÁY TÍNH: SM LỖI, SM THIẾU, XẾP LOẠI (by count), PM (tên phòng máy) are filled, and the lỗi note goes into HIỆN TRẠNG (not GHI CHÚ)", () => {
     const r = report("m1", "PM1", [facility("MayTinh", "A", [{ loai: "Thieu", so: 2 }, { loai: "Loi", so: 7, ghiChu: "máy 5 hỏng nguồn" }])]);
-    assert.deepEqual(buildMayTinhRows([r]), [{ A: 1, B: "CHU VĂN AN", C: "BTAN", F: 7, G: 2, I: "máy 5 hỏng nguồn", K: "C" }]);
+    assert.deepEqual(buildMayTinhRows([r]), [{ A: 1, B: "CHU VĂN AN", C: "BTAN", D: "PM1", F: 7, G: 2, I: "máy 5 hỏng nguồn", K: "C" }]);
 });
 
 test("MÁY TÍNH: a report without a MayTinh entry at all produces no row", () => {

@@ -10,8 +10,10 @@ import type { Report } from "../types/index.js";
 
 /**
  * Điền 5 file báo cáo tình trạng (BO SUNG MAY TINH, LOA, INTERNET, NETSUPPORT, MÁY TÍNH) từ `output/output.json`
- * (đã áp override), và chép nguyên trạng 5 file chưa có dữ liệu. Cả 10 file cùng nằm trong
- * `data/export/trang-thai/`, ghi đè mỗi lần chạy. Không có macro, không qua Zalo — chỉ cần Excel cài trên máy.
+ * (đã áp override, chỉ lấy báo cáo ĐẦU BUỔI — báo cáo cuối buổi là sự kiện khác, không tính vào bảng này), và
+ * chép nguyên trạng 5 file chưa có dữ liệu. Cả 10 file cùng nằm trong `data/export/trang-thai/<buoi>/` (mỗi
+ * buổi một thư mục riêng), ghi đè mỗi lần chạy lại CÙNG buổi đó. Không có macro, không qua Zalo — chỉ cần Excel
+ * cài trên máy.
  * Xem thiết kế: docs/superpowers/specs/2026-09-28-status-report-fill-design.md
  *
  *   npm run fill:status-reports -- output/output.json [--day YYYY-MM-DD] [--buoi sang|chieu|toi]
@@ -27,7 +29,10 @@ function main(): void {
     const inputPath = process.argv.slice(2).find((a, i, all) => !a.startsWith("--") && (i === 0 || !all[i - 1].startsWith("--")));
     if (!inputPath) throw new Error("Usage: npm run fill:status-reports -- <output.json> [--day YYYY-MM-DD] [--buoi sang|chieu|toi]");
 
-    const reports = JSON.parse(fs.readFileSync(inputPath, "utf8")) as Report[];
+    // Chỉ lấy báo cáo ĐẦU BUỔI: mỗi trường báo cáo tình trạng thiết bị một lần vào đầu buổi, báo cáo CUỐI BUỔI
+    // là một sự kiện khác (không phải "báo lại"/dupe) — trộn cả hai vào cùng bảng khiến một trường xuất hiện
+    // 2 lần trong buổi (dupe giả) dù không hề trùng dữ liệu.
+    const reports = (JSON.parse(fs.readFileSync(inputPath, "utf8")) as Report[]).filter((r) => r.loaiBaoCao === "DauBuoi");
 
     const metaFile = path.join(path.dirname(path.resolve(inputPath)), "meta.json");
     const meta: { day?: string; buoi?: string } = fs.existsSync(metaFile) ? JSON.parse(fs.readFileSync(metaFile, "utf8").replace(/^﻿/, "")) : {};
@@ -36,7 +41,8 @@ function main(): void {
     if (!isBuoi(buoi)) throw new Error("Cần --buoi sang|chieu|toi hoặc output/meta.json do extract:reports tạo.");
 
     const templatesSrc = path.join(config.dataDir, "mau bao cao new");
-    const outDir = path.join(config.dataDir, "export", "trang-thai");
+    // Một thư mục con riêng cho từng buổi (sang/chieu/toi) — tránh buổi sau ghi đè lên buổi trước trong cùng ngày.
+    const outDir = path.join(config.dataDir, "export", "trang-thai", buoi);
     fs.mkdirSync(outDir, { recursive: true });
 
     for (const file of OTHER_TEMPLATE_FILES) {
