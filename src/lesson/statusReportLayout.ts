@@ -8,14 +8,16 @@ export interface FileLayout {
     firstDataRow: number;
     /** Dòng chứa chữ "TỔNG" trong file mẫu GỐC, trước khi chèn/xoá dòng nào. */
     totalRowBefore: number;
+    /** Chữ cột cuối cùng có dùng trong bảng (kể cả cột luôn để trống) — quyết định bề rộng mảng ghi hàng loạt. */
+    lastColumn: string;
 }
 
 export const FILE_LAYOUT = {
-    boSung: { templateFile: "BO SUNG MAY TINH.xlsx", sheet: "BO SUNG", firstDataRow: 5, totalRowBefore: 8 },
-    loa: { templateFile: "TINH TRANG LOA.xlsx", sheet: "1209", firstDataRow: 4, totalRowBefore: 7 },
-    internet: { templateFile: "TINH TRANG LOI INTERNET.xlsx", sheet: "INTERNET", firstDataRow: 4, totalRowBefore: 7 },
-    netsupport: { templateFile: "TINH TRANG LOI NETSUPPORT.xlsx", sheet: "NETSUPPORT", firstDataRow: 4, totalRowBefore: 7 },
-    mayTinh: { templateFile: "TINH TRANG LOI MAY TINH.xlsx", sheet: "2409", firstDataRow: 4, totalRowBefore: 7 },
+    boSung: { templateFile: "BO SUNG MAY TINH.xlsx", sheet: "BO SUNG", firstDataRow: 5, totalRowBefore: 8, lastColumn: "Q" },
+    loa: { templateFile: "TINH TRANG LOA.xlsx", sheet: "1209", firstDataRow: 4, totalRowBefore: 7, lastColumn: "H" },
+    internet: { templateFile: "TINH TRANG LOI INTERNET.xlsx", sheet: "INTERNET", firstDataRow: 4, totalRowBefore: 7, lastColumn: "J" },
+    netsupport: { templateFile: "TINH TRANG LOI NETSUPPORT.xlsx", sheet: "NETSUPPORT", firstDataRow: 4, totalRowBefore: 7, lastColumn: "J" },
+    mayTinh: { templateFile: "TINH TRANG LOI MAY TINH.xlsx", sheet: "2409", firstDataRow: 4, totalRowBefore: 7, lastColumn: "N" },
 } as const satisfies Record<string, FileLayout>;
 
 /** 5 file chưa có nguồn dữ liệu: chỉ chép nguyên trạng, không mở qua Excel COM (xem CLI, task 4). */

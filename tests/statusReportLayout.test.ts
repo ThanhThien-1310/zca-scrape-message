@@ -62,6 +62,10 @@ test(
             assert.ok(ws, `${key}: sheet "${layout.sheet}" không có trong ${layout.templateFile}`);
             const totalCell = ws[`A${layout.totalRowBefore}`];
             assert.equal(totalCell?.v, "TỔNG", `${key}: A${layout.totalRowBefore} trong ${layout.templateFile} không phải "TỔNG" — file mẫu đã đổi, cập nhật FILE_LAYOUT`);
+            const headerRow = layout.firstDataRow - 1;
+            const nextCol = String.fromCharCode(layout.lastColumn.charCodeAt(0) + 1);
+            assert.ok(ws[`${layout.lastColumn}${headerRow}`], `${key}: cột ${layout.lastColumn} dòng ${headerRow} trống — lastColumn sai`);
+            assert.ok(!ws[`${nextCol}${headerRow}`], `${key}: cột ${nextCol} dòng ${headerRow} vẫn có tiêu đề — lastColumn (${layout.lastColumn}) thiếu cột`);
         }
         for (const f of OTHER_TEMPLATE_FILES) assert.ok(fs.existsSync(path.join(templatesDir, f)), `thiếu file ${f}`);
     },
