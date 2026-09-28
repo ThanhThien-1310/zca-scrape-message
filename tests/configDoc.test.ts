@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { config } from "../config.js";
-import { validateConfig, type ConfigShape } from "../configCheck.js";
-import { formatConfig, SECTIONS, SETTINGS } from "../configDoc.js";
+import { validateConfig } from "../src/config/configCheck.js";
+import { formatConfig, SECTIONS, SETTINGS } from "../src/config/configDoc.js";
+import type { ConfigShape } from "../src/types/index.js";
 
 /** Leaf paths of `config`: scalars, arrays and `scrollDelayMs` (a {min,max} pair shown as one line). */
 function leafPaths(obj: Record<string, unknown>, prefix = ""): string[] {
@@ -10,7 +11,7 @@ function leafPaths(obj: Record<string, unknown>, prefix = ""): string[] {
     for (const [key, value] of Object.entries(obj)) {
         if (key === "cdpUrl") continue; // derived from cdpPort
         const p = prefix + key;
-        if (value !== null && typeof value === "object" && !Array.isArray(value) && key !== "scrollDelayMs") out.push(...leafPaths(value as Record<string, unknown>, `${p}.`));
+        if (value !== null && typeof value === "object" && !Array.isArray(value) && key !== "scrollDelayMs" && key !== "groupAliases") out.push(...leafPaths(value as Record<string, unknown>, `${p}.`));
         else out.push(p);
     }
     return out;
@@ -39,11 +40,18 @@ test("every entry belongs to one of the 8 sections and names who reads it and wh
     }
 });
 
+test("chat.restorePreviousConversation is documented, off by default, and read by bot:chat", () => {
+    const s = SETTINGS.find((x) => x.path === "chat.restorePreviousConversation");
+    assert.ok(s);
+    assert.equal(s.default, false);
+    assert.deepEqual(s.readers, ["bot:chat"]);
+});
+
 test("the documented defaults are exactly what the code used before the config was centralised", () => {
     const pinned: Record<string, number> = {
         "watch.heartbeatSeconds": 30, "watch.deadAfterSeconds": 90, "watch.minBlindSeconds": 60,
         "runner.quietSeconds": 120, "runner.maxWaitSeconds": 600, "runner.pollSeconds": 5, "runner.dirtyCheckSeconds": 60,
-        "runner.dirtyRetrySeconds": 300, "runner.watchWarmupSeconds": 90, "runner.maxConsecutiveFailures": 3,
+        "runner.dirtyRetrySeconds": 300, "runner.watchWarmupSeconds": 90, "runner.maxConsecutiveFailures": 3, "runner.maxScrapeAttempts": 3, "runner.queueKeepDays": 3,
         "recovery.marginMinutes": 5,
         "chat.pollSeconds": 3, "chat.heartbeatSeconds": 30, "chat.skipBackoffSeconds": 45, "chat.sentLedgerMinutes": 10, "chat.echoWindowSeconds": 120,
         "sessions.chieuFromHour": 12, "sessions.toiFromHour": 18,

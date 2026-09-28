@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addTargets, resolveTargetName } from "../history/queueAdd.js";
+import { addTargets, resolveTargetName } from "../src/scrape/queueAdd.js";
 
 const TARGETS = ["bot test", "LC_HoaSen1_TĐ", "LC_TríTuệViệt_BTAN", "LC_QuangTrungNguyễnHuệ_Q5"];
 

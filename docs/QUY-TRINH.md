@@ -14,7 +14,7 @@ Quy trình có hai cách chạy: **tự động** (bình thường: `bot:runner`
 
 | Thành phần | Vai trò | Ghi vào đâu |
 |---|---|---|
-| `bot:watch` | Đứng chạy liên tục, **nơi duy nhất nghe tin**. Mỗi tin nó chia vào hai luồng: hàng chờ cào (cho runner) và hộp thư chat (cho `bot:chat`) | `data/.scrape-queue.json`, `data/.chat-inbox.jsonl` |
+| `bot:watch` | Đứng chạy liên tục, **nơi duy nhất nghe tin**. Mỗi tin nó chia vào hai luồng: hàng chờ cào (cho runner) và hộp thư chat (cho `bot:chat`) | `data/.scrape-events-<ngày>.jsonl`, `data/.chat-inbox.jsonl` |
 | `bot:runner` | Chạy nền, tự làm cả chuỗi khi hàng chờ có nhóm: cào, đồng bộ DB, trích xuất, ghi đè Excel, đánh dấu tin | `data/<groupId>.json`, `output/`, `data/export/` |
 | `bot:scrape` | Cào tay các nhóm đang trong hàng chờ (khi runner không chạy) | `data/<groupId>.json` |
 | `bot:chat` | (Tùy chọn) trả lời tin trong các nhóm liệt kê ở `chat-rules.json` theo kịch bản | Gửi qua giao diện Zalo |
@@ -25,7 +25,7 @@ Quy trình có hai cách chạy: **tự động** (bình thường: `bot:runner`
   Zalo Desktop
       │  (WebSocket + popup thông báo)
       ▼
-  bot:watch ──ghi tên nhóm──▶ data/.scrape-queue.json ──────────────┐
+  bot:watch ──nối thêm tên nhóm──▶ data/.scrape-events-<ngày>.jsonl ──┐
       │                                                              │ (hàng chờ có nhóm + yên lặng)
       └──ghi tin chữ──▶ data/.chat-inbox.jsonl ──▶ bot:chat          ▼
                         (chỉ nhóm có trong chat-rules.json)     bot:runner  (hoặc bot:scrape chạy tay)
@@ -74,7 +74,7 @@ Không truyền `--buoi` thì dùng buổi của thời điểm chạy. Khi ch�
 | `1` | Báo cáo đầy đủ và phòng khớp DB |
 | `2` | Báo cáo có thiếu hoặc sai một phần, hoặc phòng không có trong DB |
 
-**Hàng chờ.** File `data/.scrape-queue.json` là mảng tên nhóm (đúng như trong `config.targets`), không trùng. `bot:watch` chỉ thêm vào; runner (hoặc `bot:scrape`) chụp lại hàng chờ, cào, rồi xóa đúng những nhóm vừa xử lý. Nhóm được thêm trong lúc đang cào vẫn còn cho lần sau; tin đến cho một nhóm **đang nằm sẵn trong hàng chờ** được ghi nhớ (`data/.scrape-queue-seen.json`) để nhóm đó không bị xóa nhầm nếu tin ấy đến sau lúc bắt đầu cào. Thời điểm từng nhóm vào hàng chờ nằm ở `data/.scrape-queue-meta.json` (dùng cho thời gian chờ yên lặng của runner). Thêm nhóm vào hàng chờ bằng tay: `npm run scrape:add -- "Tên nhóm"`.
+**Hàng chờ.** Hàng chờ là các file `data/.scrape-events-<ngày>.jsonl` (mỗi tin một dòng `{"t": tên nhóm, "at": thời điểm}`, tên nhóm đúng như `config.targets`) cùng file `data/.scrape-events.handled.jsonl`. `bot:watch` và `scrape:add` **chỉ nối thêm** dòng; runner (hoặc `bot:scrape`) chụp lại hàng chờ cùng vị trí byte đã đọc, cào, rồi nối thêm một dòng vào file handled ghi các nhóm đã cào tới byte đó. Một nhóm còn trong hàng chờ khi còn dòng của nó nằm sau mốc, nên nhóm mới hay tin mới đến trong lúc đang cào không bao giờ bị mất (bản cũ dùng một file JSON chung mà watch và runner cùng ghi, và có thể làm mất nhóm). Thời điểm nhóm vào hàng chờ (dòng cũ nhất chưa cào) và tin mới nhất tính ra từ các dòng đó, dùng cho thời gian chờ yên lặng của runner. File sự kiện cũ hơn `runner.queueKeepDays` ngày (mặc định 3, không tính hôm nay) tự bị xóa sau mỗi lần cào. Thêm nhóm vào hàng chờ bằng tay: `npm run scrape:add -- "Tên nhóm"`.
 
 **Nhóm chỉ chat.** Nhóm được đặt `"scrape": false` trong `chat-rules.json` không bao giờ vào hàng chờ cào và không bị khôi phục (mục 3, bước 1b).
 
@@ -99,9 +99,9 @@ npm run bot:scrape
 ```
 
 - Đọc hàng chờ. **Hàng chờ rỗng** thì in `[scrape] hàng chờ rỗng, không có gì để cào.`, thoát ngay và không đụng Zalo Desktop.
-- Nếu có nhóm: giữ khóa Zalo, mở Zalo Desktop (khởi động lại nếu cổng debug chưa mở), mở từng nhóm, cuộn lấy lịch sử, ghi vào `data/<groupId>.json` (khử trùng theo `msgId`), rồi xóa các nhóm đã xử lý khỏi hàng chờ. Nếu đang có `bot:runner` hoặc `bot:chat` giữ khóa thì lệnh từ chối và báo ai đang giữ.
+- Nếu có nhóm: giữ khóa Zalo, mở Zalo Desktop (khởi động lại nếu cổng debug chưa mở), mở từng nhóm, cuộn lấy lịch sử, ghi vào `data/<groupId>.json` (khử trùng theo `msgId`), rồi đánh dấu các nhóm đã xử lý là đã cào. Nếu đang có `bot:runner` hoặc `bot:chat` giữ khóa thì lệnh từ chối và báo ai đang giữ.
 - Chỉ lấy tin từ mốc `config.sinceTs` (mặc định 06:00 hôm nay) và tối đa `config.targetMessageCount` tin mỗi nhóm; `config.untilTs` (nếu đặt) chặn trên. Lưu ý: chỉ `bot:scrape` chạy tay dùng `untilTs`; runner và khôi phục luôn cào đến hiện tại, và runner tự tính lại mốc đầu ngày mỗi vòng thay vì dùng `sinceTs` (cố định lúc bot khởi động).
-- Nhóm lỗi hoặc không có tin vẫn bị xóa khỏi hàng chờ và được ghi log; lệnh thoát mã 1 nếu có nhóm lỗi. Không kết nối được Zalo Desktop thì không xóa gì.
+- Nhóm cào lỗi vẫn ở lại hàng chờ để thử lại ở lần sau, tối đa `runner.maxScrapeAttempts` lần (mặc định 3); hết số lần thì bị bỏ khỏi hàng chờ và ghi log kèm lệnh `scrape:add` để cào lại. Nhóm không có tin vẫn được coi là đã cào. Lệnh thoát mã 1 nếu có nhóm lỗi. Không kết nối được Zalo Desktop thì không đánh dấu gì.
 
 ### Bước 0 và 1b — Kiểm tra `bot:watch` và khôi phục khi bị gián đoạn
 
@@ -228,7 +228,7 @@ Các bước 1, 1b, 2, 3, 5, 6 ở trên do `bot:runner` tự làm; khi đó age
 **Một vòng, theo thứ tự:**
 
 1. Khôi phục, **chỉ với các khoảng gián đoạn của `bot:watch` chưa được khôi phục** (mỗi khoảng khôi phục hai lần: lúc nó còn mở và thêm một lần khi nó đóng). Không có khoảng mới thì bước này không làm gì và không cào nhóm nào ngoài hàng chờ. (Chạy tay `recover:missing` thì vẫn xét mọi khoảng gián đoạn của buổi.)
-2. Cào các nhóm trong hàng chờ, từ đầu ngày hôm nay và không chặn trên (bỏ qua `sinceTs`, `untilTs`). Không cào được (Zalo không kết nối) thì vòng lỗi, hàng chờ nguyên.
+2. Cào các nhóm trong hàng chờ, từ đầu ngày hôm nay và không chặn trên (bỏ qua `sinceTs`, `untilTs`). Không cào được (Zalo không kết nối) thì vòng lỗi, hàng chờ nguyên. Một nhóm cào lỗi thì ở lại hàng chờ để thử lại (tối đa `config.runner.maxScrapeAttempts` lần); hết số lần thì vòng ghi cảnh báo nói nhóm đã bị bỏ và cách cào lại.
 3. Xác định buổi cần dựng: mọi buổi có báo cáo đầu/cuối buổi nằm trên đĩa mà chưa có trong `data/.runner-built.json`; rồi đồng bộ DB.
 4. Với mỗi buổi: trích xuất (áp `output/overrides.json`), điền Excel vào tệp tạm rồi đổi tên đè lên `data/export/baocaobuoi<buổi>_<ddMMyy>.xlsm`, rồi `mark:messages`. Dựng thành công thì báo cáo của buổi đó được ghi vào `data/.runner-built.json`.
 5. Ghi một dòng vào `output/runner-log.jsonl` và cập nhật `data/.runner-state.json`.
@@ -237,7 +237,7 @@ Các bước 1, 1b, 2, 3, 5, 6 ở trên do `bot:runner` tự làm; khi đó age
 
 **Độ bền.** Runner chết giữa vòng (hoặc ai đó cào tay) thì báo cáo đã có trên đĩa nhưng chưa dựng vẫn được nhận ra ở lần kiểm tra kế tiếp và buổi đó được dựng dù không có tin mới. Một buổi dựng lỗi được báo (`lỗi dựng`) và thử lại sau `config.runner.dirtyRetrySeconds` (300 giây), nhưng không làm runner ngừng cào. Sau `config.runner.maxConsecutiveFailures` (3) vòng lỗi liên tiếp (lỗi cào hoặc đồng bộ) runner ngừng tự thử (`runner:status` báo `LỖI`), hàng chờ vẫn nguyên; sửa nguyên nhân rồi chạy lại `npm run bot:runner`.
 
-**Xem trạng thái:** `npm run runner:status` (thoát mã 2 nếu runner không sống). **Dựng lại một buổi không cào** (sau khi sửa `overrides.json`): `npm run runner:once -- --day <ngày> --buoi <buổi>`. Mọi giá trị ở trên chỉnh trong `config.ts` (xem `npm run config:show`).
+**Xem trạng thái:** `npm run runner:status` (thoát mã 2 nếu runner không sống). **Xem thời gian:** mỗi dòng trong `output/runner-log.jsonl` có `durationMs`, `stepMs` (khôi phục, cào, nạp tin, đồng bộ DB, dựng) và `timings` (thời gian cào từng nhóm, tin mới đọc được); `npm run runner:timing -- --last 50` tổng hợp chúng thành trung bình, p95 và lâu nhất cho từng nhóm. Trong lúc một vòng chạy, khóa Zalo bị giữ nên bot chat không gửi được, vì vậy đây là con số cần theo dõi khi thêm nhóm. **Dựng lại một buổi không cào** (sau khi sửa `overrides.json`): `npm run runner:once -- --day <ngày> --buoi <buổi>`. Mọi giá trị ở trên chỉnh trong `config.ts` (xem `npm run config:show`).
 
 ## 3c. Bot chat (tùy chọn)
 
@@ -297,13 +297,13 @@ Bảng dưới là các sự cố của quy trình trích xuất và chạy tay.
 
 | Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
 |---|---|---|
-| `bot:scrape` in `hàng chờ rỗng` | `bot:watch` chưa chạy hoặc chưa thấy tin mới, hoặc runner đã cào xong | Kiểm tra `bot:watch` đang chạy; xem `data/.scrape-queue.json`; xếp nhóm bằng `npm run scrape:add -- "Tên nhóm"` nếu cần cào ngay |
+| `bot:scrape` in `hàng chờ rỗng` | `bot:watch` chưa chạy hoặc chưa thấy tin mới, hoặc runner đã cào xong | Kiểm tra `bot:watch` đang chạy; chạy `npm run runner:status` để xem hàng chờ; xếp nhóm bằng `npm run scrape:add -- "Tên nhóm"` nếu cần cào ngay |
 | `bot:scrape` hoặc `recover:missing` báo đang có `bot:runner`/`bot:chat` điều khiển Zalo | Khóa `data/.scrape.lock` đang được giữ | Chờ vòng của runner xong rồi chạy lại |
-| Số tin sau khi cào bằng 0, hoặc `sidebar item ... not found` | Zalo cập nhật giao diện, hoặc tên trong `config.targets` lệch tên nhóm | Xem mục "Bảo trì" trong README; sửa `history/scrapeSelectors.ts` hoặc `config.targets` |
+| Số tin sau khi cào bằng 0, hoặc `sidebar item ... not found` | Zalo cập nhật giao diện, hoặc tên trong `config.targets` lệch tên nhóm | Xem mục "Bảo trì" trong README; sửa `src/scrape/scrapeSelectors.ts` hoặc `config.targets` |
 | `watch:status` báo `CÓ VẺ ĐÃ CHẾT` | Tiến trình `bot:watch` đã thoát, máy ngủ hoặc khởi động lại | Khởi động lại `npm run bot:watch`; runner tự khôi phục (hoặc chạy `recover:missing` cho buổi bị ảnh hưởng) |
 | `watch:status` báo `ĐANG CHẠY NHƯNG MÙ` | Zalo Desktop bị đóng hoặc mất kết nối, cả hai nguồn phát hiện đều mất | Mở lại Zalo Desktop; khởi động lại `bot:watch` |
 | `recover:missing` báo nhóm vẫn thiếu | Giáo viên chưa gửi báo cáo, hoặc nhóm không có lớp buổi đó | Nhắc người phụ trách; thêm nhóm không dạy vào `config.recoveryIgnoreTargets` (hoặc đặt `"scrape": false` nếu nó chỉ dùng cho chat) |
-| `extract:reports` báo lỗi kết nối DB | Sai `.env`, DB không truy cập được | Chạy `npx tsx dbCheck.ts`; tạm dùng `--no-db` |
+| `extract:reports` báo lỗi kết nối DB | Sai `.env`, DB không truy cập được | Chạy `npx tsx src/cli/debug/db-check.ts`; tạm dùng `--no-db` |
 | `extract:reports` ra 0 báo cáo | Sai `--day` hoặc `--buoi`, hoặc tin nằm ở buổi khác | Chạy lại với đúng ngày và buổi; kiểm tra `data/<groupId>.json` và `config.sessions` |
 | `output/overrides.json ... is not valid JSON` | File sửa tay bị sai cú pháp | Sửa file; script nêu rõ tên file |
 | `CẢNH BÁO: override ... không khớp tin nhắn nào` | Gõ sai `maNhom` hoặc `maTinNhan` | Chép lại `key` từ file review |

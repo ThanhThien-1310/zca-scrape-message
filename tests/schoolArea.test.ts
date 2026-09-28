@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseGroupName } from "../lesson/schoolArea.js";
+import { parseGroupName } from "../src/lesson/schoolArea.js";
 
 const cases: Array<[string, string | null, string | null, string | null, string | null]> = [
     // input, capHoc, tenRieng, coSo, khuVuc  (tenRieng null => truong null)

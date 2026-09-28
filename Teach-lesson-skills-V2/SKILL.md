@@ -33,7 +33,7 @@ Skill này giữ nguyên điều kiện kích hoạt và mục tiêu của skill
 
 Workdir: `zca-scrape-message/`.
 
-Hai bot phối hợp: `bot:watch` chỉ theo dõi và ghi tên nhóm có tin mới vào hàng chờ `data/.scrape-queue.json`; `bot:scrape` đọc hàng chờ và cào đúng các nhóm đó. Sau đó script trích xuất, agent giám sát.
+Hai bot phối hợp: `bot:watch` chỉ theo dõi và nối thêm tên nhóm có tin mới vào hàng chờ (`data/.scrape-events-<ngày>.jsonl`, xem bằng `npm run runner:status`); `bot:scrape` đọc hàng chờ và cào đúng các nhóm đó. Sau đó script trích xuất, agent giám sát.
 
 | Bước | Việc | Lệnh |
 |---|---|---|
@@ -47,7 +47,7 @@ Hai bot phối hợp: `bot:watch` chỉ theo dõi và ghi tên nhóm có tin m�
 | 6 | Cập nhật DB | `npm run mark:messages -- output/marks.json` |
 | 7 | Thông báo | `"xong"` nếu thành công, ngược lại báo lỗi chi tiết |
 
-Nếu bất kỳ bước nào (trừ bước 0 và 1b, xem mục "Kiểm tra `bot:watch` và khôi phục khi bị gián đoạn") lỗi thì dừng và báo lỗi, **không chạy tiếp các bước sau**; đặc biệt không chạy bước 6 khi bước 3 hoặc 5 lỗi, vì bước 6 đánh dấu tin nhắn đã đọc dù chưa có kết quả. Nếu bước 1 in `hàng chờ rỗng` thì **không dừng**: chỉ có nghĩa là không có nhóm nào cần cào thêm (dữ liệu có thể đã được cào trước đó, ví dụ ai đó đã chạy `bot:scrape` tay); cứ tiếp tục bước 2–6 với dữ liệu đã có. Chỉ khi bước 3 in `xét 0 tin` thì dừng và báo "không có tin nhắn trong buổi này". Đọc kỹ output của bước 1: dòng `sidebar item ... not found` hoặc `no messages found` nghĩa là nhóm đó có thể **chưa được cào** dù lệnh vẫn thoát mã 0; nêu tên nhóm đó trong thông báo cuối. Nếu không có tin nhắn báo cáo hợp lệ (`output.json` là `[]`) thì bước 5 tự bỏ qua, vẫn chạy bước 6 để đánh dấu các tin nhắn còn lại là `-1`. Chi tiết bước 3, 4, 5, 6 ở các mục "Script trích xuất và agent giám sát", "Điền file Excel mẫu" và "`markMessages.ts`" bên dưới.
+Nếu bất kỳ bước nào (trừ bước 0 và 1b, xem mục "Kiểm tra `bot:watch` và khôi phục khi bị gián đoạn") lỗi thì dừng và báo lỗi, **không chạy tiếp các bước sau**; đặc biệt không chạy bước 6 khi bước 3 hoặc 5 lỗi, vì bước 6 đánh dấu tin nhắn đã đọc dù chưa có kết quả. Nếu bước 1 in `hàng chờ rỗng` thì **không dừng**: chỉ có nghĩa là không có nhóm nào cần cào thêm (dữ liệu có thể đã được cào trước đó, ví dụ ai đó đã chạy `bot:scrape` tay); cứ tiếp tục bước 2–6 với dữ liệu đã có. Chỉ khi bước 3 in `xét 0 tin` thì dừng và báo "không có tin nhắn trong buổi này". Đọc kỹ output của bước 1: dòng `sidebar item ... not found` hoặc `no messages found` nghĩa là nhóm đó có thể **chưa được cào** dù lệnh vẫn thoát mã 0; nêu tên nhóm đó trong thông báo cuối. Nếu không có tin nhắn báo cáo hợp lệ (`output.json` là `[]`) thì bước 5 tự bỏ qua, vẫn chạy bước 6 để đánh dấu các tin nhắn còn lại là `-1`. Chi tiết bước 3, 4, 5, 6 ở các mục "Script trích xuất và agent giám sát", "Điền file Excel mẫu" và "`src/cli/mark-messages.ts`" bên dưới.
 
 ## Chế độ giám sát khi `bot:runner` đang chạy
 
@@ -307,7 +307,7 @@ Chuyển giá trị `groupName` qua skill `school-and-area-extraction` để x�
 
 ## Script trích xuất và agent giám sát
 
-Script `extractLessonReports.ts` (lệnh `extract:reports`) thực hiện toàn bộ các quy tắc trích xuất ở trên. Bạn (agent) không tự trích xuất mà **đọc kết quả, đối chiếu với tin nhắn gốc và sửa** những chỗ script làm sai hoặc không chắc chắn.
+Script `src/cli/extract-reports.ts` (lệnh `extract:reports`) thực hiện toàn bộ các quy tắc trích xuất ở trên. Bạn (agent) không tự trích xuất mà **đọc kết quả, đối chiếu với tin nhắn gốc và sửa** những chỗ script làm sai hoặc không chắc chắn.
 
 Lệnh: `npm run extract:reports -- [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--no-db]`
 - `--day`: ngày cần xử lý theo giờ Việt Nam, mặc định hôm nay. Người dùng nói ngày khác thì thêm tham số này, và thêm `--day` cho cả bước 5 (để đặt tên file Excel).
@@ -408,7 +408,21 @@ Cách điền:
 - `School`: tên trường dạng `LC HOA SEN 1` (ghép `capHoc`, `tenRieng`, thêm `coSo` nếu có). `Area`: mã khu vực như skill `school-and-area-extraction` trả về (`TĐ`, `BTAN`...). `Room`: `phongMay` giữ đúng như người báo cáo viết.
 - `FacilityGrade`: `xepLoai`. `FacilityNote`: để trống. `QuantityNote`: `GhiChuLoi`.
 
-## `markMessages.ts` (bước 6)
+## Báo cáo tình trạng thiết bị (thêm, không thuộc quy trình bắt buộc ở trên)
+
+Sau khi có `output/output.json` của một buổi (bước 4), `npm run fill:status-reports -- output/output.json` điền trực tiếp (không macro) 5 file mẫu mới: BO SUNG MAY TINH, TINH TRẠNG LOA, LOI INTERNET, LOI MÁY TÍNH, LOI NETSUPPORT (tên file trên đĩa hiện là `TINH TRANG LOI NETUPPORT.xlsx`, thiếu chữ S — sheet bên trong vẫn tên NETSUPPORT); 5 file chưa có nguồn dữ liệu khác được chép nguyên trạng. Cả 10 file cùng nằm trong `data/export/trang-thai/<buoi>/` (một thư mục riêng cho mỗi buổi sang/chieu/toi — buổi sau không ghi đè lên buổi trước trong cùng ngày; chạy lại cùng buổi thì ghi đè, không cộng dồn).
+
+Mỗi phòng (`maNhom` + `phongMay`) chỉ giữ báo cáo có `thoiGian` **lớn nhất trong buổi** (`latestPerRoom` trong `statusRows.ts`) — đầu buổi hay cuối buổi tuỳ báo cáo nào gửi sau, khớp cơ chế cũ của file .xlsm ("với mỗi cặp (ngày, RoomId) chỉ giữ báo cáo Timestamp lớn nhất"). Một phòng có cả 2 loại báo cáo trong buổi không còn ra 2 dòng, và số liệu lấy đúng tình trạng MỚI NHẤT (báo cáo cuối buổi có thể xấu hơn hoặc tốt hơn đầu buổi) chứ không cố định theo đầu buổi.
+
+- Cột **PM** (tên phòng máy): lấy từ `phongMay`, điền ở LOA/INTERNET/NETSUPPORT/MÁY TÍNH.
+- Cột **SỐ LẦN** (chỉ có ở file INTERNET, NETSUPPORT): số lần liên tiếp bị báo lỗi (K), tính theo từng báo cáo (đã lọc theo phòng-mới-nhất) chứ không theo ngày lịch, lưu ở `data/.status-streaks.json` qua các lần chạy.
+- Cột **XẾP LOẠI** ở LOA/INTERNET/NETSUPPORT: các dòng được sắp lại theo thứ tự T, B, K liền nhau (không theo thứ tự báo cáo tới), STT đánh lại theo thứ tự đã sắp.
+- BO SUNG MAY TINH: PM BỔ SUNG chỉ có dòng khi (SL máy thiếu − SL máy lỗi) > 0. Đây là file duy nhất có công thức ở dòng TỔNG (COUNTA/SUM) và khối CHÚ GIẢI VÀ THỐNG KÊ (COUNTIF theo XẾP LOẠI); script luôn ghi đè lại các công thức này theo đúng số dòng thực tế (kể cả 0 dòng) nên không bao giờ ra `#REF!` dù Excel không tự mở rộng được một vùng chỉ 1 dòng khi chèn/xoá dòng kề bên.
+- MÁY TÍNH: ghi chú trong ngoặc của "Tổng số máy bị lỗi: N (...)" vào cột HIỆN TRẠNG, không phải GHI CHÚ.
+
+Thiết kế đầy đủ: `docs/superpowers/specs/2026-09-28-status-report-fill-design.md`.
+
+## `src/cli/mark-messages.ts` (bước 6)
 
 Đầu vào: `output/marks.json`, dạng `[{ "maNhom": "...", "maTinNhan": "...", "maTrangThai": 1 }]` (script trích xuất ghi file này, gồm cả tin nhắn được phân loại `-1`).
 
@@ -448,7 +462,7 @@ Nêu cho người dùng khi liên quan:
 1. Script trích xuất toàn bộ, agent đọc và giám sát (thay cho việc agent tự trích xuất).
 2. File mẫu dùng bản trong `templates/`; script tự chạy macro của file mẫu sau khi điền sheet `data`.
 3. `School` và `Area` điền tên (không điền ID).
-4. Hai bot phối hợp qua hàng chờ: `bot:watch` chỉ phát hiện tin mới và ghi tên nhóm vào `data/.scrape-queue.json`; `bot:scrape` cào các nhóm trong hàng chờ.
+4. Hai bot phối hợp qua hàng chờ: `bot:watch` chỉ phát hiện tin mới và nối thêm tên nhóm vào hàng chờ (`data/.scrape-events-<ngày>.jsonl`); `bot:scrape` cào các nhóm trong hàng chờ.
 5. Mỗi lần chạy chỉ xử lý một buổi của một ngày; mỗi buổi một file Excel `baocaobuoi<buoi>_<ddMMyy>.xlsm`. Tạm thời bỏ qua ảnh.
 
 ## Giả định còn lại

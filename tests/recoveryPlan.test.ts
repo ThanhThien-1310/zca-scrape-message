@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { Gap } from "../history/watchState.js";
-import { makeRecoverStep, selectFreshGaps } from "../runner/recoveryPlan.js";
+import { makeRecoverStep, selectFreshGaps } from "../src/runner/recoveryPlan.js";
+import type { Gap } from "../src/types/index.js";
 
 const SCOPE = "2026-09-26|sang";
 const g = (from: number, to: number | null): Gap => ({ from, to, reason: "crash" });

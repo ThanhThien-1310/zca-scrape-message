@@ -58,7 +58,7 @@ DB_TRUST_CERT=true
 Kiểm tra kết nối (chỉ đọc, không ghi gì):
 
 ```powershell
-npx tsx dbCheck.ts
+npx tsx src/cli/debug/db-check.ts
 ```
 
 Kết quả đúng: in `connected: <tên DB> as <tài khoản>` và danh sách cột của `Zalo_CrawlMessage`.
@@ -75,6 +75,8 @@ Thông số đầu tiên bạn phải đặt là `targets`: **đúng tên hiển
 ```ts
 targets: ["LC_ChuVănAn_BTAN", "LC_HoaSen1_TĐ", "LC_TríTuệViệt_BTAN"] as string[],
 ```
+
+**Chạy thử cả quy trình bằng `bot test`:** đặt `groupAliases: { "bot test": "LC_ChuVănAn_BTAN" }` trong `config.ts` (và `"scrape": true` cho `bot test` trong `chat-rules.json`). Báo cáo gửi vào `bot test` được đọc như của nhóm Chu Văn An BTAN nên có trường, khu vực và mã phòng. Ghi trong tin **`Phòng Máy: PM3`** (PM1 là phòng có báo cáo thật). Khi đó cả chuỗi tự chạy: bot chat trả lời trong vài giây; sau `runner.quietSeconds` runner cào nhóm, đồng bộ DB, trích xuất và dựng Excel, có dòng `Chu Văn An, BTAN, PM3, Demo GV`. Dòng đó nằm trong file Excel thật của buổi; thử xong đặt `groupAliases: {}`, khởi động lại bot rồi `npm run runner:once -- --day <ngày> --buoi <buổi>` để dựng lại và dòng đó biến mất. Đồng bộ DB và đánh dấu `StatusId` ghi thật các tin của `bot test`.
 
 Nhóm thử nghiệm (ví dụ `bot test`) có ba cách xử lý khi chạy thật: xóa khỏi `targets`; để trong `recoveryIgnoreTargets` (không bị coi là "thiếu báo cáo" và không bị cào lại khi khôi phục); hoặc, nếu nó chỉ dùng cho bot chat, đặt `"scrape": false` trong `chat-rules.json` (mục 8.1c). Hai thiết lập khác cần biết:
 
@@ -137,8 +139,8 @@ Nên chạy đủ một lượt bằng tay trước khi để các bot chạy n�
 
 1. Mở Zalo Desktop, đăng nhập.
 2. Terminal 1: `npm run bot:watch` (để nguyên). Nó tắt và mở lại Zalo Desktop, rồi in `listening for new messages`.
-3. Nhờ một tài khoản khác gửi tin vào một nhóm trong `config.targets`. Terminal 1 in `[watch] queued "<tên nhóm>"`; file `data\.scrape-queue.json` chứa tên nhóm đó.
-4. Terminal 2: `npm run bot:scrape`. Kết quả đúng: nhóm được cào, `data\<groupId>.json` có tin mới, hàng chờ về `[]`. (Khi `bot:runner` đang chạy thì nó làm bước này và các bước 5 đến 8 giúp bạn: xem mục 8.1b.)
+3. Nhờ một tài khoản khác gửi tin vào một nhóm trong `config.targets`. Terminal 1 in `[watch] queued "<tên nhóm>"`; file `data\.scrape-events-<ngày>.jsonl` có thêm một dòng chứa tên nhóm đó (xem nhanh hàng chờ bằng `npm run runner:status`).
+4. Terminal 2: `npm run bot:scrape`. Kết quả đúng: nhóm được cào, `data\<groupId>.json` có tin mới, hàng chờ rỗng (`runner:status`). (Khi `bot:runner` đang chạy thì nó làm bước này và các bước 5 đến 8 giúp bạn: xem mục 8.1b.)
 5. `npm run sync:db` (chạy thử), rồi `npm run sync:db -- --apply` khi thấy số liệu hợp lý.
 6. `npm run extract:reports -- --buoi <buổi hiện tại>`, xem `output\review.json`.
 7. `npm run fill:report -- output/output.json`.
@@ -183,7 +185,8 @@ Xem tình trạng bất cứ lúc nào:
 | Lệnh | Cho biết |
 |---|---|
 | `npm run watch:status` | `bot:watch` đang chạy, đã dừng hay có vẻ đã chết; hai nguồn phát hiện; các khoảng gián đoạn 24 giờ qua |
-| `npm run runner:status` | Runner sống hay chết, vòng gần nhất, hàng chờ, các buổi có báo cáo chưa dựng |
+| `npm run runner:status` | Runner sống hay chết, vòng gần nhất (thời gian từng bước, từng nhóm), hàng chờ, các buổi có báo cáo chưa dựng |
+| `npm run runner:timing -- --last 50` | Thống kê thời gian: mỗi vòng mất bao lâu, mỗi nhóm cào mất bao lâu (trung bình, p95, lâu nhất), ước tính cào 100 nhóm. Cho ra số thật để biết hệ thống chịu được bao nhiêu nhóm |
 | `npm run chat:status` | Bot chat sống hay chết, gửi thật hay dry-run, nhóm nào, số tin chờ |
 | `npm run config:show` | Toàn bộ cấu hình đang dùng |
 
@@ -232,11 +235,12 @@ Sửa đường dẫn theo máy của bạn. Cách khác là PM2 chạy như d�
 3. `npm run bot:chat` (cửa sổ riêng), rồi `npm run chat:status` để xem trạng thái.
 4. Giữ chạy nền bằng tác vụ Windows tương tự runner: `schtasks /Create /TN "Zalo Chat" /SC ONLOGON /TR "cmd /c cd /d <đường dẫn>\zca-scrape-message && npm run bot:chat >> data\chat.log 2>&1" /F`.
 
-Cách viết một tình huống: `when` gồm `loaiBaoCao` (`DauBuoi`/`CuoiBuoi`), `mayLoi: true` (số máy lỗi lớn hơn 0 hoặc có ghi chú như "IT bảo trì"; số 0 thì không khớp) và `keywords` (không phân biệt dấu và hoa thường); các tình huống được xét theo thứ tự và tình huống đầu tiên khớp thì trả lời. `reply` có thể chèn `{senderName}`. Tin không khớp tình huống nào thì bị bỏ qua và **không có dòng log nào** cho nó. Gõ sai chính tả thật sự (không chỉ thiếu dấu hoặc sai chữ hoa) thì không khớp; muốn bắt cụm hay gõ sai thì thêm cụm đó vào `keywords`.
+Cách viết một tình huống: `when` gồm `loaiBaoCao` (`DauBuoi`/`CuoiBuoi`), `mayLoi: true` (số máy lỗi lớn hơn 0 hoặc có ghi chú như "IT bảo trì"; số 0 thì không khớp) và `keywords` (không phân biệt dấu và hoa thường); các tình huống được xét theo thứ tự và tình huống đầu tiên khớp thì trả lời. `reply` có thể chèn `{senderName}`. **Gắn thẻ người (@):** thêm `"mention": ["Nguyễn Trọng Phúc"]` vào một tình huống (tối đa 5 tên, đúng như hiện trong danh sách thành viên của nhóm) thì bot gõ `@`, gõ luôn tên người đó để danh sách gợi ý của Zalo thu về đúng người (nếu Zalo không thu gọn thì xóa phần tên vừa gõ và tìm trong danh sách đầy đủ bằng phím mũi tên), chọn đúng người rồi mới gõ `reply`, kết quả là tin `@Nguyễn Trọng Phúc <reply>` với thẻ thật. Bot **không bao giờ** gắn thẻ cả nhóm (@All), và **không gửi gì** nếu không gắn được thẻ (không thấy tên, hai người trùng tên, danh sách không hiện, Enter không tạo thẻ): nó xóa bản nháp và ghi log `gắn thẻ @...: <lý do>`. Trong `reply` còn dùng được `{soMayLoi}` (số máy lỗi trong báo cáo, hoặc chữ như "IT bảo trì") và `{chiTietLoi}` (ghi chú trong ngoặc, ví dụ "máy 35 không lên; máy 41 hỏng màn hình"; không có ghi chú thì là "<n> máy lỗi"). Ví dụ: `"mention": ["Nguyễn Trọng Phúc"], "reply": "{chiTietLoi}. Ghi nhận kiểm tra."` gửi `@Nguyễn Trọng Phúc máy 35 không lên; máy 41 hỏng màn hình. Ghi nhận kiểm tra.` Tin không khớp tình huống nào thì bị bỏ qua và **không có dòng log nào** cho nó. Gõ sai chính tả thật sự (không chỉ thiếu dấu hoặc sai chữ hoa) thì không khớp; muốn bắt cụm hay gõ sai thì thêm cụm đó vào `keywords`.
 
 - **Dừng khẩn cấp:** tạo tệp `data\.chat-off` (bot vẫn đọc hộp thư nhưng không gửi gì); xóa tệp để gửi lại.
 - **Nhóm chỉ chat, không cào:** thêm `"scrape": false` vào nhóm trong `chat-rules.json` (ví dụ `"bot test": { "scrape": false, "rules": [...] }`). Tin của nhóm vẫn vào hộp thư chat để bot trả lời, nhưng nhóm không vào hàng chờ cào và runner không khôi phục nó. Khởi động lại `bot:watch`, `bot:runner` và `bot:chat` sau khi đổi.
 - Bot không trả lời tin quá `maxReplyDelaySeconds`, không lặp lại cùng một tình huống trong `cooldownSecondsPerRule`, và không gửi quá `maxRepliesPerMinute` tin mỗi phút. Ô soạn tin đang có chữ dở (bạn đang gõ) thì bot hoãn (nghỉ `chat.skipBackoffSeconds` rồi thử lại), không gõ đè.
+- Sau khi trả lời, bot **ở lại nhóm vừa gửi** (ví dụ `bot test`) theo mặc định. Đặt `chat.restorePreviousConversation: true` trong `config.ts` (rồi khởi động lại `bot:chat`) nếu muốn nó quay về cuộc trò chuyện Zalo Desktop đang mở trước đó (ví dụ nhóm mà runner vừa cào xong).
 - Tài khoản dùng cho bot nên dành riêng: việc tự động gửi tin có thể bị Zalo coi là bất thường, và mỗi lần gửi bot chuyển cuộc trò chuyện đang mở.
 
 ### 8.1d. Thêm một nhóm mới
@@ -328,7 +332,7 @@ Kết quả nằm ở `data\export\baocaobuoi<buoi>_<ddMMyy>.xlsm`. Mô tả đ�
 ## 10. Danh sách kiểm tra trước khi bật tự động
 
 - [ ] `npm test` và `npm run typecheck` đạt.
-- [ ] `npx tsx dbCheck.ts` kết nối được DB.
+- [ ] `npx tsx src/cli/debug/db-check.ts` kết nối được DB.
 - [ ] `npm run config:show` cho thấy các giá trị bạn chủ ý (khóa khác mặc định có dấu `*`); `targets` đúng tên nhóm thật.
 - [ ] Một lượt chạy tay (mục 5) cho ra file Excel đúng.
 - [ ] Skill V2 đã có trong `skills\` và skill cũ cùng câu kích hoạt đã gỡ.

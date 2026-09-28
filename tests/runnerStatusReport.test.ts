@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { STALE_AFTER_MS } from "../history/watchState.js";
-import { formatRunnerStatus } from "../runner/runnerStatusReport.js";
-import type { CycleSummary, RunnerState } from "../runner/runnerState.js";
+import { STALE_AFTER_MS } from "../src/watch/watchState.js";
+import { formatRunnerStatus } from "../src/runner/runnerStatusReport.js";
 import { at, DAY } from "./fixtures.js";
+import type { CycleSummary, RunnerState } from "../src/types/index.js";
 
 const NOW = at(10, 0);
 const state = (over: Partial<RunnerState> = {}): RunnerState => ({ pid: 777, startedAt: at(7, 0), lastBeat: NOW - 5_000, state: "idle", consecutiveFailures: 0, ...over });
@@ -65,4 +65,25 @@ test("a build error is shown apart from cycle errors", () => {
     const t = text({ state: state({ lastCycle: cycle({ buildErrors: ["2026-09-24 sang: template missing"] }) }) });
     assert.match(t, /vòng gần nhất lúc 09:40: OK/);
     assert.match(t, /lỗi dựng: 2026-09-24 sang: template missing/);
+});
+
+test("the last cycle shows how long it took, per step, and how long each group took", () => {
+    const t = text({
+        state: state({
+            lastCycle: cycle({
+                durationMs: 125_000,
+                stepMs: { recover: 0, scrape: 90_000, load: 2_000, sync: 13_000, build: 20_000 },
+                timings: [
+                    { target: "LC_A", ms: 12_300, ok: true },
+                    { target: "LC_B", ms: 8_000, ok: false },
+                ],
+            }),
+        }),
+    });
+    assert.match(t, /thời gian: 125,0 s \(khôi phục 0,0 s, cào 90,0 s, nạp tin 2,0 s, đồng bộ DB 13,0 s, dựng Excel 20,0 s\)/);
+    assert.match(t, /cào từng nhóm: LC_A 12,3 s, LC_B 8,0 s \(lỗi\)/);
+});
+
+test("a last cycle written before timings existed shows no timing lines", () => {
+    assert.doesNotMatch(text({ state: state({ lastCycle: cycle() }) }), /thời gian:|cào từng nhóm/);
 });

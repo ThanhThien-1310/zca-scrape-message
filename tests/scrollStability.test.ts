@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextStableRounds } from "../history/scrollStability.js";
+import { nextStableRounds } from "../src/scrape/scrollStability.js";
 
 test("progress resets the counter", () => {
     assert.equal(nextStableRounds(1200, 800, 2), 0);

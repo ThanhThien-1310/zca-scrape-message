@@ -8,7 +8,7 @@ const testsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 /**
  * Chạy `body` trong một tiến trình Node riêng, SAU khi đổi giá trị của `config` (mã trong `mutate`), rồi trả về
  * giá trị `body` trả ra. Cần vì các hằng số của module được tính một lần lúc nạp: đây là cách kiểm chúng thật sự lấy từ config.
- * Trong `mutate` và `body`, `config` đã có sẵn; nạp module bằng `await import("../history/watchState.js")` (đường dẫn tính từ thư mục tests/).
+ * Trong `mutate` và `body`, `config` đã có sẵn; nạp module bằng `await import("../src/watch/watchState.js")` (đường dẫn tính từ thư mục tests/).
  */
 export function probe(mutate: string, body: string): unknown {
     const file = path.join(testsDir, `.config-probe-${process.pid}-${Date.now()}.ts`);

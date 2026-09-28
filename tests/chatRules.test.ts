@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DEFAULT_LIMITS, groupNamesFromFile, loadRules, makeChatGroupsReader, makeGroupNameReader, noScrapeGroupsFromFile, parseRules, recoveryIgnoreWith } from "../chat/rules.js";
+import { DEFAULT_LIMITS, groupNamesFromFile, loadRules, makeChatGroupsReader, makeGroupNameReader, noScrapeGroupsFromFile, parseRules, recoveryIgnoreWith } from "../src/chat/rules.js";
 
 const TARGETS = ["bot test", "LC_HoaSen1_TĐ"];
 const valid = (): any => ({
@@ -135,4 +135,32 @@ test("recoveryIgnoreWith adds the chat-only groups to the configured ignore list
     fs.writeFileSync(file, JSON.stringify({ groups: { "bot test": { scrape: false }, "LC_X": { scrape: false }, "LC_Y": {} } }), "utf8");
     assert.deepEqual(recoveryIgnoreWith(["bot test"], file).sort(), ["LC_X", "bot test"]);
     assert.deepEqual(recoveryIgnoreWith(["bot test"], path.join(path.dirname(file), "missing.json")), ["bot test"]);
+});
+
+// ---- mention ----
+const withMention = (mention: unknown) => failing((j) => (j.groups["bot test"].rules[0].mention = mention));
+
+test("a rule may name the people to tag", () => {
+    const j = valid();
+    j.groups["bot test"].rules[0].mention = ["Nguyễn Trọng Phúc", "Mai Anh Khoa"];
+    const r = parseRules(j, TARGETS);
+    assert.deepEqual(r.groups["bot test"].rules[0].mention, ["Nguyễn Trọng Phúc", "Mai Anh Khoa"]);
+    assert.equal(r.groups["bot test"].rules[1].mention, undefined);
+});
+
+test("mention must be a non-empty list of distinct names, at most five, and never everyone", () => {
+    assert.throws(withMention("Nguyễn Trọng Phúc"), /"mention" phải là mảng tên/);
+    assert.throws(withMention([]), /"mention" phải là mảng tên/);
+    assert.throws(withMention([""]), /"mention" phải là mảng tên/);
+    assert.throws(withMention([5]), /"mention" phải là mảng tên/);
+    assert.throws(withMention(["An", "an"]), /trùng/);
+    assert.throws(withMention(["A", "B", "C", "D", "E", "F"]), /tối đa 5/);
+    for (const all of ["All", "@All", "@all", "Báo cho cả nhóm", "cả nhóm"]) assert.throws(withMention([all]), /cả nhóm/, all);
+});
+
+test("the reply may use {soMayLoi} and {chiTietLoi}; other variables are still refused", () => {
+    const ok = valid();
+    ok.groups["bot test"].rules[0].reply = "{chiTietLoi} ({soMayLoi} máy), cảm ơn {senderName}";
+    assert.doesNotThrow(() => parseRules(ok, TARGETS));
+    assert.throws(failing((j) => (j.groups["bot test"].rules[0].reply = "x {tenNguoi}")), /biến lạ \{tenNguoi\}/);
 });

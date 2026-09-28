@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateConfig } from "./configCheck.js";
+import { validateConfig } from "./src/config/configCheck.js";
 
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,7 +38,7 @@ function findZaloExe(): string | null {
  * ĐÂY LÀ FILE DUY NHẤT CẦN SỬA để chỉnh cách các bot chạy. Chia 8 mục; mỗi thông số có ghi chú ý nghĩa, đơn vị và ví dụ.
  * Đổi giá trị xong thì KHỞI ĐỘNG LẠI bot liên quan (bot chỉ đọc file này lúc khởi động).
  * Xem toàn bộ giá trị hiện tại (khóa khác mặc định có dấu *): `npm run config:show`.
- * Giá trị sai bị từ chối khi khởi động, kèm tên khóa sai (xem configCheck.ts).
+ * Giá trị sai bị từ chối khi khởi động, kèm tên khóa sai (xem src/config/configCheck.ts).
  */
 export const config = {
     // ═══════════════════════════════════════════════════════════════════════
@@ -90,6 +90,16 @@ export const config = {
      * chúng. Phải là tập con của targets. Ví dụ: ["bot test"].
      */
     recoveryIgnoreTargets: ["bot test"] as string[],
+
+    /**
+     * Nhóm THỬ được ĐỌC NHƯ một nhóm trường thật khi trích xuất báo cáo: tên nhóm thử -> tên một nhóm trường thật, theo kiểu đặt tên
+     * nhóm thật (cấp học_tên trường_khu vực). Nhờ vậy báo cáo gửi vào nhóm thử có trường, khu vực, mã phòng và ra một dòng trong Excel,
+     * để chạy thử cả quy trình. Phòng máy lấy từ chính tin nhắn: ghi "Phòng Máy: PM3" để không trùng phòng thật PM1.
+     * CHỈ ĐỂ THỬ: dòng của nhóm thử nằm trong file Excel THẬT của buổi. Khi thử xong, xóa dòng này (đặt {}), khởi động lại bot rồi dựng lại
+     * buổi (npm run runner:once -- --day <ngày> --buoi <buổi>) thì dòng đó biến mất. Khóa phải nằm trong targets. Mặc định: {}.
+     * Ví dụ: { "bot test": "LC_ChuVănAn_BTAN" }.
+     */
+    groupAliases: { "bot test": "LC_ChuVănAn_BTAN" } as Record<string, string>,
 
     // ═══════════════════════════════════════════════════════════════════════
     // 3. CÀO
@@ -157,7 +167,7 @@ export const config = {
          * MỚI NHẤT của nhóm nằm trong hàng chờ. Ví dụ: nhóm A nhắn lúc 08:00:00 và tin cuối 08:00:20, đặt 120 thì cào lúc 08:02:20;
          * đặt 30 thì cào lúc 08:00:50 (nhanh hơn nhưng nhiều vòng nhỏ chiếm giao diện Zalo hơn). Đơn vị: giây.
          */
-        quietSeconds: 120,
+        quietSeconds: 30,
 
         /**
          * Trần chờ tính từ lúc nhóm ĐẦU TIÊN vào hàng chờ, để nhóm nhắn liên tục không bị hoãn mãi. Ví dụ: nhóm vào hàng chờ
@@ -193,6 +203,21 @@ export const config = {
          * báo LỖI; hàng chờ vẫn giữ nguyên, phải khởi động lại tay. Đơn vị: số vòng.
          */
         maxConsecutiveFailures: 3,
+
+        /**
+         * Một nhóm cào LỖI (ví dụ không tìm thấy trong thanh bên Zalo) vẫn ở lại hàng chờ và được thử lại ở vòng sau,
+         * tối đa bấy nhiêu lần tất cả; hết số lần thì bỏ khỏi hàng chờ và ghi log. Đơn vị: lần. Ví dụ 3: thử lần 1, 2, 3 rồi bỏ.
+         * Đặt 1 nếu muốn nhóm lỗi bị bỏ ngay như trước.
+         */
+        maxScrapeAttempts: 3,
+
+        /**
+         * Hàng chờ cào (data/.scrape-events-<ngày>.jsonl) chỉ được nối thêm nên tự dọn theo ngày: sau mỗi lần cào, file sự kiện
+         * của những ngày Việt Nam CŨ HƠN bấy nhiêu ngày bị xóa. Ngày hôm nay luôn được giữ. Ví dụ 3: đang là 26/09 thì giữ 23, 24, 25, 26
+         * và xóa từ 22 trở về trước; một nhóm nằm chờ ở file đã xóa sẽ mất khỏi hàng chờ. Đặt 1 để chỉ giữ hôm nay và hôm qua
+         * (file nhỏ nhất), đặt 7 nếu muốn giữ cả tuần. Đơn vị: ngày.
+         */
+        queueKeepDays: 3,
     },
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -235,6 +260,14 @@ export const config = {
          * Tin cùng nội dung do người gõ sau khoảng này thì không bị nuốt. Đơn vị: giây.
          */
         echoWindowSeconds: 120,
+
+        /**
+         * Sau khi gửi xong một câu trả lời, bot có mở lại cuộc trò chuyện mà Zalo Desktop đang hiện TRƯỚC ĐÓ hay không.
+         * false (mặc định): ở lại nhóm vừa trả lời (ví dụ bot test), ít thao tác giao diện hơn và bạn thấy ngay kết quả khi thử.
+         * true: quay về nhóm cũ, dùng khi có người đang xem Zalo Desktop này và không muốn màn hình bị đổi. Ví dụ: runner vừa
+         * cào nhóm LC_A và để nó mở; đặt true thì sau khi trả lời ở bot test, Zalo quay về LC_A. Kiểu: true hoặc false.
+         */
+        restorePreviousConversation: false,
     },
 
     // ═══════════════════════════════════════════════════════════════════════

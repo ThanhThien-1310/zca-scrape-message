@@ -1,16 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateConfig, type ConfigShape } from "../configCheck.js";
+import { validateConfig } from "../src/config/configCheck.js";
+import type { ConfigShape } from "../src/types/index.js";
 
 const good = (): ConfigShape => ({
     targets: ["bot test", "LC_HoaSen1_TĐ"],
     recoveryIgnoreTargets: ["bot test"],
+    groupAliases: {},
     targetMessageCount: 2000,
     scrollDelayMs: { min: 500, max: 1200 },
     watch: { heartbeatSeconds: 30, deadAfterSeconds: 90, minBlindSeconds: 60 },
-    runner: { quietSeconds: 120, maxWaitSeconds: 600, pollSeconds: 5, dirtyCheckSeconds: 60, dirtyRetrySeconds: 300, watchWarmupSeconds: 90, maxConsecutiveFailures: 3 },
+    runner: { quietSeconds: 120, maxWaitSeconds: 600, pollSeconds: 5, dirtyCheckSeconds: 60, dirtyRetrySeconds: 300, watchWarmupSeconds: 90, maxConsecutiveFailures: 3, maxScrapeAttempts: 3, queueKeepDays: 3 },
     recovery: { marginMinutes: 5 },
-    chat: { pollSeconds: 3, heartbeatSeconds: 30, skipBackoffSeconds: 45, sentLedgerMinutes: 10, echoWindowSeconds: 120 },
+    chat: { pollSeconds: 3, heartbeatSeconds: 30, skipBackoffSeconds: 45, sentLedgerMinutes: 10, echoWindowSeconds: 120, restorePreviousConversation: false },
     sessions: { chieuFromHour: 12, toiFromHour: 18 },
 });
 const bad = (mutate: (c: ConfigShape) => void) => {
@@ -30,7 +32,19 @@ test("every seconds/minutes value must be a positive whole number, and the error
     assert.throws(bad((c) => (c.recovery.marginMinutes = Number.NaN)), /recovery\.marginMinutes/);
     assert.throws(bad((c) => (c.chat.skipBackoffSeconds = "45" as unknown as number)), /chat\.skipBackoffSeconds/);
     assert.throws(bad((c) => (c.runner.maxConsecutiveFailures = 0)), /runner\.maxConsecutiveFailures/);
+    assert.throws(bad((c) => (c.runner.queueKeepDays = 0)), /runner.queueKeepDays/);
+    assert.throws(bad((c) => (c.chat.restorePreviousConversation = "yes" as unknown as boolean)), /chat.restorePreviousConversation.*true hoặc false/);
+    assert.throws(bad((c) => (c.runner.maxScrapeAttempts = 0)), /runner.maxScrapeAttempts/);
     assert.throws(bad((c) => (c.targetMessageCount = 0)), /targetMessageCount/);
+});
+
+test("groupAliases: keys must be tracked groups and values must read as a real school group", () => {
+    assert.deepEqual(bad((c) => (c.groupAliases = { "bot test": "LC_ChuVănAn_BTAN" }))(), []);
+    assert.throws(bad((c) => (c.groupAliases = { "nhóm lạ": "LC_ChuVănAn_BTAN" })), /groupAliases.*"nhóm lạ".*targets/);
+    assert.throws(bad((c) => (c.groupAliases = { "bot test": "bot test" })), /groupAliases.*"bot test".*trường/);
+    assert.throws(bad((c) => (c.groupAliases = { "bot test": "" })), /groupAliases/);
+    assert.throws(bad((c) => (c.groupAliases = { "bot test": 5 as unknown as string })), /groupAliases/);
+    assert.throws(bad((c) => (c.groupAliases = [] as unknown as Record<string, string>)), /groupAliases phải là/);
 });
 
 test("quietSeconds may equal maxWaitSeconds but not exceed it", () => {

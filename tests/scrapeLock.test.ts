@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { acquireScrapeLock, releaseScrapeLock } from "../history/scrapeLock.js";
+import { acquireScrapeLock, releaseScrapeLock } from "../src/core/scrapeLock.js";
 
 const fresh = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "lock-")), "data", ".scrape.lock");
 const alive = () => true;

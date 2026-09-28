@@ -37,7 +37,7 @@ Hai hướng khác đã thử và bỏ:
 
 Playwright's `connectOverCDP` không attach thẳng được vào Electron của Zalo
 Desktop (lỗi `Browser.setDownloadBehavior`, do bản CDP cũ — Electron
-22 / Chrome 108). Vì vậy `history/cdp.ts` tự cài một client CDP tối giản qua
+22 / Chrome 108). Vì vậy `src/scrape/cdp.ts` tự cài một client CDP tối giản qua
 WebSocket thô (`Runtime.evaluate`, và `Input.*` cho việc gõ của `bot:chat`)
 thay vì dùng Playwright.
 
@@ -45,7 +45,7 @@ thay vì dùng Playwright.
 
 | Chế độ | Lệnh | Mô tả |
 |---|---|---|
-| Theo dõi thời gian thực | `npm run bot:watch` | Đứng chạy liên tục, **nơi duy nhất nghe tin** (WebSocket nội bộ của Zalo Desktop — xem `history/realtimeListener.ts` — và popup thông báo). Mỗi tin nó chia vào hai luồng: hàng chờ cào `data/.scrape-queue.json` và hộp thư chat `data/.chat-inbox.jsonl`. Không cào, không ghi `data/<groupId>.json`. |
+| Theo dõi thời gian thực | `npm run bot:watch` | Đứng chạy liên tục, **nơi duy nhất nghe tin** (WebSocket nội bộ của Zalo Desktop — xem `src/watch/realtimeListener.ts` — và popup thông báo). Mỗi tin nó chia vào hai luồng: hàng chờ cào `data/.scrape-events-<ngày>.jsonl` và hộp thư chat `data/.chat-inbox.jsonl`. Không cào, không ghi `data/<groupId>.json`. |
 | Tự động cào và dựng báo cáo | `npm run bot:runner` | Chạy nền: hàng chờ có nhóm và yên lặng thì cào, đồng bộ DB, trích xuất, ghi đè Excel của buổi, đánh dấu tin; tự khôi phục khi `bot:watch` từng gián đoạn. |
 | Quét theo hàng chờ (tay) | `npm run bot:scrape` | Chạy tay khi runner không chạy: đọc hàng chờ, chỉ mở các nhóm đang có trong đó, cuộn lấy lịch sử, xóa các nhóm vừa xử lý khỏi hàng chờ rồi thoát. Hàng chờ rỗng thì thoát ngay, không đụng Zalo Desktop. |
 | Xếp nhóm vào hàng chờ | `npm run scrape:add -- "Tên nhóm"` | Xếp nhóm (phải có trong `config.targets`) vào hàng chờ bằng tay: nhóm mới chưa từng cào, hoặc ép cào lại. Chỉ ghi file, không đụng Zalo. |
@@ -59,7 +59,7 @@ thay vì dùng Playwright.
 Kho `data/<groupId>.json` (1 file JSON dạng mảng cho mỗi cuộc trò chuyện,
 dedupe theo `msgId`) do các tiến trình **có cào** ghi: `bot:runner`,
 `bot:scrape` và `recover:missing`. `bot:watch` và `bot:scrape` phối hợp qua
-**hàng chờ** `data/.scrape-queue.json` (danh sách tên nhóm, không trùng):
+**hàng chờ** `data/.scrape-events-<ngày>.jsonl` (mỗi tin một dòng chỉ được nối thêm; hàng chờ là các nhóm còn dòng chưa cào):
 `bot:watch` thêm vào, runner (hoặc `bot:scrape`) đọc, cào đúng các nhóm đó rồi
 xóa đúng các nhóm vừa xử lý (nhóm được thêm trong lúc đang cào vẫn còn). Vì
 `bot:watch` không bao giờ điều khiển giao diện Zalo Desktop nên chạy song song
@@ -111,6 +111,7 @@ npm run config:show     # in toàn bộ giá trị theo mục kèm đơn vị, m
 | `dataDir` | Thư mục gốc chứa `data/` (1 file `.json` mỗi nhóm). |
 | `targets` | Danh sách **tên hiển thị chính xác** của hội thoại/nhóm cần lấy, đúng như hiện trên sidebar Zalo Desktop. Chỉ nhóm ở đây mới được theo dõi, cào và (nếu có trong `chat-rules.json`) trả lời. Hỗ trợ nhiều nhóm cùng lúc — xem ghi chú hiệu năng bên dưới. |
 | `recoveryIgnoreTargets` | Nhóm không bao giờ gửi báo cáo buổi dạy (nhóm thử): khôi phục không coi chúng là "thiếu báo cáo" và không cào lại. Phải là tập con của `targets`. |
+| `groupAliases` | Chỉ để thử/demo: `{ "bot test": "LC_ChuVănAn_BTAN" }` làm cho báo cáo gửi vào nhóm thử được đọc như của nhóm trường thật đó (có trường, khu vực, mã phòng) nên ra dòng trong Excel; ghi "Phòng Máy: PM3" trong tin để không trùng phòng thật PM1. Dòng của nhóm thử nằm trong Excel THẬT của buổi; thử xong đặt `{}` rồi `runner:once` dựng lại buổi. |
 | `sinceTs` | Mốc thời gian **chặn dưới** (unix ms) cho `bot:scrape` chạy tay. Dùng `todayAt(giờ, phút)` — tính **một lần lúc bot khởi động** (`new Date()` mỗi lần `config.ts` được import), nên bot chạy qua đêm giữ mốc của hôm qua. `null` = không chặn dưới. `bot:runner` không dùng nó: nó tự tính lại mỗi vòng (từ đầu ngày hôm nay). |
 | `untilTs` | Mốc thời gian **chặn trên** (unix ms), **chỉ áp dụng cho `bot:scrape` chạy tay** (runner và khôi phục luôn cào đến hiện tại). Chỉ lọc kết quả cuối, không ảnh hưởng việc cuộn. `null` = không chặn trên. Dùng để cố định khung giờ (VD 8h–12h) không bị trôi nếu job chạy trễ. |
 | `targetMessageCount` | Giới hạn an toàn số tin tối đa lấy mỗi nhóm mỗi lần chạy. |
@@ -123,7 +124,7 @@ Các thông số vận hành nằm trong các đối tượng con (mặc định
 | `watch` | `heartbeatSeconds` 30, `deadAfterSeconds` 90, `minBlindSeconds` 60 |
 | `runner` | `quietSeconds` 120, `maxWaitSeconds` 600, `pollSeconds` 5, `dirtyCheckSeconds` 60, `dirtyRetrySeconds` 300, `watchWarmupSeconds` 90, `maxConsecutiveFailures` 3 |
 | `recovery` | `marginMinutes` 5 |
-| `chat` | `pollSeconds` 3, `heartbeatSeconds` 30, `skipBackoffSeconds` 45, `sentLedgerMinutes` 10, `echoWindowSeconds` 120 |
+| `chat` | `pollSeconds` 3, `heartbeatSeconds` 30, `skipBackoffSeconds` 45, `sentLedgerMinutes` 10, `echoWindowSeconds` 120, `restorePreviousConversation` false |
 | `sessions` | `chieuFromHour` 12, `toiFromHour` 18 |
 
 **Ví dụ khung giờ:**
@@ -141,10 +142,10 @@ Các thông số vận hành nằm trong các đối tượng con (mặc định
 
 Mỗi lần cào (`bot:scrape`, hay một vòng của `bot:runner`):
 
-0. **Giữ khóa Zalo** (`data/.scrape.lock`, `history/scrapeLock.ts`). Đang có
+0. **Giữ khóa Zalo** (`data/.scrape.lock`, `src/core/scrapeLock.ts`). Đang có
    tiến trình khác điều khiển giao diện thì `bot:scrape` từ chối và báo ai
    đang giữ; runner thì thử lại sau.
-1. **`ensureZaloReady()`** (`history/desktopScraper.ts`): kiểm tra cổng
+1. **`ensureZaloReady()`** (`src/scrape/desktopScraper.ts`): kiểm tra cổng
    debug CDP (`config.cdpPort`) đã mở chưa.
    - Nếu **chưa**: tắt hẳn mọi tiến trình `Zalo.exe` đang chạy
      (`taskkill /IM Zalo.exe /F`) rồi mở lại kèm
@@ -178,11 +179,11 @@ Mỗi lần cào (`bot:scrape`, hay một vòng của `bot:runner`):
 ### Chế độ theo dõi thời gian thực (`watch`)
 
 `npm run bot:watch` đứng chạy liên tục và phát hiện ngay khi có tin mới, từ
-**2 nguồn** độc lập (`history/watch.ts`); mỗi lần phát hiện chỉ ghi tên nhóm
+**2 nguồn** độc lập (`src/watch/watch.ts`); mỗi lần phát hiện chỉ ghi tên nhóm
 vào hàng chờ (không mở giao diện, không cào, không lưu tin), và nếu nhóm nằm
 trong `chat-rules.json` thì ghi thêm tin chữ vào hộp thư chat:
 
-1. **WebSocket nội bộ của Zalo Desktop (`history/realtimeListener.ts`,
+1. **WebSocket nội bộ của Zalo Desktop (`src/watch/realtimeListener.ts`,
    nhanh nhất)** — Zalo Desktop tự mở 1 kết nối WebSocket tới backend chat
    của nó để tự cập nhật UI; bot chỉ **quan sát** kết nối đó qua CDP
    `Network` domain (không tạo kết nối riêng, không cần đăng nhập gì thêm).
@@ -210,10 +211,10 @@ lên tệp đang bị tiến trình khác đọc) được thử lại và khôn
 
 ### Hàng chờ giữa `bot:watch` và `bot:scrape`
 
-- File: `data/.scrape-queue.json` — mảng JSON tên nhóm đúng như `config.targets`, không trùng. Ghi nguyên tử (file tạm rồi đổi tên, có thử lại trên Windows). Hai tệp phụ: `data/.scrape-queue-meta.json` (thời điểm từng nhóm vào hàng chờ, cho thời gian chờ yên lặng của runner) và `data/.scrape-queue-seen.json` (tin đến cho một nhóm đang nằm sẵn trong hàng chờ, để nhóm đó không bị xóa nhầm nếu tin ấy đến sau lúc bắt đầu cào).
+- File: `data/.scrape-events-<ngày>.jsonl` (một file mỗi ngày Việt Nam), mỗi dòng `{"t": tên nhóm đúng như config.targets, "at": thời điểm}`. **Chỉ được nối thêm**: `bot:watch` và `scrape:add` không đọc-sửa-ghi lại file nào, nên không thể ghi đè lẫn nhau (bản cũ dùng một file JSON chung và có thể làm mất nhóm khi watch và runner ghi cùng lúc). Tệp thứ hai `data/.scrape-events.handled.jsonl` do runner hoặc `bot:scrape` (đang giữ khóa) nối thêm sau mỗi lần cào: nó ghi từng file ngày đã đọc tới byte nào. Một nhóm nằm trong hàng chờ khi còn dòng của nó nằm sau mốc đó; dùng vị trí byte thay vì đồng hồ nên tin đến đúng lúc bắt đầu cào cũng không bị nuốt. File sự kiện cũ hơn `runner.queueKeepDays` ngày (mặc định 3, không tính hôm nay) tự bị xóa sau mỗi lần cào. Hàng chờ cũ `data/.scrape-queue.json` (nếu còn) được nhập một lần khi watch, runner hoặc `bot:scrape` khởi động, rồi đổi tên `.migrated`.
 - `bot:watch` chỉ **thêm** tên nhóm khi phát hiện tin mới (trừ nhóm chỉ chat `"scrape": false`). Không bao giờ chạm vào giao diện Zalo Desktop. Có thể thêm tay: `npm run scrape:add -- "Tên nhóm"`.
-- Runner (hoặc `bot:scrape` chạy tay) chụp lại hàng chờ, cào đúng các nhóm đó rồi xóa đúng các nhóm vừa xử lý; nhóm được thêm trong lúc đang cào vẫn còn cho lần sau. Hàng chờ rỗng: thoát ngay, in `hàng chờ rỗng`.
-- Nhóm lỗi hoặc không có tin vẫn bị xóa khỏi hàng chờ và được ghi log; nếu không kết nối được Zalo Desktop thì không xóa gì.
+- Runner (hoặc `bot:scrape` chạy tay) chụp lại hàng chờ (kèm mốc byte), cào đúng các nhóm đó rồi đánh dấu đã cào tới mốc; nhóm hoặc tin được thêm trong lúc đang cào nằm sau mốc nên vẫn còn cho lần sau. Hàng chờ rỗng: thoát ngay, in `hàng chờ rỗng`.
+- Nhóm cào **lỗi** vẫn ở lại hàng chờ và được thử lại ở vòng sau (tối đa `runner.maxScrapeAttempts` lần, mặc định 3, mỗi lần cách nhau thời gian yên lặng); hết số lần thì bỏ khỏi hàng chờ, ghi log và một cảnh báo trong vòng của runner kèm lệnh `scrape:add` để cào lại. Nhóm không có tin mới vẫn được coi là đã cào. Nếu không kết nối được Zalo Desktop thì không đánh dấu gì.
 - Chỉ các tiến trình giữ khóa `data/.scrape.lock` mới điều khiển giao diện, nên không còn nguy cơ 2 tiến trình cùng click/cuộn 1 cửa sổ Zalo.
 
 > [!NOTE]
@@ -257,8 +258,8 @@ npm run zalo:debug
 ```
 
 Lệnh này chỉ gọi `ensureZaloReady()` rồi in ra URL debug và thoát, **không**
-đụng vào `config.targets` hay `data/`. `debug-active-conversation.ts` và
-`debug-zalo.ts` ở thư mục gốc là các script chẩn đoán một lần dùng để dò
+đụng vào `config.targets` hay `data/`. `src/cli/debug/active-conversation.ts` và
+`src/cli/debug/zalo.ts` ở thư mục gốc là các script chẩn đoán một lần dùng để dò
 lại selector khi Zalo Desktop đổi giao diện.
 
 Kiểm tra cổng debug đã mở chưa:
@@ -276,7 +277,8 @@ Có kết quả JSON (không lỗi connection refused) nghĩa là CDP đã sẵn
 
 ```bash
 npm run bot:runner                                   # chạy nền; không khởi động lại bot:watch (một lần cào vẫn mở lại Zalo nếu cổng debug đóng, như bot:scrape)
-npm run runner:status                                # sống hay chết, vòng gần nhất, hàng chờ, buổi chưa dựng xong (thoát mã 2 nếu không sống)
+npm run runner:status                                # sống hay chết, vòng gần nhất (kèm thời gian từng bước và từng nhóm), hàng chờ, buổi chưa dựng xong (thoát mã 2 nếu không sống)
+npm run runner:timing -- [--last N]                  # thống kê thời gian các vòng và thời gian cào từng nhóm (trung bình, p95, lâu nhất) từ output/runner-log.jsonl
 npm run runner:once -- [--day D] [--buoi B]          # dựng lại MỘT buổi, không cào (dùng sau khi sửa output/overrides.json)
 ```
 
@@ -291,7 +293,7 @@ npm run bot:chat        # chạy nền; nạp lại chat-rules.json khi tệp đ
 npm run chat:status     # còn sống không, gửi thật hay dry-run, nhóm nào, còn bao nhiêu tin chờ (thoát mã 2 nếu không sống)
 ```
 
-`chat-rules.json` (mẫu: `docs/superpowers/specs/2026-09-25-bot-chat-rules.sample.json`): `dryRun`; `limits` (`maxRepliesPerMinute`, `maxReplyDelaySeconds`, `cooldownSecondsPerRule`); `groups` với tên nhóm (bắt buộc thuộc `config.targets`) và `rules` xét theo thứ tự, tình huống đầu tiên khớp thì trả lời. `when`: `loaiBaoCao` (`DauBuoi`/`CuoiBuoi`), `mayLoi: true` (số máy lỗi > 0 hoặc có ghi chú như "IT bảo trì"; số 0 thì không), `keywords` (không phân biệt dấu và hoa thường). `reply` có thể chèn `{senderName}`. **Nhóm chỉ chat:** thêm `"scrape": false` vào một nhóm (cạnh `"rules"`) thì `bot:watch` vẫn đưa tin của nhóm đó vào hộp thư chat nhưng **không xếp nó vào hàng chờ cào**, và khôi phục (`bot:runner`, `recover:missing`) tự bỏ qua nhóm đó; nhóm này không có dữ liệu mới trong `data/` và DB. Nhóm vẫn phải nằm trong `config.targets` và (nếu chưa từng được cào) phải được cào một lần để watch biết mã nhóm. Mặc định là `true`. Đổi xong thì khởi động lại `bot:watch`, `bot:runner` và `bot:chat`.
+`chat-rules.json` (mẫu: `docs/superpowers/specs/2026-09-25-bot-chat-rules.sample.json`): `dryRun`; `limits` (`maxRepliesPerMinute`, `maxReplyDelaySeconds`, `cooldownSecondsPerRule`); `groups` với tên nhóm (bắt buộc thuộc `config.targets`) và `rules` xét theo thứ tự, tình huống đầu tiên khớp thì trả lời. `when`: `loaiBaoCao` (`DauBuoi`/`CuoiBuoi`), `mayLoi: true` (số máy lỗi > 0 hoặc có ghi chú như "IT bảo trì"; số 0 thì không), `keywords` (không phân biệt dấu và hoa thường). `reply` có thể chèn `{senderName}`, `{soMayLoi}`, `{chiTietLoi}`. **Gắn thẻ người (@):** thêm `"mention": ["Nguyễn Trọng Phúc"]` vào một tình huống (tối đa 5 tên, đúng như hiện trong danh sách thành viên của nhóm) thì bot gõ `@`, gõ luôn tên người đó để danh sách gợi ý của Zalo thu về đúng người (nếu Zalo không thu gọn thì xóa phần tên vừa gõ và tìm trong danh sách đầy đủ bằng phím mũi tên), chọn đúng người rồi mới gõ `reply`, kết quả là tin `@Nguyễn Trọng Phúc <reply>` với thẻ thật. Bot **không bao giờ** gắn thẻ cả nhóm (@All), và **không gửi gì** nếu không gắn được thẻ (không thấy tên, hai người trùng tên, danh sách không hiện, Enter không tạo thẻ): nó xóa bản nháp và ghi log `gắn thẻ @...: <lý do>`. Ví dụ: `"mention": ["Nguyễn Trọng Phúc"], "reply": "{chiTietLoi}. Ghi nhận kiểm tra."` gửi `@Nguyễn Trọng Phúc máy 35 không lên; máy 41 hỏng màn hình. Ghi nhận kiểm tra.` **Nhóm chỉ chat:** thêm `"scrape": false` vào một nhóm (cạnh `"rules"`) thì `bot:watch` vẫn đưa tin của nhóm đó vào hộp thư chat nhưng **không xếp nó vào hàng chờ cào**, và khôi phục (`bot:runner`, `recover:missing`) tự bỏ qua nhóm đó; nhóm này không có dữ liệu mới trong `data/` và DB. Nhóm vẫn phải nằm trong `config.targets` và (nếu chưa từng được cào) phải được cào một lần để watch biết mã nhóm. Mặc định là `true`. Đổi xong thì khởi động lại `bot:watch`, `bot:runner` và `bot:chat`.
 
 Tệp trạng thái: `data/.chat-inbox.jsonl` và `data/.chat-inbox.cursor` (hộp thư và vị trí đã đọc), `data/.chat-done.json` (tin đã xử lý), `data/.chat-sent.json` (câu vừa gửi, để nhận ra tin dội lại), `data/.chat-state.json` (nhịp tim). Tạo tệp `data/.chat-off` để dừng gửi ngay. Giới hạn đã biết: chỉ tin chữ; chưa trả lời dạng trích dẫn; mỗi lần gửi chiếm giao diện Zalo (nên dành riêng một bản Zalo cho bot khi có nhiều nhóm); nội dung chỉ lấy từ WebSocket của `bot:watch`, mất WebSocket thì bot không trả lời; tin không khớp tình huống nào bị bỏ qua không có dòng log; tự động gửi tin có thể bị Zalo coi là bất thường.
 
@@ -315,44 +317,44 @@ trong QUY-TRINH.md).
 
 ## Cấu trúc dự án
 
+Mã nguồn nằm trong `src/`; ở gốc chỉ có cấu hình, tài liệu và dữ liệu. Các kiểu dùng chung nằm tập trung ở `src/types/`.
+
 ```
 config.ts                        SỬA Ở ĐÂY: nhóm cần theo dõi, mọi thông số vận hành (8 mục)
-configCheck.ts / configDoc.ts    kiểm giá trị lúc khởi động / mô tả từng thông số cho config:show
-configShow.ts                    npm run config:show
 chat-rules.json                  kịch bản trả lời của bot:chat (theo nhóm)
+package.json  tsconfig.json  README.md  CLAUDE.md
 
-bot-runner.ts / runnerOnce.ts / runnerStatus.ts     bot:runner, runner:once, runner:status
-bot-chat.ts / chatStatus.ts                         bot:chat, chat:status
-index.ts                         cào tay theo hàng chờ (npm run bot:scrape)
-scrapeAdd.ts                     npm run scrape:add
-watch.ts / watchStatus.ts        bot:watch (chạy history/watch.ts), watch:status
-recoverMissing.ts                npm run recover:missing
-extractLessonReports.ts / fillRoomFacilityReport.ts / syncDb.ts / markMessages.ts
-                                 các bước trích xuất, điền Excel, đồng bộ và đánh dấu DB
-debug-zalo.ts                    mở Zalo Desktop kèm cổng debug, không quét
-debug-active-conversation.ts     chẩn đoán: in className của item sidebar đang active
-
-history/
-  desktopScraper.ts              logic chính: ensureZaloReady, tìm nhóm, cuộn, cào,
-                                  đọc groupId/groupName/senderId thật qua React fiber
-  watch.ts                       logic watcher: nguồn WS realtime + notification popup,
-                                  chia tin vào hàng chờ cào và hộp thư chat
-  realtimeListener.ts            nghe WebSocket nội bộ của Zalo Desktop qua CDP Network
-                                  domain (best-effort, xem mục Bảo trì)
-  cdp.ts                         client CDP thô (WebSocket) thay Playwright
-  scrapeSelectors.ts             CSS selector DOM Zalo Desktop
-  scrapeQueue.ts / queueRun.ts / queueAdd.ts   hàng chờ cào, một lần chạy theo hàng chờ, scrape:add
-  scrapeLock.ts                  khóa chung cho mọi thứ điều khiển giao diện Zalo
-  watchState.ts                  nhịp tim và khoảng gián đoạn của bot:watch
-  atomicWrite.ts                 ghi tệp nguyên tử chịu được Windows (thử lại khi EPERM)
-  exportExcel.ts / exportExcelCli.ts   xuất .xlsx từ dữ liệu đã cào
-
-runner/                          bot:runner: lịch chờ, một vòng, trạng thái, dựng Excel an toàn
-chat/                            bot:chat: kịch bản, khớp tình huống, hộp thư, gửi tin, giới hạn
-lesson/                          trích xuất báo cáo buổi dạy, chia buổi, khôi phục
-store/                           messageStore.ts (data/<groupId>.json, dedupe), kết nối DB
-mcp/                             server.ts: MCP server chỉ-đọc (list_threads, get_recent_messages,
-                                  search_messages)
+src/
+  cli/                           mọi lệnh chạy (mỗi `npm run ...` trỏ tới một file ở đây)
+    bot-watch.ts                 bot:watch (nghe tin, xếp hàng chờ, hộp thư chat)
+    bot-runner.ts                bot:runner (cào, đồng bộ DB, trích xuất, dựng Excel)
+    bot-chat.ts                  bot:chat (trả lời theo kịch bản)
+    bot-scrape.ts                bot:scrape (cào tay theo hàng chờ)
+    scrape-add.ts                scrape:add
+    watch-status.ts / runner-status.ts / runner-timing.ts / chat-status.ts   xem trạng thái, thời gian
+    runner-once.ts               runner:once (dựng lại một buổi, không cào)
+    recover-missing.ts           recover:missing
+    extract-reports.ts / fill-report.ts / sync-db.ts / mark-messages.ts   các bước trích xuất, điền Excel, đồng bộ, đánh dấu DB
+    config-show.ts               config:show
+    export-excel.ts / export-lesson-report.ts   xuất .xlsx từ dữ liệu đã cào
+    debug/                       công cụ chẩn đoán (zalo.ts mở Zalo kèm cổng debug; db-check.ts; active-conversation.ts)
+  types/                         CÁC KIỂU DÙNG CHUNG: message, report, session, queue, runner, watch, chat, config, core
+                                 (nhập bằng `import type { ... } from "../types/index.js"`)
+  core/                          hạ tầng dùng chung: paths.ts (mọi đường dẫn theo vị trí dự án), atomicWrite.ts (ghi tệp
+                                 nguyên tử chịu được Windows), scrapeLock.ts (khóa chung cho mọi thứ điều khiển giao diện Zalo)
+  config/                        configCheck.ts (kiểm giá trị lúc khởi động), configDoc.ts (mô tả từng thông số cho config:show)
+  scrape/                        cào Zalo Desktop: desktopScraper.ts (ensureZaloReady, tìm nhóm, cuộn, cào, đọc groupId thật qua
+                                 React fiber), cdp.ts (client CDP thô thay Playwright), scrapeSelectors.ts (CSS selector DOM),
+                                 scrapeQueue.ts / queueRun.ts / queueAdd.ts (hàng chờ cào, một lần chạy theo hàng chờ, scrape:add)
+  watch/                         watch.ts (nguồn WS realtime + notification popup, chia tin vào hàng chờ và hộp thư chat),
+                                 realtimeListener.ts (WebSocket nội bộ của Zalo qua CDP Network), watchState.ts (nhịp tim, khoảng gián đoạn)
+  runner/                        bot:runner: lịch chờ, một vòng, trạng thái, thời gian, dựng Excel an toàn
+  chat/                          bot:chat: kịch bản, khớp tình huống, hộp thư, gửi tin, giới hạn
+  lesson/                        trích xuất báo cáo buổi dạy, chia buổi, khôi phục
+  store/                         messageStore.ts (data/<groupId>.json, dedupe), kết nối DB
+  export/                        exportExcel.ts (xuất .xlsx từ dữ liệu đã cào)
+  mcp/                           server.ts: MCP server chỉ-đọc (list_threads, get_recent_messages, search_messages)
+scripts/                         fill-template.ps1 (điền template Excel qua COM), benchLoad.ts (đo tải giả lập)
 tests/                           unit test (node:test)
 docs/                            GUIDE.md, QUY-TRINH.md, các spec và kế hoạch
 
@@ -360,7 +362,7 @@ data/                             DỮ LIỆU ĐẦU RA (không commit, .gitigno
   <groupId>.json                   lưu vĩnh viễn, mảng JSON ghi đè mỗi lần lưu,
                                     dedupe theo msgId, đặt tên theo group id thật
                                     (bền vững khi đổi tên nhóm)
-  .scrape-queue*.json, .watch-*.json, .runner-*.json, .chat-*.json, .scrape.lock
+  .scrape-events*.jsonl, .watch-*.json, .runner-*.json, .chat-*.json, .scrape.lock
                                    hàng chờ, nhịp tim, trạng thái, khóa (xem các mục trên)
   export/                          các file Excel báo cáo baocaobuoi<buổi>_<ddMMyy>.xlsm
 output/                           kết quả trung gian của trích xuất và nhật ký runner (không commit)
@@ -376,7 +378,7 @@ bản xuất riêng theo ngày. Mỗi lần lưu tin mới, cả mảng được
 file tạm rồi rename, tránh hỏng file nếu bị ngắt giữa chừng), dedupe theo
 `msgId` — chạy lại cào không tạo tin trùng. Tên file là `groupId` thật
 (không phải slug tên nhóm), nên **không bị vỡ lịch sử khi nhóm đổi tên**.
-Shape `NormalizedMessage` (`store/messageStore.ts`):
+Shape `NormalizedMessage` (`src/store/messageStore.ts`):
 
 ```ts
 {
@@ -410,7 +412,7 @@ là thứ khác: nó nằm ở `data/export/baocaobuoi<buổi>_<ddMMyy>.xlsm` do
 
 Xếp theo khả năng gặp phải, cao → thấp:
 
-1. **Đọc `groupId`/`senderId` qua React internal fiber (`history/desktopScraper.ts:readMsgIdentitySrc`)** —
+1. **Đọc `groupId`/`senderId` qua React internal fiber (`src/scrape/desktopScraper.ts:readMsgIdentitySrc`)** —
    điểm dễ vỡ nhất trong toàn bộ scraper, dễ vỡ hơn cả selector CSS bên
    dưới. Kỹ thuật này đọc thẳng property nội bộ của React
    (`__reactFiber$...`/`memoizedProps`) gắn trên DOM node, hoàn toàn không
@@ -422,12 +424,12 @@ Xếp theo khả năng gặp phải, cao → thấp:
    cảnh báo này liên tục, cần soi lại cấu trúc fiber mới qua
    `npm run zalo:debug` + `Runtime.evaluate` thủ công.
 
-2. **Selector DOM (`history/scrapeSelectors.ts`)** — gắn chặt vào bản UI
+2. **Selector DOM (`src/scrape/scrapeSelectors.ts`)** — gắn chặt vào bản UI
    hiện tại của Zalo Desktop. Mỗi lần Zalo tự động update giao diện, các
    class này có thể đổi và scraper sẽ âm thầm trả về rỗng hoặc báo
    `"sidebar item for ... not found"`. Cách sửa: chạy `npm run zalo:debug`,
-   dùng `debug-active-conversation.ts` hoặc `Runtime.evaluate` thủ công
-   qua `history/cdp.ts` để soi DOM mới và cập nhật lại selector. **`bot:chat`
+   dùng `src/cli/debug/active-conversation.ts` hoặc `Runtime.evaluate` thủ công
+   qua `src/scrape/cdp.ts` để soi DOM mới và cập nhật lại selector. **`bot:chat`
    phụ thuộc thêm vào ô soạn tin** (`#richInput`, `placeholder` dạng "Nhập @,
    tin nhắn tới <tên nhóm>", class `empty`) — cũng có thể đổi khi Zalo cập nhật;
    khi đó bot từ chối gửi (chốt chặn kiểm nhóm đích thất bại) thay vì gõ nhầm.
@@ -440,7 +442,7 @@ Xếp theo khả năng gặp phải, cao → thấp:
    `timeLocal` bất thường trong file export, khả năng cao là một định dạng
    id mới chưa được xử lý.
 
-4. **Nguồn WS realtime (`history/realtimeListener.ts`) dựa trên giao thức
+4. **Nguồn WS realtime (`src/watch/realtimeListener.ts`) dựa trên giao thức
    nhị phân chưa công bố của Zalo** (mã lệnh cmd/subCmd, mã hoá AES-GCM +
    nén gzip) — dò ngược qua dự án `zca-js` và xác nhận lại bằng cách bắt
    trực tiếp gói tin qua CDP `Network` domain, không phải API chính thức.
@@ -462,7 +464,7 @@ Xếp theo khả năng gặp phải, cao → thấp:
    với `bot:scrape` và runner, chỉ xảy ra khi debug port chưa mở; với
    `bot:watch`, xảy ra **mỗi lần khởi động**, kể cả khi Zalo đã mở sẵn — cần
    thiết để nguồn WS realtime bắt được cipher key trao đổi lúc kết nối (xem
-   `history/realtimeListener.ts`). Không mất dữ liệu, chỉ gián đoạn UI vài
+   `src/watch/realtimeListener.ts`). Không mất dữ liệu, chỉ gián đoạn UI vài
    giây. **Không thể tắt `autoLaunchZalo` khi dùng `bot:watch`**: nó luôn cần
    khởi động lại Zalo và sẽ báo lỗi nếu giá trị là `false`. Vì vậy đừng khởi
    động `bot:watch` lúc đang dùng Zalo dở.
@@ -495,8 +497,8 @@ Xếp theo khả năng gặp phải, cao → thấp:
 
 11. **Ghi tệp trạng thái trên Windows.** Đổi tên đè lên một tệp đang bị tiến
     trình khác mở (kể cả chỉ để đọc) báo `EPERM`. Các tệp trạng thái của bot
-    (nhịp tim, hàng chờ, sổ chat...) dùng `history/atomicWrite.ts` để thử lại
-    và lỗi ghi nhịp tim không làm `bot:watch` thoát. `store/messageStore.ts`
+    (nhịp tim, hàng chờ, sổ chat...) dùng `src/core/atomicWrite.ts` để thử lại
+    và lỗi ghi nhịp tim không làm `bot:watch` thoát. `src/store/messageStore.ts`
     (tệp `data/<groupId>.json`) vẫn dùng cách đổi tên cũ; nguy cơ thấp hơn vì
     chỉ runner đọc chúng và runner cào tuần tự.
 

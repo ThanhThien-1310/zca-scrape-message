@@ -1,11 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { QueueRunResult } from "../history/queueRun.js";
-import { messageKey } from "../lesson/recovery.js";
-import type { SourceMessage } from "../lesson/types.js";
-import type { SessionKey } from "../runner/affectedSessions.js";
-import { runCycle, type BuildResult, type CycleDeps } from "../runner/cycle.js";
+import { messageKey } from "../src/lesson/recovery.js";
+import { runCycle, type CycleDeps } from "../src/runner/cycle.js";
 import { at, COMPLETE, DAY, IT_MAINTENANCE, msg } from "./fixtures.js";
+import type { BuildResult, QueueRunResult, SessionKey, SourceMessage } from "../src/types/index.js";
 
 const SANG: SessionKey = { day: DAY, buoi: "sang" };
 const CHIEU: SessionKey = { day: DAY, buoi: "chieu" };
@@ -32,7 +30,7 @@ function harness(opts: {
             (async () => {
                 calls.push("scrape");
                 messages.push(...(opts.scraped ?? []));
-                return { status: "done", targets: ["A"], failed: [] };
+                return { status: "done", targets: ["A"], failed: [], gaveUp: [], outcomes: [] };
             }),
         syncDb: async () => {
             calls.push("sync");
@@ -73,7 +71,7 @@ test("when the scrape cannot run nothing is synced or built and the cycle is a f
 });
 
 test("a group that failed to scrape is a warning, not a failure", async () => {
-    const h = harness({ scrape: async () => ({ status: "done", targets: ["A", "B"], failed: ["B"] }) });
+    const h = harness({ scrape: async () => ({ status: "done", targets: ["A", "B"], failed: ["B"], gaveUp: [], outcomes: [] }) });
     const s = await runCycle(h.deps);
     assert.equal(s.ok, true);
     assert.deepEqual(s.groups, ["A", "B"]);
@@ -131,4 +129,55 @@ test("build warnings (for example an Excel saved as _moi) reach the summary", as
     });
     const s = await runCycle(h.deps);
     assert.deepEqual(s.warnings, ["file đang mở, đã lưu thành b_moi.xlsm"]);
+});
+
+test("a group dropped after its last attempt is a warning that says it was dropped", async () => {
+    const h = harness({ scrape: async () => ({ status: "done", targets: ["A", "B"], failed: ["B"], gaveUp: ["B"], outcomes: [] }) });
+    const s = await runCycle(h.deps);
+    assert.equal(s.ok, true);
+    assert.match(s.warnings.join("\n"), /bỏ "B" khỏi hàng chờ.*scrape:add/);
+});
+
+test("the cycle records how long it took, how long each step took and how long each group took to scrape", async () => {
+    let clock = 10_000;
+    const tick = (ms: number) => (clock += ms);
+    const timings = [
+        { target: "A", ms: 12_000, scraped: 40, written: 3 },
+        { target: "B", ms: 8_000, error: "sidebar item not found" },
+    ];
+    const h = harness({
+        scrape: async () => {
+            tick(20_000);
+            return { status: "done", targets: ["A", "B"], failed: ["B"], gaveUp: [], outcomes: timings };
+        },
+    });
+    h.deps.now = () => clock;
+    h.deps.recover = async () => {
+        tick(1_000);
+        return { errors: [] };
+    };
+    h.deps.syncDb = async () => {
+        tick(3_000);
+    };
+    const s = await runCycle(h.deps);
+    assert.equal(s.durationMs, 24_000);
+    assert.deepEqual(s.stepMs, { recover: 1_000, scrape: 20_000, load: 0, sync: 3_000, build: 0 });
+    assert.deepEqual(s.timings, [
+        { target: "A", ms: 12_000, ok: true, scraped: 40, written: 3 },
+        { target: "B", ms: 8_000, ok: false },
+    ]);
+});
+
+test("a cycle that fails midway still reports the time it spent", async () => {
+    let clock = 0;
+    const h = harness({
+        scrape: async () => {
+            clock += 5_000;
+            throw new Error("CDP not reachable");
+        },
+    });
+    h.deps.now = () => clock;
+    const s = await runCycle(h.deps);
+    assert.equal(s.ok, false);
+    assert.equal(s.durationMs, 5_000);
 });
