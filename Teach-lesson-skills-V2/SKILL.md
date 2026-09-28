@@ -393,10 +393,6 @@ Lệnh: `npm run fill:report -- output/output.json [--day YYYY-MM-DD] [--buoi sa
 - Báo cáo có `maPhong = null` bị bỏ qua (không đưa vào sheet `data`), vì macro gộp mọi dòng có `RoomId` trống của một ngày thành một dòng.
 - Với mỗi cặp (ngày, `RoomId`) macro chỉ giữ báo cáo có `Timestamp` lớn nhất, nên bảng báo cáo hiển thị báo cáo mới nhất của phòng trong ngày.
 
-## Báo cáo tình trạng thiết bị (thêm, không thuộc quy trình bắt buộc ở trên)
-
-Sau khi có `output/output.json` của một buổi (bước 4), `npm run fill:status-reports -- output/output.json` điền trực tiếp (không macro) 5 file mẫu mới: BO SUNG MAY TINH, TINH TRẠNG LOA, LOI INTERNET, LOI MÁY TÍNH, LOI NETSUPPORT; 5 file chưa có nguồn dữ liệu khác được chép nguyên trạng. Cả 10 file cùng nằm trong `data/export/trang-thai/`, ghi đè mỗi lần chạy (không tách theo ngày, không cộng dồn). Cột SỐ LẦN (chỉ có ở file INTERNET, NETSUPPORT) là số lần liên tiếp bị báo lỗi (K), tính theo từng báo cáo chứ không theo ngày lịch, lưu ở `data/.status-streaks.json` qua các lần chạy. Thiết kế đầy đủ: `docs/superpowers/specs/2026-09-28-status-report-fill-design.md`.
-
 ### Cột sheet `data`
 
 Đúng thứ tự, đã có sẵn ở hàng 1 của file mẫu: `Id`, `MessageId`, `SenderId`, `GroupId`, `Timestamp`, `Date`, `Time`, `TypeId`, `Employee`, `RoomId`, `School`, `Area`, `Room`, `FacilityId`, `FacilityTypeId`, `FacilityGrade`, `FacilityNote`, `QuantityTypeId`, `Quantity`, `QuantityNote`.
@@ -411,6 +407,20 @@ Cách điền:
 - `Employee`: `giaoVien`. `RoomId`: `maPhong`.
 - `School`: tên trường dạng `LC HOA SEN 1` (ghép `capHoc`, `tenRieng`, thêm `coSo` nếu có). `Area`: mã khu vực như skill `school-and-area-extraction` trả về (`TĐ`, `BTAN`...). `Room`: `phongMay` giữ đúng như người báo cáo viết.
 - `FacilityGrade`: `xepLoai`. `FacilityNote`: để trống. `QuantityNote`: `GhiChuLoi`.
+
+## Báo cáo tình trạng thiết bị (thêm, không thuộc quy trình bắt buộc ở trên)
+
+Sau khi có `output/output.json` của một buổi (bước 4), `npm run fill:status-reports -- output/output.json` điền trực tiếp (không macro) 5 file mẫu mới: BO SUNG MAY TINH, TINH TRẠNG LOA, LOI INTERNET, LOI MÁY TÍNH, LOI NETSUPPORT (tên file trên đĩa hiện là `TINH TRANG LOI NETUPPORT.xlsx`, thiếu chữ S — sheet bên trong vẫn tên NETSUPPORT); 5 file chưa có nguồn dữ liệu khác được chép nguyên trạng. Cả 10 file cùng nằm trong `data/export/trang-thai/<buoi>/` (một thư mục riêng cho mỗi buổi sang/chieu/toi — buổi sau không ghi đè lên buổi trước trong cùng ngày; chạy lại cùng buổi thì ghi đè, không cộng dồn).
+
+Chỉ lấy báo cáo **ĐẦU BUỔI** (`loaiBaoCao = "DauBuoi"`) — báo cáo cuối buổi (`CuoiBuoi`) là một sự kiện khác, không phải "báo lại"; trộn chung cả hai sẽ khiến một trường có cả 2 loại báo cáo trong buổi xuất hiện thành 2 dòng dù không hề trùng dữ liệu.
+
+- Cột **PM** (tên phòng máy): lấy từ `phongMay`, điền ở LOA/INTERNET/NETSUPPORT/MÁY TÍNH.
+- Cột **SỐ LẦN** (chỉ có ở file INTERNET, NETSUPPORT): số lần liên tiếp bị báo lỗi (K), tính theo từng báo cáo (báo cáo đầu buổi) chứ không theo ngày lịch, lưu ở `data/.status-streaks.json` qua các lần chạy.
+- Cột **XẾP LOẠI** ở LOA/INTERNET/NETSUPPORT: các dòng được sắp lại theo thứ tự T, B, K liền nhau (không theo thứ tự báo cáo tới), STT đánh lại theo thứ tự đã sắp.
+- BO SUNG MAY TINH: PM BỔ SUNG chỉ có dòng khi (SL máy thiếu − SL máy lỗi) > 0.
+- MÁY TÍNH: ghi chú trong ngoặc của "Tổng số máy bị lỗi: N (...)" vào cột HIỆN TRẠNG, không phải GHI CHÚ.
+
+Thiết kế đầy đủ: `docs/superpowers/specs/2026-09-28-status-report-fill-design.md`.
 
 ## `src/cli/mark-messages.ts` (bước 6)
 
