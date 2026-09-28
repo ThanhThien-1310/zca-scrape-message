@@ -13,10 +13,12 @@ export interface FileLayout {
 }
 
 export const FILE_LAYOUT = {
-    boSung: { templateFile: "BO SUNG MAY TINH.xlsx", sheet: "BO SUNG", firstDataRow: 5, totalRowBefore: 8, lastColumn: "Q" },
+    boSung: { templateFile: "BO SUNG MAY TINH.xlsx", sheet: "BO SUNG", firstDataRow: 5, totalRowBefore: 6, lastColumn: "Q" },
     loa: { templateFile: "TINH TRANG LOA.xlsx", sheet: "1209", firstDataRow: 4, totalRowBefore: 7, lastColumn: "H" },
     internet: { templateFile: "TINH TRANG LOI INTERNET.xlsx", sheet: "INTERNET", firstDataRow: 4, totalRowBefore: 7, lastColumn: "J" },
-    netsupport: { templateFile: "TINH TRANG LOI NETSUPPORT.xlsx", sheet: "NETSUPPORT", firstDataRow: 4, totalRowBefore: 7, lastColumn: "J" },
+    // Tên file trên đĩa hiện là "NETUPPORT" (thiếu chữ S) — người dùng đổi tên, có thể là gõ nhầm. Sheet bên trong vẫn
+    // tên "NETSUPPORT" như cũ. Nếu người dùng đổi tên file lại cho đúng chính tả, sửa templateFile này theo.
+    netsupport: { templateFile: "TINH TRANG LOI NETUPPORT.xlsx", sheet: "NETSUPPORT", firstDataRow: 4, totalRowBefore: 7, lastColumn: "J" },
     mayTinh: { templateFile: "TINH TRANG LOI MAY TINH.xlsx", sheet: "2409", firstDataRow: 4, totalRowBefore: 7, lastColumn: "N" },
 } as const satisfies Record<string, FileLayout>;
 
