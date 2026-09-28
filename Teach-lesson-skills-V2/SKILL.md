@@ -393,6 +393,10 @@ Lệnh: `npm run fill:report -- output/output.json [--day YYYY-MM-DD] [--buoi sa
 - Báo cáo có `maPhong = null` bị bỏ qua (không đưa vào sheet `data`), vì macro gộp mọi dòng có `RoomId` trống của một ngày thành một dòng.
 - Với mỗi cặp (ngày, `RoomId`) macro chỉ giữ báo cáo có `Timestamp` lớn nhất, nên bảng báo cáo hiển thị báo cáo mới nhất của phòng trong ngày.
 
+## Báo cáo tình trạng thiết bị (thêm, không thuộc quy trình bắt buộc ở trên)
+
+Sau khi có `output/output.json` của một buổi (bước 4), `npm run fill:status-reports -- output/output.json` điền trực tiếp (không macro) 5 file mẫu mới: BO SUNG MAY TINH, TINH TRẠNG LOA, LOI INTERNET, LOI MÁY TÍNH, LOI NETSUPPORT; 5 file chưa có nguồn dữ liệu khác được chép nguyên trạng. Cả 10 file cùng nằm trong `data/export/trang-thai/`, ghi đè mỗi lần chạy (không tách theo ngày, không cộng dồn). Cột SỐ LẦN (chỉ có ở file INTERNET, NETSUPPORT) là số lần liên tiếp bị báo lỗi (K), tính theo từng báo cáo chứ không theo ngày lịch, lưu ở `data/.status-streaks.json` qua các lần chạy. Thiết kế đầy đủ: `docs/superpowers/specs/2026-09-28-status-report-fill-design.md`.
+
 ### Cột sheet `data`
 
 Đúng thứ tự, đã có sẵn ở hàng 1 của file mẫu: `Id`, `MessageId`, `SenderId`, `GroupId`, `Timestamp`, `Date`, `Time`, `TypeId`, `Employee`, `RoomId`, `School`, `Area`, `Room`, `FacilityId`, `FacilityTypeId`, `FacilityGrade`, `FacilityNote`, `QuantityTypeId`, `Quantity`, `QuantityNote`.
