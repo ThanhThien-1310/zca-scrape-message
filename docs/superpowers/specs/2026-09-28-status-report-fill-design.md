@@ -12,7 +12,7 @@ Có 10 file `.xlsx` mẫu mới trong `data/mau bao cao new/`, **không có VBA 
 - `TINH TRANG LOI MAY TINH.xlsx` (chỉ sheet `2409`, sheet `0310 (2)` là danh sách khác, không đụng)
 - `TINH TRANG LOI NETSUPPORT.xlsx`
 
-**Không làm đợt này:** `THAY THE MAY TINH.xlsx`, `TINH TRANG LOI DIEN.xlsx`, `TINH TRANG LOI PHAN MEM.xlsx`, `TINH TRANG VE SINH PHONG MAY.xlsx`, `VI PHAM NOI QUY THUC TAP.xlsx` — chưa có nguồn dữ liệu, không đụng tới.
+**5 file còn lại chưa có nguồn dữ liệu:** `THAY THE MAY TINH.xlsx`, `TINH TRANG LOI DIEN.xlsx`, `TINH TRANG LOI PHAN MEM.xlsx`, `TINH TRANG VE SINH PHONG MAY.xlsx`, `VI PHAM NOI QUY THUC TAP.xlsx`. Mỗi lần chạy **vẫn xuất đủ cả 10 file** (chép từ mẫu sang thư mục xuất), nhưng 5 file này chỉ được **chép nguyên trạng** (giữ trống như file mẫu, không mở qua Excel COM, không đụng cell nào) — chỉ 5 file có nguồn ở trên mới thật sự được điền dữ liệu.
 
 Tiêu chí thành công: chạy một lệnh cho một buổi (ngày + buổi, giống `extract:reports`), 5 file trên được điền đúng dữ liệu của buổi đó, số dòng thay đổi theo số trường báo cáo mà không hỏng công thức TỔNG/CHÚ GIẢI có sẵn trong file mẫu.
 
@@ -21,13 +21,15 @@ Tiêu chí thành công: chạy một lệnh cho một buổi (ngày + buổi, g
 - **Tự động hoá theo buổi** (gắn vào `bot:runner`): đợt này chạy **bằng tay**, một lệnh CLI mới, để xem dữ liệu ra đúng trước. Không sửa `runner/`.
 - **Tách file theo ngày** (sheet kiểu "1209", "2409" trong file mẫu): không làm. Mỗi file luôn **ghi đè** dữ liệu hiện có bằng dữ liệu của buổi vừa chạy — không cộng dồn, không tạo sheet mới mỗi ngày.
 - Cột `SM BỔ SUNG` (file máy tính): để trống.
-- 5 file chưa có nguồn: không tạo, không chạm.
+- Nội dung của 5 file chưa có nguồn: không tính toán gì cho chúng (chỉ chép nguyên file, xem mục 1 và mục 6).
 
 ## 3. Nguồn dữ liệu: tái dùng `output/output.json`, không đọc tin nhắn lại
 
 Bộ trích xuất hiện có (`extractAll`, dùng bởi `extract:reports`) đã cho ra `Report[]` với đủ trường cần: `data.truong` (capHoc/tenRieng), `data.khuVuc`, `data.phongMay`, và `data.coSoVatChat` (mảng gồm AmThanh/NetSupport/Internet/MayTinh, mỗi mục có `xepLoai` và với MayTinh có `soLuong` chứa Thiếu/Lỗi + ghi chú). Bước điền 5 file này **đọc lại `output/output.json`** (giống `fill:report` đang đọc), không tự trích xuất lại từ `data/<groupId>.json`. Lợi ích: tự động thừa hưởng override của agent (`output/overrides.json`) vì `Report[]` đã áp override rồi.
 
 CLI mới: `src/cli/fill-status-reports.ts` (lệnh `npm run fill:status-reports -- output/output.json [--day D] [--buoi B]`), đứng cạnh `fill-report.ts` hiện có, cùng input, khác đầu ra.
+
+**Nơi xuất:** `data/export/trang-thai/<tên file như trong "mau bao cao new">.xlsx` — cùng tên 10 file gốc, một thư mục cố định, ghi đè mỗi lần chạy (không gắn ngày vào tên file, vì đã chốt là ghi đè chứ không tách theo ngày).
 
 ## 4. Bảng cột từng file (đúng tiêu đề cột thật trong file mẫu)
 
@@ -115,9 +117,13 @@ Cài đặt: một hàm thuần `applyStreaks(state, reports, now): { state, val
 
 ## 6. Cách điền Excel: chèn dòng qua Excel COM (đã chốt phương án A)
 
-Giữ cùng cách `scripts/fill-template.ps1` đang làm với `.xlsm`: mở bằng Excel thật qua COM, không qua thư viện đọc/ghi `.xlsx` bằng JS. Với mỗi file:
+Giữ cùng cách `scripts/fill-template.ps1` đang làm với `.xlsm`: mở bằng Excel thật qua COM, không qua thư viện đọc/ghi `.xlsx` bằng JS.
 
-1. Copy file mẫu ra đường dẫn xuất (ghi đè nếu đã có), giữ nguyên định dạng cội nguồn.
+**Bước 0, cho cả 10 file:** chép mọi file từ `data/mau bao cao new/` sang `data/export/trang-thai/` (ghi đè). Đây là bước duy nhất áp dụng cho 5 file chưa có nguồn — chúng dừng lại ở đây, không mở qua Excel COM, giữ nguyên trạng thái trống như file mẫu.
+
+Với riêng 5 file có nguồn, làm tiếp qua Excel COM:
+
+1. (đã copy ở bước 0, không copy lại) mở đúng file vừa chép ở thư mục xuất.
 2. Xác định **dòng dữ liệu đầu tiên** và **dòng "TỔNG" hiện tại** trong sheet.
 3. So khớp số dòng mẫu có sẵn (rỗng, đã định dạng) với số dòng dữ liệu cần điền:
    - Cần nhiều dòng hơn: `Rows(dòng-TỔNG).EntireRow.Insert` lặp lại đúng số lần còn thiếu, ngay phía trên dòng TỔNG (Excel COM tự dời và **mở rộng phạm vi công thức** `COUNTIF`/`SUM`/`COUNTA` nếu vị trí chèn nằm trong phạm vi đó — đây là lý do chọn COM thay vì ghi trực tiếp bằng thư viện).
@@ -145,4 +151,8 @@ Một script PowerShell dùng chung cho cả 5 file, nhận vào một file JSON
 
 - Không còn "TBD"/chỗ trống mập mờ trong 4 bảng cột — mọi cột đều ghi rõ nguồn hoặc "để trống".
 - Đối chiếu ngược từng quyết định của người dùng trong hội thoại: CẤP không ép số, PM BỔ SUNG = tên phòng, THÙNG MÁY=MÀN HÌNH=thiếu, SỐ LẦN chỉ Internet/NetSupport theo đúng báo cáo (không theo ngày lịch), XẾP LOẠI máy tính theo ngưỡng A/B/C/D, ghi đè không tách file theo ngày, Excel COM — đều đã đưa vào mục 4–6.
-- Phạm vi rõ ràng, không lẫn với 5 file chưa có nguồn.
+- Phạm vi rõ ràng, không lẫn với 5 file chưa có nguồn — nhưng cả 10 file vẫn cùng được xuất ra (mục 1, mục 6 bước 0), chỉ khác là 5 file kia dừng lại ở bước chép nguyên trạng.
+
+## Cập nhật sau khi duyệt
+
+- 2026-09-28: thêm yêu cầu — mỗi lần chạy vẫn xuất đủ **cả 10 file** (không chỉ 5 file có dữ liệu); 5 file chưa có nguồn được chép nguyên trạng sang thư mục xuất, giữ trống. Đã sửa mục 1, mục 2, mục 3 (thêm đường dẫn xuất) và mục 6 (thêm bước 0).
