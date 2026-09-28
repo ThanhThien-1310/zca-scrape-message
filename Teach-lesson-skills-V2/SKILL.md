@@ -412,10 +412,10 @@ Cách điền:
 
 Sau khi có `output/output.json` của một buổi (bước 4), `npm run fill:status-reports -- output/output.json` điền trực tiếp (không macro) 5 file mẫu mới: BO SUNG MAY TINH, TINH TRẠNG LOA, LOI INTERNET, LOI MÁY TÍNH, LOI NETSUPPORT (tên file trên đĩa hiện là `TINH TRANG LOI NETUPPORT.xlsx`, thiếu chữ S — sheet bên trong vẫn tên NETSUPPORT); 5 file chưa có nguồn dữ liệu khác được chép nguyên trạng. Cả 10 file cùng nằm trong `data/export/trang-thai/<buoi>/` (một thư mục riêng cho mỗi buổi sang/chieu/toi — buổi sau không ghi đè lên buổi trước trong cùng ngày; chạy lại cùng buổi thì ghi đè, không cộng dồn).
 
-Chỉ lấy báo cáo **ĐẦU BUỔI** (`loaiBaoCao = "DauBuoi"`) — báo cáo cuối buổi (`CuoiBuoi`) là một sự kiện khác, không phải "báo lại"; trộn chung cả hai sẽ khiến một trường có cả 2 loại báo cáo trong buổi xuất hiện thành 2 dòng dù không hề trùng dữ liệu.
+Mỗi phòng (`maNhom` + `phongMay`) chỉ giữ báo cáo có `thoiGian` **lớn nhất trong buổi** (`latestPerRoom` trong `statusRows.ts`) — đầu buổi hay cuối buổi tuỳ báo cáo nào gửi sau, khớp cơ chế cũ của file .xlsm ("với mỗi cặp (ngày, RoomId) chỉ giữ báo cáo Timestamp lớn nhất"). Một phòng có cả 2 loại báo cáo trong buổi không còn ra 2 dòng, và số liệu lấy đúng tình trạng MỚI NHẤT (báo cáo cuối buổi có thể xấu hơn hoặc tốt hơn đầu buổi) chứ không cố định theo đầu buổi.
 
 - Cột **PM** (tên phòng máy): lấy từ `phongMay`, điền ở LOA/INTERNET/NETSUPPORT/MÁY TÍNH.
-- Cột **SỐ LẦN** (chỉ có ở file INTERNET, NETSUPPORT): số lần liên tiếp bị báo lỗi (K), tính theo từng báo cáo (báo cáo đầu buổi) chứ không theo ngày lịch, lưu ở `data/.status-streaks.json` qua các lần chạy.
+- Cột **SỐ LẦN** (chỉ có ở file INTERNET, NETSUPPORT): số lần liên tiếp bị báo lỗi (K), tính theo từng báo cáo (đã lọc theo phòng-mới-nhất) chứ không theo ngày lịch, lưu ở `data/.status-streaks.json` qua các lần chạy.
 - Cột **XẾP LOẠI** ở LOA/INTERNET/NETSUPPORT: các dòng được sắp lại theo thứ tự T, B, K liền nhau (không theo thứ tự báo cáo tới), STT đánh lại theo thứ tự đã sắp.
 - BO SUNG MAY TINH: PM BỔ SUNG chỉ có dòng khi (SL máy thiếu − SL máy lỗi) > 0. Đây là file duy nhất có công thức ở dòng TỔNG (COUNTA/SUM) và khối CHÚ GIẢI VÀ THỐNG KÊ (COUNTIF theo XẾP LOẠI); script luôn ghi đè lại các công thức này theo đúng số dòng thực tế (kể cả 0 dòng) nên không bao giờ ra `#REF!` dù Excel không tự mở rộng được một vùng chỉ 1 dòng khi chèn/xoá dòng kề bên.
 - MÁY TÍNH: ghi chú trong ngoặc của "Tổng số máy bị lỗi: N (...)" vào cột HIỆN TRẠNG, không phải GHI CHÚ.
