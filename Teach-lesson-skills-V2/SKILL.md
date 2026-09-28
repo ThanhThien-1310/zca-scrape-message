@@ -417,7 +417,7 @@ Chỉ lấy báo cáo **ĐẦU BUỔI** (`loaiBaoCao = "DauBuoi"`) — báo cáo
 - Cột **PM** (tên phòng máy): lấy từ `phongMay`, điền ở LOA/INTERNET/NETSUPPORT/MÁY TÍNH.
 - Cột **SỐ LẦN** (chỉ có ở file INTERNET, NETSUPPORT): số lần liên tiếp bị báo lỗi (K), tính theo từng báo cáo (báo cáo đầu buổi) chứ không theo ngày lịch, lưu ở `data/.status-streaks.json` qua các lần chạy.
 - Cột **XẾP LOẠI** ở LOA/INTERNET/NETSUPPORT: các dòng được sắp lại theo thứ tự T, B, K liền nhau (không theo thứ tự báo cáo tới), STT đánh lại theo thứ tự đã sắp.
-- BO SUNG MAY TINH: PM BỔ SUNG chỉ có dòng khi (SL máy thiếu − SL máy lỗi) > 0.
+- BO SUNG MAY TINH: PM BỔ SUNG chỉ có dòng khi (SL máy thiếu − SL máy lỗi) > 0. Đây là file duy nhất có công thức ở dòng TỔNG (COUNTA/SUM) và khối CHÚ GIẢI VÀ THỐNG KÊ (COUNTIF theo XẾP LOẠI); script luôn ghi đè lại các công thức này theo đúng số dòng thực tế (kể cả 0 dòng) nên không bao giờ ra `#REF!` dù Excel không tự mở rộng được một vùng chỉ 1 dòng khi chèn/xoá dòng kề bên.
 - MÁY TÍNH: ghi chú trong ngoặc của "Tổng số máy bị lỗi: N (...)" vào cột HIỆN TRẠNG, không phải GHI CHÚ.
 
 Thiết kế đầy đủ: `docs/superpowers/specs/2026-09-28-status-report-fill-design.md`.
