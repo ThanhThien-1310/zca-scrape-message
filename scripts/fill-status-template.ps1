@@ -40,11 +40,15 @@ foreach ($f in $parsed.files) {
 
         $need = $f.rows.Count
         $have = $f.totalRowBefore - $f.firstDataRow
+        # Khong bao gio xoa het xuong duoi 1 dong: xoa het dong du lieu duy nhat ma mot cong thuc dang tro toi
+        # (vd BO SUNG MAY TINH) bien tham chieu do thanh #REF! vinh vien trong file luu ra. 0 dong hop le van
+        # giu lai 1 dong trong (dung nhu file mau von co san), khong ghi du lieu vao do ma thoi.
+        $targetRows = [Math]::Max($need, 1)
         $totalRow = $ws.Rows($f.totalRowBefore)
-        if ($need -gt $have) {
-            for ($k = 0; $k -lt ($need - $have); $k++) { $totalRow.EntireRow.Insert() | Out-Null }
-        } elseif ($need -lt $have) {
-            for ($k = 0; $k -lt ($have - $need); $k++) { $totalRow.Offset(-1, 0).EntireRow.Delete() | Out-Null }
+        if ($targetRows -gt $have) {
+            for ($k = 0; $k -lt ($targetRows - $have); $k++) { $totalRow.EntireRow.Insert() | Out-Null }
+        } elseif ($targetRows -lt $have) {
+            for ($k = 0; $k -lt ($have - $targetRows); $k++) { $totalRow.Offset(-1, 0).EntireRow.Delete() | Out-Null }
         }
 
         # Ghi ca khoi bang mot mang 2 chieu roi gan 1 lan, khong gan tung o rieng le.
@@ -63,6 +67,11 @@ foreach ($f in $parsed.files) {
         foreach ($cell in $f.headerCells) {
             $ws.Range($cell.ref).Value2 = $cell.value
             if ($null -ne $cell.numberFormat) { $ws.Range($cell.ref).NumberFormat = $cell.numberFormat }
+        }
+        # Ghi de lai cac cong thuc TONG/CHU GIAI (neu co, vd BO SUNG MAY TINH) theo dung vung du lieu hien tai
+        # thay vi de Excel tu suy ra - xem statusReportLayout.ts (boSungFormulaCells) ve ly do.
+        foreach ($cell in $f.formulaCells) {
+            $ws.Range($cell.ref).Formula = "=" + $cell.formula
         }
 
         $wb.SaveAs($f.out, 51)

@@ -31,9 +31,39 @@ export interface HeaderCell {
     numberFormat?: string;
 }
 
+export interface FormulaCell {
+    ref: string;
+    formula: string;
+}
+
 export interface FileFillSpec extends FileLayout {
     rows: Array<Record<string, string | number | null>>;
     headerCells: HeaderCell[];
+    formulaCells?: FormulaCell[];
+}
+
+/**
+ * BO SUNG MAY TINH là file DUY NHẤT có công thức trong dòng TỔNG (COUNTA/SUM) và khối "CHÚ GIẢI VÀ THỐNG KÊ"
+ * (COUNTIF theo XẾP LOẠI) — các file khác dòng TỔNG chỉ là chữ, không có công thức. Excel KHÔNG tự mở rộng
+ * một tham chiếu 1 dòng (ví dụ `C5:C5`) khi chèn dòng kề bên nó, và xoá hết dòng dữ liệu duy nhất mà công thức
+ * đang trỏ tới sẽ biến tham chiếu đó thành `#REF!` vĩnh viễn trong file lưu ra — cả hai đều xảy ra thật khi số
+ * dòng dữ liệu thay đổi (đã tái hiện: file mẫu mới chỉ có 1 dòng trống sẵn, need=0 xoá nốt dòng đó -> #REF!).
+ * Vì vậy luôn ghi đè lại 7 công thức này theo đúng vùng dữ liệu hiện tại, không dựa vào Excel tự suy ra; và
+ * luôn tính vùng dữ liệu tối thiểu là 1 dòng (không bao giờ coi như xoá hết, kể cả khi 0 dòng đủ điều kiện) để
+ * luôn có dòng hợp lệ cho C{firstDataRow}, L, M, N tham chiếu tới.
+ */
+function boSungFormulaCells(firstDataRow: number, rowCount: number): FormulaCell[] {
+    const effectiveRows = Math.max(rowCount, 1);
+    const lastDataRow = firstDataRow + effectiveRows - 1;
+    const totalRow = firstDataRow + effectiveRows;
+    const dataRange = (col: string): string => `${col}${firstDataRow}:${col}${lastDataRow}`;
+    const gradeRow = (offset: number): number => totalRow + offset;
+    return [
+        { ref: `C${totalRow}`, formula: `COUNTA(${dataRange("C")})` },
+        { ref: `L${totalRow}`, formula: `SUM(${dataRange("L")})` },
+        { ref: `M${totalRow}`, formula: `SUM(${dataRange("M")})` },
+        ...[4, 5, 6, 7].map((offset) => ({ ref: `G${gradeRow(offset)}`, formula: `COUNTIF(${dataRange("N")},D${gradeRow(offset)})` })),
+    ];
 }
 
 const WEEKDAY_EXCEL_TYPE1 = (jsDay: number): number => jsDay + 1; // JS getUTCDay(): 0=CN..6=Thứ 7; Excel WEEKDAY(d,1): 1=CN..7=Thứ 7.
@@ -64,8 +94,14 @@ export function excelDateSerialForDay(day: string): number {
 export function buildFillSpecs(reports: Report[], perMessage: Map<string, number>, day: string, generatedAt: number = Date.now()): Record<keyof typeof FILE_LAYOUT, FileFillSpec> {
     const { thu, ngay, gio } = headerDateTexts(day, generatedAt);
     const dateSerial = excelDateSerialForDay(day);
+    const boSungRows = buildBoSungRows(reports);
     return {
-        boSung: { ...FILE_LAYOUT.boSung, rows: buildBoSungRows(reports), headerCells: [{ ref: "Q2", value: dateSerial, numberFormat: "dd/mm/yyyy" }] },
+        boSung: {
+            ...FILE_LAYOUT.boSung,
+            rows: boSungRows,
+            headerCells: [{ ref: "Q2", value: dateSerial, numberFormat: "dd/mm/yyyy" }],
+            formulaCells: boSungFormulaCells(FILE_LAYOUT.boSung.firstDataRow, boSungRows.length),
+        },
         loa: { ...FILE_LAYOUT.loa, rows: buildLoaRows(reports), headerCells: [{ ref: "F2", value: thu }, { ref: "G2", value: ngay }, { ref: "H2", value: gio }] },
         internet: { ...FILE_LAYOUT.internet, rows: buildInternetRows(reports, perMessage), headerCells: [{ ref: "F2", value: thu }, { ref: "G2", value: ngay }, { ref: "I2", value: gio }] },
         netsupport: { ...FILE_LAYOUT.netsupport, rows: buildNetSupportRows(reports, perMessage), headerCells: [{ ref: "F2", value: thu }, { ref: "G2", value: ngay }, { ref: "I2", value: gio }] },

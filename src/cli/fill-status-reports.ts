@@ -76,6 +76,7 @@ function main(): void {
                     lastColumn: spec.lastColumn,
                     rows: spec.rows,
                     headerCells: spec.headerCells,
+                    formulaCells: spec.formulaCells ?? [],
                 },
             ],
         };
