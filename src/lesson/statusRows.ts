@@ -1,5 +1,28 @@
 import type { Cell, CoSoVatChat, Report } from "../types/index.js";
 
+/**
+ * Mỗi phòng (maNhom + phongMay) chỉ giữ báo cáo có `thoiGian` lớn nhất trong buổi — khớp cơ chế cũ của file
+ * .xlsm ("với mỗi cặp (ngày, RoomId) chỉ giữ báo cáo có Timestamp lớn nhất"), áp dụng ở mức buổi vì mỗi lần
+ * chạy fill:status-reports chỉ xử lý một buổi. Báo cáo cuối buổi phản ánh tình trạng THẬT tại thời điểm đó
+ * (có thể xấu hơn hoặc tốt hơn đầu buổi), nên lấy báo cáo mới nhất thay vì chỉ lấy đầu buổi — vừa hết trùng
+ * lặp (một phòng không còn ra 2 dòng vì có cả báo cáo đầu và cuối buổi) vừa không bỏ sót thay đổi cuối buổi.
+ * Report không có `phongMay` (không xác định được phòng) không gộp với nhau, giữ nguyên hết.
+ */
+export function latestPerRoom(reports: Report[]): Report[] {
+    const latest = new Map<string, Report>();
+    const noRoom: Report[] = [];
+    for (const r of reports) {
+        if (!r.data.phongMay) {
+            noRoom.push(r);
+            continue;
+        }
+        const key = `${r.maNhom}|${r.data.phongMay.toUpperCase().trim()}`;
+        const current = latest.get(key);
+        if (!current || r.thoiGian > current.thoiGian) latest.set(key, r);
+    }
+    return [...latest.values(), ...noRoom];
+}
+
 /** Đọc `Thiếu`/`Lỗi` (và ghi chú của Lỗi) từ mục `soLuong` của một cơ sở vật chất; thiếu mục nào trả về null. */
 function quantity(facility: CoSoVatChat | undefined, loai: "Thieu" | "Loi"): { so: number | null; ghiChu: string | null } {
     const entry = facility?.soLuong?.find((s) => s.loai === loai);

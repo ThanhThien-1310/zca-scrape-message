@@ -5,15 +5,16 @@ import { config } from "../../config.js";
 import { outputDir, scriptsDir } from "../core/paths.js";
 import { applyStreaks, readStreaks, writeStreaks } from "../lesson/faultStreaks.js";
 import { buildFillSpecs, FILE_LAYOUT, OTHER_TEMPLATE_FILES } from "../lesson/statusReportLayout.js";
+import { latestPerRoom } from "../lesson/statusRows.js";
 import { isBuoi, todayVietnam } from "../lesson/time.js";
 import type { Report } from "../types/index.js";
 
 /**
  * Điền 5 file báo cáo tình trạng (BO SUNG MAY TINH, LOA, INTERNET, NETSUPPORT, MÁY TÍNH) từ `output/output.json`
- * (đã áp override, chỉ lấy báo cáo ĐẦU BUỔI — báo cáo cuối buổi là sự kiện khác, không tính vào bảng này), và
- * chép nguyên trạng 5 file chưa có dữ liệu. Cả 10 file cùng nằm trong `data/export/trang-thai/<buoi>/` (mỗi
- * buổi một thư mục riêng), ghi đè mỗi lần chạy lại CÙNG buổi đó. Không có macro, không qua Zalo — chỉ cần Excel
- * cài trên máy.
+ * (đã áp override, mỗi phòng chỉ lấy báo cáo MỚI NHẤT trong buổi — đầu buổi hay cuối buổi tuỳ báo cáo nào gửi
+ * sau — khớp cơ chế cũ của file .xlsm), và chép nguyên trạng 5 file chưa có dữ liệu. Cả 10 file cùng nằm trong
+ * `data/export/trang-thai/<buoi>/` (mỗi buổi một thư mục riêng), ghi đè mỗi lần chạy lại CÙNG buổi đó. Không
+ * có macro, không qua Zalo — chỉ cần Excel cài trên máy.
  * Xem thiết kế: docs/superpowers/specs/2026-09-28-status-report-fill-design.md
  *
  *   npm run fill:status-reports -- output/output.json [--day YYYY-MM-DD] [--buoi sang|chieu|toi]
@@ -29,10 +30,10 @@ function main(): void {
     const inputPath = process.argv.slice(2).find((a, i, all) => !a.startsWith("--") && (i === 0 || !all[i - 1].startsWith("--")));
     if (!inputPath) throw new Error("Usage: npm run fill:status-reports -- <output.json> [--day YYYY-MM-DD] [--buoi sang|chieu|toi]");
 
-    // Chỉ lấy báo cáo ĐẦU BUỔI: mỗi trường báo cáo tình trạng thiết bị một lần vào đầu buổi, báo cáo CUỐI BUỔI
-    // là một sự kiện khác (không phải "báo lại"/dupe) — trộn cả hai vào cùng bảng khiến một trường xuất hiện
-    // 2 lần trong buổi (dupe giả) dù không hề trùng dữ liệu.
-    const reports = (JSON.parse(fs.readFileSync(inputPath, "utf8")) as Report[]).filter((r) => r.loaiBaoCao === "DauBuoi");
+    // Mỗi phòng (maNhom+phongMay) chỉ giữ báo cáo mới nhất trong buổi: một phòng có cả báo cáo đầu và cuối
+    // buổi không còn ra 2 dòng (dupe giả), và tình trạng thiết bị lấy đúng số liệu MỚI NHẤT (báo cáo cuối
+    // buổi có thể xấu hơn hoặc tốt hơn đầu buổi) thay vì luôn cố định theo đầu buổi.
+    const reports = latestPerRoom(JSON.parse(fs.readFileSync(inputPath, "utf8")) as Report[]);
 
     const metaFile = path.join(path.dirname(path.resolve(inputPath)), "meta.json");
     const meta: { day?: string; buoi?: string } = fs.existsSync(metaFile) ? JSON.parse(fs.readFileSync(metaFile, "utf8").replace(/^﻿/, "")) : {};

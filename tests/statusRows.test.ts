@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildBoSungRows, buildInternetRows, buildLoaRows, buildMayTinhRows, buildNetSupportRows, mayTinhGrade } from "../src/lesson/statusRows.js";
+import { buildBoSungRows, buildInternetRows, buildLoaRows, buildMayTinhRows, buildNetSupportRows, latestPerRoom, mayTinhGrade } from "../src/lesson/statusRows.js";
 import type { CoSoVatChat, Report } from "../src/types/index.js";
 
 const facility = (loai: CoSoVatChat["loai"], xepLoai: string | null, soLuong?: CoSoVatChat["soLuong"]): CoSoVatChat => ({ loai, xepLoai, soLuong });
@@ -15,6 +15,35 @@ function report(id: string, phongMay: string | null, facilities: CoSoVatChat[], 
         data: { maTrangThai: 1, maPhong: null, truong: { capHoc: "LC", tenRieng: "CHU VĂN AN", coSo: null }, khuVuc: "BTAN", phongMay, giaoVien: "GV", coSoVatChat: facilities, ...over },
     };
 }
+
+test("latestPerRoom: cùng một phòng (maNhom+phongMay) báo cáo nhiều lần trong buổi thì chỉ giữ báo cáo có thoiGian lớn nhất", () => {
+    const early = report("m1", "PM1", []);
+    early.thoiGian = 1000;
+    const late = report("m2", "PM1", []);
+    late.thoiGian = 5000;
+    assert.deepEqual(latestPerRoom([early, late]), [late]);
+    assert.deepEqual(latestPerRoom([late, early]), [late]);
+});
+
+test("latestPerRoom: các phòng khác nhau (phongMay khác nhau) đều được giữ, không gộp lẫn nhau", () => {
+    const a = report("m1", "PM1", []);
+    const b = report("m2", "PM2", []);
+    assert.deepEqual(latestPerRoom([a, b]).map((r) => r.maTinNhan).sort(), ["m1", "m2"]);
+});
+
+test("latestPerRoom: khớp phòng không phân biệt hoa thường/khoảng trắng thừa (giống khoá của bộ đếm SỐ LẦN)", () => {
+    const a = report("m1", " pm1 ", []);
+    a.thoiGian = 1000;
+    const b = report("m2", "PM1", []);
+    b.thoiGian = 2000;
+    assert.deepEqual(latestPerRoom([a, b]), [b]);
+});
+
+test("latestPerRoom: report không có phongMay được giữ nguyên hết, không bị gộp với nhau", () => {
+    const a = report("m1", null, []);
+    const b = report("m2", null, []);
+    assert.deepEqual(latestPerRoom([a, b]).map((r) => r.maTinNhan).sort(), ["m1", "m2"]);
+});
 
 test("mayTinhGrade: 0 is A, 1-5 is B, 6-9 is C, 10+ is D, null stays null", () => {
     assert.equal(mayTinhGrade(0), "A");
