@@ -5,15 +5,20 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { extractAll } from "../src/lesson/extract.js";
 import { todayVietnam } from "../src/lesson/time.js";
+import { repoRoot, srcDir } from "../src/core/paths.js";
 import { completeSnapshot, enqueueTarget, takeSnapshot } from "../src/scrape/scrapeQueue.js";
 import { MessageStore } from "../src/store/messageStore.js";
-import type { NormalizedMessage, SourceMessage } from "../src/types/index.js";
+import type { NormalizedMessage, Report, SourceMessage } from "../src/types/index.js";
 
 /**
- * Load simulation, offline: N synthetic groups in a temp directory. It never touches data/, the database or
- * Zalo Desktop. Measures the parts of the pipeline that do not need the Zalo UI.
+ * Load simulation, offline: N synthetic groups in a temp directory. It never touches `data/` (except the one
+ * real subprocess call in mục 6 — xem ghi chú ở đó, dùng ngày giả 2099-01-01 để không đè dữ liệu thật), the
+ * database or Zalo Desktop. Measures the parts of the pipeline that do not need the Zalo UI — KHÔNG đo được
+ * tốc độ cào thật (phụ thuộc Zalo Desktop/DOM/mạng, chỉ đo được bằng cào thật — xem `npm run runner:timing`
+ * cho số liệu thật đã ghi lại từ các lần chạy thật). Mục 8 (mô hình chu kỳ) ghép số cào thật đó với số đo
+ * được ở đây.
  *
- *   npx tsx scripts/benchLoad.ts [--groups 100] [--history 3000] [--scrape-seconds 8,15,30]
+ *   npx tsx scripts/benchLoad.ts [--groups 300] [--history 3000] [--scrape-seconds 8,15,30]
  */
 const self = fileURLToPath(import.meta.url);
 const arg = (name: string, fallback: string): string => {
@@ -111,7 +116,7 @@ async function raceTrial(dir: string, groups: number): Promise<number> {
 async function main(): Promise<void> {
     if (process.argv.includes("--child-producer")) return childProducer();
 
-    const groups = Number(arg("--groups", "100"));
+    const groups = Number(arg("--groups", "300"));
     const history = Number(arg("--history", "3000"));
     const todayPer = 40;
     const scrapeSeconds = arg("--scrape-seconds", "8,15,30").split(",").map(Number);
@@ -167,27 +172,55 @@ async function main(): Promise<void> {
         for (let t = 0; t < 5; t++) lost.push(await raceTrial(dir, groups));
         line(`Mất cập nhật khi watch thêm, runner xoá đồng thời (5 lượt x ${groups} nhóm)`, `${lost.join(", ")} nhóm bị mất mỗi lượt`);
 
-        // 5. Extraction over the whole store.
-        console.log("\n5) Trích xuất báo cáo một buổi (extractAll, không tra DB)");
+        // 5. Extraction over the whole store, one phase.
+        console.log("\n5) Trích xuất báo cáo một giai đoạn (extractAll, không tra DB)");
         const day = todayVietnam(now);
-        for (const buoi of ["morningstart"] as const) {
-            const [res, ms] = await timed(() => extractAll(all, { day, buoi }));
-            line(`extractAll buổi ${buoi}`, `${fmt(ms)} ms, xét ${res.summary.xet} tin, ${res.summary.baoCao} báo cáo`);
-        }
+        const buoi = "morningstart" as const;
+        const [extracted, extractMs] = await timed(() => extractAll(all, { day, buoi }));
+        line(`extractAll giai đoạn ${buoi}`, `${fmt(extractMs)} ms, xét ${extracted.summary.xet} tin, ${extracted.summary.baoCao} báo cáo`);
+
+        // 6. fill-status-reports THẬT (mở PowerShell + Excel COM thật, đúng script buildSession() dùng) — dùng
+        // ngày giả 2099-01-01 nên KHÔNG ghi đè bất kỳ báo cáo thật nào của hôm nay; xoá đúng thư mục vừa tạo
+        // và khôi phục lại data/.status-streaks.json (bộ đếm SỐ LẦN thật) sau khi đo xong.
+        console.log("\n6) Xuất 5 file trạng thái thiết bị THẬT (fill-status-reports.ts, Excel COM thật — ngày giả 2099-01-01, tự dọn sau khi đo)");
+        const outputJsonPath = path.join(dir, "bench-output.json");
+        fs.writeFileSync(outputJsonPath, JSON.stringify(extracted.reports satisfies Report[]), "utf8");
+        const streaksFile = path.join(repoRoot, "data", ".status-streaks.json");
+        const streaksBackup = fs.existsSync(streaksFile) ? fs.readFileSync(streaksFile, "utf8") : null;
+        const [fillRun, fillMs] = await timed(
+            () =>
+                new Promise<{ code: number; output: string }>((resolve) => {
+                    const child = spawn(process.execPath, ["--import", "tsx", path.join(srcDir, "cli", "fill-status-reports.ts"), outputJsonPath, "--day", "2099-01-01", "--buoi", buoi], { cwd: repoRoot });
+                    let output = "";
+                    child.stdout.on("data", (d) => (output += d));
+                    child.stderr.on("data", (d) => (output += d));
+                    child.on("close", (code) => resolve({ code: code ?? 1, output }));
+                }),
+        );
+        fs.rmSync(path.join(repoRoot, "data", "export", "trang-thai", "9901"), { recursive: true, force: true });
+        if (streaksBackup !== null) fs.writeFileSync(streaksFile, streaksBackup, "utf8");
+        else fs.rmSync(streaksFile, { force: true });
+        line("fill-status-reports (5 file, Excel COM thật)", `${fmt(fillMs / 1000, 1)} s cho ${extracted.reports.length} báo cáo (mã thoát ${fillRun.code})`);
+        if (fillRun.code !== 0) console.log("  " + fillRun.output.trim().split(/\r?\n/).slice(-6).join("\n  "));
+
+        // 7. Cold-start cost of a child process (extract-reports, fill-status-reports, mark-messages mỗi phiên).
+        console.log("\n7) Chi phí khởi động tiến trình con");
         const spawnMs: number[] = [];
         for (let k = 0; k < 3; k++) {
             const t = performance.now();
             spawnSync(process.execPath, ["--import", "tsx", "-e", "0"], { stdio: "ignore" });
             spawnMs.push(performance.now() - t);
         }
-        line("Khởi động 1 tiến trình con (node + tsx)", `${fmt(pct(spawnMs, 50) / 1000, 2)} s x 4 lần mỗi buổi (extract, fill, mark, sync)`);
+        line("Khởi động 1 tiến trình con (node + tsx)", `${fmt(pct(spawnMs, 50) / 1000, 2)} s x 3 lần mỗi phiên (extract-reports, fill-status-reports, mark-messages)`);
 
-        // 6. Cycle model. Scrape seconds per group is an assumption (needs a real measurement from the UI).
-        console.log("\n6) Mô hình thời gian một chu kỳ (giữ khoá Zalo; chat phải chờ khoá này)");
-        console.log("  Giả định: cào một nhóm = X giây (chưa đo được, thay bằng số thật), 1 buổi bẩn, Excel fill 20 s, sync DB 15 s + nạp tin");
-        const fixed = loadMs / 1000 + 15 + 4 * (pct(spawnMs, 50) / 1000) + 20;
+        // 8. Cycle model: fixed cost đo THẬT ở trên (load, spawn, fill Excel) ghép với giây/nhóm THẬT từ
+        // `npm run runner:timing` (không đoán nữa — xem ghi chú đầu file, cào không đo được offline).
+        console.log("\n8) Mô hình thời gian một chu kỳ (giữ khoá Zalo; chat phải chờ khoá này)");
+        console.log("  Lấy \"Xs/nhóm\" thật từ `npm run runner:timing` (p50/p95/max đã ghi từ các lần chạy thật), thay --scrape-seconds bằng số đó.");
+        console.log(`  Chi phí cố định đo thật cho ${groups} nhóm: nạp tin ${fmt(loadMs / 1000, 2)} s + fill-status-reports ${fmt(fillMs / 1000, 1)} s + 3 x khởi động tiến trình + sync DB (giả định 15 s, chưa đo — cần DB thật).`);
+        const fixed = loadMs / 1000 + 15 + 3 * (pct(spawnMs, 50) / 1000) + fillMs / 1000;
         console.log("  Số nhóm trong hàng | " + scrapeSeconds.map((s) => `${s}s/nhóm`.padStart(10)).join(" | "));
-        for (const k of [1, 5, 20, 50, 100]) {
+        for (const k of [1, 5, 20, 50, 100, 300]) {
             console.log("  " + String(k).padStart(18) + " | " + scrapeSeconds.map((s) => `${fmt((k * s + fixed) / 60)} phút`.padStart(10)).join(" | "));
         }
     } finally {
