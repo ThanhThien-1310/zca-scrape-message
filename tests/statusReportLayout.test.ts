@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import XLSX from "xlsx";
 import { config } from "../config.js";
-import { buildFillSpecs, excelDateSerialForDay, FILE_LAYOUT, headerDateTexts, OTHER_TEMPLATE_FILES } from "../src/lesson/statusReportLayout.js";
+import { buildFillSpecs, excelDateSerialForDay, FILE_LAYOUT, headerDateTexts, OTHER_TEMPLATE_FILES, PHASE_HHMM, readTemplateTitle, statusFileName } from "../src/lesson/statusReportLayout.js";
 import type { CoSoVatChat, Report } from "../src/types/index.js";
 
 test("headerDateTexts matches the original TEXT()/WEEKDAY() formula's own output convention", () => {
@@ -93,6 +93,27 @@ test("OTHER_TEMPLATE_FILES lists exactly the 5 files with no data source, and no
 
 const templatesDir = path.join(config.dataDir, "mau bao cao new");
 const templatesPresent = fs.existsSync(templatesDir);
+
+test("statusFileName: <title>_<yyMMdd>_T<thu>_<HHmm cố định theo giai đoạn>.xlsx", () => {
+    // 2026-09-29 là thứ Ba -> Excel WEEKDAY(d,1) = 3.
+    assert.equal(statusFileName("TÌNH TRẠNG LOA", "2026-09-29", "morningstart"), "TÌNH TRẠNG LOA_260929_T3_0900.xlsx");
+    assert.equal(statusFileName("TÌNH TRẠNG LOA", "2026-09-29", "morningend"), "TÌNH TRẠNG LOA_260929_T3_1230.xlsx");
+    assert.equal(statusFileName("TÌNH TRẠNG LOA", "2026-09-29", "afternoonstart"), "TÌNH TRẠNG LOA_260929_T3_1500.xlsx");
+    assert.equal(statusFileName("TÌNH TRẠNG LOA", "2026-09-29", "afternoonend"), "TÌNH TRẠNG LOA_260929_T3_1730.xlsx");
+});
+
+test("PHASE_HHMM has the fixed end-of-phase clock time for all 4 phases", () => {
+    assert.deepEqual(PHASE_HHMM, { morningstart: "0900", morningend: "1230", afternoonstart: "1500", afternoonend: "1730" });
+});
+
+test(
+    "readTemplateTitle reads the exact second line of cell A1 in a real template",
+    { skip: templatesPresent ? false : `${templatesDir} không có trên máy này — bỏ qua` },
+    () => {
+        assert.equal(readTemplateTitle(path.join(templatesDir, "TINH TRANG LOA.xlsx"), "1209"), "TÌNH TRẠNG LOA");
+        assert.equal(readTemplateTitle(path.join(templatesDir, "TINH TRANG LOI MAY TINH.xlsx"), "2409"), "TÌNH TRẠNG LỖI MÁY TÍNH");
+    },
+);
 
 test(
     "the real template files still have the sheet/TỔNG-row layout the constants assume",

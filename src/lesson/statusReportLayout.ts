@@ -1,5 +1,6 @@
+import XLSX from "xlsx";
 import { buildBoSungRows, buildInternetRows, buildLoaRows, buildMayTinhRows, buildNetSupportRows } from "./statusRows.js";
-import type { Report } from "../types/index.js";
+import type { Phase, Report } from "../types/index.js";
 
 export interface FileLayout {
     templateFile: string;
@@ -89,6 +90,35 @@ export function headerDateTexts(day: string, generatedAt: number): { thu: string
 export function excelDateSerialForDay(day: string): number {
     const [y, m, d] = day.split("-").map(Number);
     return Date.UTC(y, m - 1, d) / 86_400_000 + 25569;
+}
+
+export const PHASE_HHMM: Record<Phase, string> = {
+    morningstart: "0900",
+    morningend: "1230",
+    afternoonstart: "1500",
+    afternoonend: "1730",
+};
+
+/**
+ * Đọc dòng 2 của ô A1 (gộp 2 dòng, vd "TIN HỌC ĐẠI DƯƠNG\nTÌNH TRẠNG LOA") trong file mẫu — đây là tiêu đề
+ * hiển thị dùng làm tên file xuất, KHÔNG hard-code danh sách tên vì mỗi file mẫu tự có sẵn dòng này.
+ */
+export function readTemplateTitle(templatePath: string, sheet: string): string {
+    const wb = XLSX.readFile(templatePath);
+    const ws = wb.Sheets[sheet];
+    const cell = ws?.["A1"];
+    const raw = typeof cell?.v === "string" ? cell.v : "";
+    const lines = raw.split("\n");
+    if (lines.length < 2 || !lines[1].trim()) throw new Error(`${templatePath}: không đọc được dòng tiêu đề (dòng 2) ở ô A1 sheet "${sheet}".`);
+    return lines[1].trim();
+}
+
+/** `<tiêu đề>_<yyMMdd>_T<thứ>_<HHmm cố định của giai đoạn>.xlsx` — xem spec "fill:status-reports". */
+export function statusFileName(title: string, day: string, buoi: Phase): string {
+    const [y, m, d] = day.split("-");
+    const yyMMdd = `${y.slice(2)}${m}${d}`;
+    const weekday = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d))).getUTCDay();
+    return `${title}_${yyMMdd}_T${WEEKDAY_EXCEL_TYPE1(weekday)}_${PHASE_HHMM[buoi]}.xlsx`;
 }
 
 export function buildFillSpecs(reports: Report[], perMessage: Map<string, number>, day: string, generatedAt: number = Date.now()): Record<keyof typeof FILE_LAYOUT, FileFillSpec> {
