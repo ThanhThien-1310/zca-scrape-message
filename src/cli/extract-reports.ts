@@ -4,12 +4,12 @@ import { outputDir } from "../core/paths.js";
 import { extractAll } from "../lesson/extract.js";
 import { readOverrides } from "../lesson/overrides.js";
 import { lookupRoomIds } from "../lesson/roomLookup.js";
-import { currentSession, isBuoi, todayVietnam } from "../lesson/time.js";
+import { isPhase, phaseOf, todayVietnam } from "../lesson/time.js";
 import { MessageStore } from "../store/messageStore.js";
-import type { Buoi, SourceMessage } from "../types/index.js";
+import type { Phase, SourceMessage } from "../types/index.js";
 
 /**
- * Extracts every start/end-of-lesson report of ONE session (sáng/chiều/tối) of
+ * Extracts every start/end-of-lesson report of ONE giai đoạn (đầu/cuối buổi sáng, đầu/cuối buổi chiều) of
  * one Vietnam calendar day from the scraped `data/<groupId>.json` files and
  * writes, into `output/`:
  *   output.json  — the valid reports (input of `fill:report`)
@@ -18,9 +18,9 @@ import type { Buoi, SourceMessage } from "../types/index.js";
  *   meta.json    — { day, buoi } so `fill:report` can name the Excel file
  * `output/overrides.json`, when present, holds the agent's corrections.
  *
- *   npm run extract:reports -- [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--no-db]
+ *   npm run extract:reports -- [--day YYYY-MM-DD] [--buoi morningstart|morningend|afternoonstart|afternoonend] [--no-db]
  *
- * `--buoi` defaults to the session of the current time.
+ * `--buoi` defaults to the raw phase of the current time (`phaseOf`).
  */
 const outDir = outputDir;
 
@@ -38,8 +38,8 @@ async function main(): Promise<void> {
     const day = option("--day") ?? todayVietnam();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error(`--day must be YYYY-MM-DD, got "${day}"`);
     const buoiArg = option("--buoi");
-    if (buoiArg !== undefined && !isBuoi(buoiArg)) throw new Error(`--buoi must be sang, chieu or toi, got "${buoiArg}"`);
-    const buoi: Buoi = buoiArg ?? currentSession();
+    if (buoiArg !== undefined && !isPhase(buoiArg)) throw new Error(`--buoi must be morningstart, morningend, afternoonstart or afternoonend, got "${buoiArg}"`);
+    const buoi: Phase = buoiArg ?? phaseOf(Date.now());
     const noDb = process.argv.includes("--no-db");
 
     const store = new MessageStore();

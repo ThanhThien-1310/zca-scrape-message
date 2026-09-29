@@ -151,19 +151,19 @@ test("with a session, only that session's messages are considered and marked", a
     const morning = msg(COMPLETE, at(8));
     const afternoon = msg(COMPLETE, at(14));
     const evening = msg("xin chào", at(19));
-    const r = await extractAll([morning, afternoon, evening], { day: DAY, buoi: "sang", lookupRoomIds: lookup });
+    const r = await extractAll([morning, afternoon, evening], { day: DAY, buoi: "morningstart", lookupRoomIds: lookup });
     assert.deepEqual(r.reports.map((x) => x.maTinNhan), [morning.msgId]);
     assert.deepEqual(r.marks.map((x) => x.maTinNhan), [morning.msgId]);
     assert.equal(r.summary.xet, 1);
 });
 
-test("the morning/afternoon boundary is 12:00 Vietnam time", async () => {
-    const lastMorning = msg(COMPLETE, at(11, 59));
-    const firstAfternoon = msg(COMPLETE, at(12, 0));
-    const sang = await extractAll([lastMorning, firstAfternoon], { day: DAY, buoi: "sang", lookupRoomIds: lookup });
-    const chieu = await extractAll([lastMorning, firstAfternoon], { day: DAY, buoi: "chieu", lookupRoomIds: lookup });
-    assert.deepEqual(sang.reports.map((x) => x.maTinNhan), [lastMorning.msgId]);
-    assert.deepEqual(chieu.reports.map((x) => x.maTinNhan), [firstAfternoon.msgId]);
+test("the morningend/afternoonstart boundary is 12:30 Vietnam time (CuoiBuoi, which never reroutes)", async () => {
+    const lastMorningEnd = msg(IT_MAINTENANCE, at(12, 29));
+    const firstAfternoonStart = msg(IT_MAINTENANCE, at(12, 30));
+    const morningend = await extractAll([lastMorningEnd, firstAfternoonStart], { day: DAY, buoi: "morningend", lookupRoomIds: lookup });
+    const afternoonstart = await extractAll([lastMorningEnd, firstAfternoonStart], { day: DAY, buoi: "afternoonstart", lookupRoomIds: lookup });
+    assert.deepEqual(morningend.reports.map((x) => x.maTinNhan), [lastMorningEnd.msgId]);
+    assert.deepEqual(afternoonstart.reports.map((x) => x.maTinNhan), [firstAfternoonStart.msgId]);
 });
 
 test("an override whose key matches no scraped message is reported, one for another session is not", async () => {
@@ -171,7 +171,7 @@ test("an override whose key matches no scraped message is reported, one for anot
     const afternoon = msg(COMPLETE, at(14));
     const r = await extractAll([morning, afternoon], {
         day: DAY,
-        buoi: "sang",
+        buoi: "morningstart",
         lookupRoomIds: lookup,
         overrides: [
             { key: { maNhom: "g1", maTinNhan: afternoon.msgId }, sua: { loi: 1 } },
@@ -209,4 +209,42 @@ test("an alias applies only to the group it names", async () => {
     const other = msg(COMPLETE, at(9)); // "LC_HoaSen1_TĐ"
     const r = await extractAll([demoReport(), other], { day: DAY, lookupRoomIds: lookup, groupAliases: { "bot test": "LC_ChuVănAn_BTAN" } });
     assert.equal(r.reports.find((x) => x.maTinNhan === other.msgId)?.data.maPhong, 399);
+});
+
+test("extractAll with a Phase buoi: a message sent the night before (after 17:30) for tomorrow's morningstart is included", async () => {
+    const lateLastNight = msg(COMPLETE, Date.UTC(2026, 8, 23, 11, 0)); // 18:00 VN on 2026-09-23 (the day BEFORE DAY)
+    const r = await extractAll([lateLastNight], { day: DAY, buoi: "morningstart" });
+    assert.equal(r.reports.length, 1);
+    assert.equal(r.reports[0].maTinNhan, lateLastNight.msgId);
+});
+
+test("extractAll with a Phase buoi: a late DauBuoi report (after 9h) lands in afternoonstart, not morningend", async () => {
+    const late = msg(COMPLETE, at(9, 48));
+    const inMorningEnd = await extractAll([late], { day: DAY, buoi: "morningend" });
+    assert.equal(inMorningEnd.reports.length, 0);
+    const inAfternoonStart = await extractAll([late], { day: DAY, buoi: "afternoonstart" });
+    assert.equal(inAfternoonStart.reports.length, 1);
+});
+
+test("extractAll with a Phase buoi: a CuoiBuoi report sent before 9h stays in morningstart, not corrected", async () => {
+    const cuoiBuoiEarly = msg(COMPLETE.replace("BÁO CÁO ĐẦU BUỔI DẠY", "BÁO CÁO CUỐI BUỔI DẠY"), at(3));
+    const r = await extractAll([cuoiBuoiEarly], { day: DAY, buoi: "morningstart" });
+    assert.equal(r.reports.length, 1);
+    assert.equal(r.reports[0].loaiBaoCao, "CuoiBuoi");
+});
+
+test("extractAll with a Phase buoi: a skipped (-1) message with no loaiBaoCao is counted by raw phase/day, not lost", async () => {
+    const photo = msg(COMPLETE, at(10), { msgType: "desktop.image" });
+    const r = await extractAll([photo], { day: DAY, buoi: "morningend" }); // 10h -> raw phaseOf = morningend
+    assert.equal(r.summary.xet, 1);
+    assert.equal(r.marks.length, 1);
+    assert.equal(r.marks[0].maTrangThai, -1);
+    const wrongPhase = await extractAll([photo], { day: DAY, buoi: "afternoonstart" });
+    assert.equal(wrongPhase.summary.xet, 0);
+});
+
+test("extractAll without buoi (undefined) still returns every report of the day, unaffected by Phase filtering", async () => {
+    const m = msg(COMPLETE, at(9, 48));
+    const r = await extractAll([m], { day: DAY });
+    assert.equal(r.reports.length, 1);
 });

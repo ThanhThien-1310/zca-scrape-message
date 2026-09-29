@@ -170,7 +170,7 @@ async function main(): Promise<void> {
         // 5. Extraction over the whole store.
         console.log("\n5) Trích xuất báo cáo một buổi (extractAll, không tra DB)");
         const day = todayVietnam(now);
-        for (const buoi of ["sang"] as const) {
+        for (const buoi of ["morningstart"] as const) {
             const [res, ms] = await timed(() => extractAll(all, { day, buoi }));
             line(`extractAll buổi ${buoi}`, `${fmt(ms)} ms, xét ${res.summary.xet} tin, ${res.summary.baoCao} báo cáo`);
         }
