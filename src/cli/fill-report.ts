@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { outputDir, repoRoot, scriptsDir, templatesDir } from "../core/paths.js";
 import { buildRows } from "../lesson/rows.js";
-import { isBuoi, reportFileName, todayVietnam } from "../lesson/time.js";
+import { isPhase, reportFileNameV2, todayVietnam } from "../lesson/time.js";
 import type { Report } from "../types/index.js";
 
 /**
@@ -12,9 +12,9 @@ import type { Report } from "../types/index.js";
  * tables (MAY TINH, INTERNET, NETSUPPORT, LOA, MAY LANH) populate. Needs
  * Microsoft Excel on this machine. The template itself is never modified.
  *
- *   npm run fill:report -- output/output.json [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--template <path>] [--out <path>]
+ *   npm run fill:report -- output/output.json [--day YYYY-MM-DD] [--buoi morningstart|morningend|afternoonstart|afternoonend] [--template <path>] [--out <path>]
  *
- * Day and session default to `meta.json` next to the input (written by
+ * Day and phase default to `meta.json` next to the input (written by
  * `extract:reports`); the output file is data/export/baocaobuoi<buoi>_<ddMMyy>.xlsm.
  * `--out` overrides the output path (the runner writes a temp file with it, then swaps it in).
  */
@@ -26,7 +26,7 @@ function option(name: string): string | undefined {
 
 function main(): void {
     const inputPath = process.argv.slice(2).find((a, i, all) => !a.startsWith("--") && (i === 0 || !all[i - 1].startsWith("--")));
-    if (!inputPath) throw new Error("Usage: npm run fill:report -- <output.json> [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--template <path>]");
+    if (!inputPath) throw new Error("Usage: npm run fill:report -- <output.json> [--day YYYY-MM-DD] [--buoi morningstart|morningend|afternoonstart|afternoonend] [--template <path>]");
 
     const reports = JSON.parse(fs.readFileSync(inputPath, "utf8")) as Report[];
     const rows = buildRows(reports);
@@ -39,7 +39,7 @@ function main(): void {
     const meta: { day?: string; buoi?: string } = fs.existsSync(metaFile) ? JSON.parse(fs.readFileSync(metaFile, "utf8").replace(/^\uFEFF/, "")) : {};
     const day = option("--day") ?? meta.day ?? todayVietnam();
     const buoi = option("--buoi") ?? meta.buoi;
-    if (!isBuoi(buoi)) throw new Error("Cần --buoi sang|chieu|toi hoặc output/meta.json do extract:reports tạo.");
+    if (!isPhase(buoi)) throw new Error("Cần --buoi morningstart|morningend|afternoonstart|afternoonend hoặc output/meta.json do extract:reports tạo.");
     const template = path.resolve(option("--template") ?? path.join(templatesDir, "Temp_RoomFacility_rpt.xlsm"));
     if (!fs.existsSync(template)) throw new Error(`Template not found: ${template}`);
 
@@ -49,7 +49,7 @@ function main(): void {
     fs.writeFileSync(rowsFile, JSON.stringify(rows), "utf8");
 
     const outArg = option("--out");
-    const outFile = outArg ? path.resolve(outArg) : path.join(repoRoot, "data", "export", reportFileName(day, buoi));
+    const outFile = outArg ? path.resolve(outArg) : path.join(repoRoot, "data", "export", reportFileNameV2(day, buoi));
     fs.mkdirSync(path.dirname(outFile), { recursive: true });
     const logFile = path.join(outDir, "fill.log");
     fs.rmSync(logFile, { force: true });

@@ -1,7 +1,7 @@
 import "./helpers/pinConfig.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, classifyPhase, currentSession, excelDateSerial, excelTimeFraction, isBuoi, isPhase, phaseDay, phaseOf, reportFileName, sessionOf, todayVietnam, vietnamDay } from "../src/lesson/time.js";
+import { addDays, classifyPhase, currentSession, excelDateSerial, excelTimeFraction, isBuoi, isPhase, phaseDay, phaseOf, reportFileName, reportFileNameV2, sessionOf, todayVietnam, vietnamDay } from "../src/lesson/time.js";
 
 test("time helpers use the Vietnam calendar", () => {
     const ts = Date.UTC(2026, 8, 23, 18, 30); // 01:30 on 24 Sep in Vietnam
@@ -84,6 +84,11 @@ test("classifyPhase: a late DauBuoi report is pushed forward to the next dau-buo
     assert.deepEqual(classifyPhase(vn(16), "DauBuoi"), { phase: "morningstart", day: "2026-09-25" });
     assert.deepEqual(classifyPhase(vn(3), "DauBuoi"), { phase: "morningstart", day: "2026-09-24" });
     assert.deepEqual(classifyPhase(vn(13), "DauBuoi"), { phase: "afternoonstart", day: "2026-09-24" });
+});
+
+test("reportFileNameV2 is baocaobuoi<phase>_<ddMMyy>.xlsm", () => {
+    assert.equal(reportFileNameV2("2026-09-29", "morningstart"), "baocaobuoimorningstart_290926.xlsm");
+    assert.equal(reportFileNameV2("2026-01-05", "afternoonend"), "baocaobuoiafternoonend_050126.xlsm");
 });
 
 test("isPhase accepts only the 4 phase values", () => {

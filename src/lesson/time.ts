@@ -102,3 +102,9 @@ export function classifyPhase(ts: number, loaiBaoCao: LoaiBaoCao, hours: PhaseHo
 export function isPhase(value: string | undefined): value is Phase {
     return value === "morningstart" || value === "morningend" || value === "afternoonstart" || value === "afternoonend";
 }
+
+/** `baocaobuoimorningstart_290926.xlsm`: bản Phase mới của `reportFileName` — buoi là 1 trong 4 giai đoạn. */
+export function reportFileNameV2(day: string, buoi: Phase): string {
+    const [y, m, d] = day.split("-");
+    return `baocaobuoi${buoi}_${d}${m}${y.slice(2)}.xlsm`;
+}
