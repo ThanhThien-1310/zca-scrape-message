@@ -47,7 +47,7 @@ async function main(): Promise<void> {
             process.exitCode = 1;
         }
         appendLog(summary);
-        console.log(`[rebuild] ${day} ${buoi}: ${summary.ok ? "OK" : "LỖI"}, cần xem ${summary.reviewCount} (output/review_${day}_${buoi}.json)${summary.excel.length > 0 ? `, Excel: ${summary.excel.join(", ")}` : ", không có Excel (không báo cáo nào có phòng trong DB)"}`);
+        console.log(`[rebuild] ${day} ${buoi}: ${summary.ok ? "OK" : "LỖI"}, cần xem ${summary.reviewCount} (output/review_${day}_${buoi}.json) -- xem file trạng thái thiết bị ở data/export/trang-thai/`);
         for (const w of summary.warnings) console.warn(`[rebuild] cảnh báo: ${w}`);
         for (const e of summary.errors) console.error(`[rebuild] lỗi: ${e}`);
     } finally {

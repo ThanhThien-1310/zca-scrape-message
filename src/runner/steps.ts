@@ -8,12 +8,11 @@ import { runScrape } from "../scrape/desktopScraper.js";
 import { runQueuedScrape } from "../scrape/queueRun.js";
 import { completeSnapshot, takeSnapshot } from "../scrape/scrapeQueue.js";
 import { runRecovery } from "../lesson/recoveryRun.js";
-import { currentSession, reportFileNameV2, todayVietnam } from "../lesson/time.js";
+import { currentSession, todayVietnam } from "../lesson/time.js";
 import { MessageStore } from "../store/messageStore.js";
 import type { CycleDeps } from "./cycle.js";
 import { readBuilt, writeBuilt } from "./builtReports.js";
 import { makeRecoverStep } from "./recoveryPlan.js";
-import { safeReplace } from "./safeReplace.js";
 import { scrapeSinceTs } from "./schedule.js";
 import type { BuildResult, Gap, SessionKey, SourceMessage } from "../types/index.js";
 
@@ -45,7 +44,16 @@ export async function loadMessages(store: MessageStore = new MessageStore()): Pr
     return all;
 }
 
-/** Extract one session, write its Excel (via a temp file), mark its messages. The existing CLIs are reused as they are. */
+/**
+ * Extract one session, fill the 5 non-macro status-report templates, mark its messages. The existing CLIs
+ * are reused as they are.
+ *
+ * `fill:report` (the old `.xlsm` + VBA-macro flow) is RETIRED here (tạm thời, theo yêu cầu người dùng
+ * 2026-09-29): its template `templates/Temp_RoomFacility_rpt.xlsm` disappeared from disk (không tìm được
+ * cơ chế nào trong các thao tác của agent chạm tới thư mục đó — xem hội thoại), and 4/5 bảng nó dựng (MAY
+ * TINH, INTERNET, NETSUPPORT, LOA) đã có bản thay thế chi tiết hơn qua `fill:status-reports`; bảng thứ 5
+ * (MÁY LẠNH) tạm thời bỏ qua, chưa có file mẫu mới. `BuildResult.excel` vì vậy luôn là `null` bây giờ.
+ */
 export async function buildSession(session: SessionKey): Promise<BuildResult> {
     const warnings: string[] = [];
     await mustRun("extract-reports.ts", ["--day", session.day, "--buoi", session.buoi]);
@@ -53,16 +61,9 @@ export async function buildSession(session: SessionKey): Promise<BuildResult> {
     // output/review.json belongs to whichever session was built last; keep one per session for the agent.
     fs.copyFileSync(path.join(outDir, "review.json"), path.join(outDir, `review_${session.day}_${session.buoi}.json`));
 
-    const target = path.join(repoRoot, "data", "export", reportFileNameV2(session.day, session.buoi));
-    const result = await safeReplace(target, async (tmp) => {
-        await mustRun("fill-report.ts", [path.join(outDir, "output.json"), "--day", session.day, "--buoi", session.buoi, "--out", tmp]);
-    });
-    if (result.status === "fallback") warnings.push(`file ${path.basename(target)} đang mở, đã lưu thành ${path.basename(result.path!)}`);
-
-    // Bổ trợ: 5 file trạng thái thiết bị không macro (LOA/INTERNET/NETSUPPORT/MÁY TÍNH/BO SUNG). Không dùng
-    // safeReplace vì tên file đã tất định theo (ngày, giai đoạn) — không đè lên phiên khác; nếu Excel đang mở
-    // sẵn 1 file (ai đó đang xem) thì bước này lỗi, KHÔNG được làm hỏng cả phiên build (.xlsm vẫn là báo cáo
-    // chính) — chỉ ghi cảnh báo.
+    // 5 file trạng thái thiết bị không macro (LOA/INTERNET/NETSUPPORT/MÁY TÍNH/BO SUNG). Tên file đã tất định
+    // theo (ngày, giai đoạn) nên không cần safeReplace — không đè lên phiên khác. Nếu Excel đang mở sẵn 1 file
+    // (ai đó đang xem) thì bước này lỗi, KHÔNG được làm hỏng cả phiên build — chỉ ghi cảnh báo.
     try {
         await mustRun("fill-status-reports.ts", [path.join(outDir, "output.json"), "--day", session.day, "--buoi", session.buoi]);
     } catch (err) {
@@ -70,7 +71,7 @@ export async function buildSession(session: SessionKey): Promise<BuildResult> {
     }
 
     await mustRun("mark-messages.ts", [path.join(outDir, "marks.json")]);
-    return { reviewCount: review.length, excel: result.path, warnings };
+    return { reviewCount: review.length, excel: null, warnings };
 }
 
 /**
