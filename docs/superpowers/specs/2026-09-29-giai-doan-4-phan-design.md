@@ -2,17 +2,19 @@
 
 **Trạng thái:** đã duyệt qua trao đổi trực tiếp (không qua văn bản trước khi viết spec này) — xem lịch sử hội thoại. Spec này là bản ghi lại chính thức để viết plan và implement.
 
+**Quy ước đặt tên:** mọi identifier MỚI trong code (type, field, hàm, giá trị cờ CLI) đặt bằng tiếng Anh — không thêm field/giá trị tiếng Việt mới. Các identifier tiếng Việt đã có sẵn trong codebase (`loaiBaoCao`, `phongMay`, `truong`, `khuVuc`, `giaoVien`, `maTinNhan`, ...) giữ nguyên, không đổi (ngoài phạm vi spec này).
+
 ## Bối cảnh
 
 Hệ thống hiện chia 1 ngày thành 3 "buổi": sáng/chiều/tối (`config.sessions`, `Buoi` type, `sessionOf()` trong `src/lesson/time.ts`), dùng cho `extract:reports`, `fill:report` (.xlsm), và `fill:status-reports` (5 file trạng thái thiết bị không macro, thêm gần đây).
 
-Người dùng nhận thấy khái niệm "buổi" hiện tại quá thô: một buổi thực tế nhận cả báo cáo ĐẦU BUỔI DẠY và CUỐI BUỔI DẠY của một hoặc nhiều lớp, dẫn tới báo cáo trạng thái thiết bị bị trùng (một phòng ra 2 dòng: đầu buổi + cuối buổi) hoặc lấy nhầm số liệu cũ. Sau nhiều vòng bàn bạc (bao gồm tra dữ liệu thật trong DB `Zalo_CrawlMessage` để kiểm chứng), chốt lại: thay "buổi" bằng 4 "giai đoạn" cố định trong ngày, phân loại 1 tin nhắn vào đúng giai đoạn dựa trên **loại báo cáo** (`loaiBaoCao`: `DauBuoi`/`CuoiBuoi`, đọc từ title tin nhắn) kết hợp **giờ gửi**.
+Người dùng nhận thấy khái niệm "buổi" hiện tại quá thô: một buổi thực tế nhận cả báo cáo ĐẦU BUỔI DẠY và CUỐI BUỔI DẠY của một hoặc nhiều lớp, dẫn tới báo cáo trạng thái thiết bị bị trùng (một phòng ra 2 dòng: đầu buổi + cuối buổi) hoặc lấy nhầm số liệu cũ. Sau nhiều vòng bàn bạc (bao gồm tra dữ liệu thật trong DB `Zalo_CrawlMessage` để kiểm chứng), chốt lại: thay "buổi" bằng 4 "giai đoạn" (Phase) cố định trong ngày, phân loại 1 tin nhắn vào đúng giai đoạn dựa trên **loại báo cáo** (`loaiBaoCao`: `DauBuoi`/`CuoiBuoi`, đọc từ title tin nhắn) kết hợp **giờ gửi**.
 
 ## Phạm vi
 
-**Quyết định (đã chốt):** đây là logic THAY THẾ hẳn "buổi" sang/chiều/tối hiện tại, không phải một hệ thống chạy song song vĩnh viễn. `--buoi` ở MỌI lệnh (kể cả lời gọi nội bộ từ `bot:runner`) sẽ chỉ nhận 4 giá trị mới (`dausang|cuoisang|dauchieu|cuoichieu`); `Buoi`/`sessionOf`/`sessionWindow`/`config.sessions` bị xoá hẳn khi không còn nơi nào dùng.
+**Quyết định (đã chốt):** đây là logic THAY THẾ hẳn "buổi" sang/chiều/tối hiện tại, không phải một hệ thống chạy song song vĩnh viễn. `--buoi` ở MỌI lệnh (kể cả lời gọi nội bộ từ `bot:runner`) sẽ chỉ nhận 4 giá trị mới (`morningstart|morningend|afternoonstart|afternoonend`); `Buoi`/`sessionOf`/`sessionWindow`/`config.sessions` bị xoá hẳn khi không còn nơi nào dùng.
 
-Vẫn triển khai theo thứ tự 2 chặng để đủ nhỏ mà làm/test từng phần (không tách thành 2 spec/2 lần duyệt riêng — cùng 1 plan, các task sau phụ thuộc task trước):
+Vẫn triển khai theo thứ tự 3 chặng để đủ nhỏ mà làm/test từng phần (không tách thành 2-3 spec/nhiều lần duyệt riêng — cùng 1 plan, các task sau phụ thuộc task trước):
 
 - **Chặng 1**: thêm `Phase`/`config.phases`/các hàm mới trong `time.ts` (chưa xoá gì cũ) + migrate `extract:reports`, `fill:report` (.xlsm), `fill:status-reports` sang dùng `Phase`, đổi `--buoi` của 3 lệnh này sang nhận 4 giá trị mới. Đây là 3 lệnh người dùng tự chạy tay, test được ngay bằng dữ liệu thật.
 - **Chặng 2**: migrate nốt `bot:runner` (`src/runner/steps.ts` gọi `extract-reports.ts`/`fill-report.ts` với `--buoi`, `src/runner/affectedSessions.ts`, `src/runner/builtReports.ts`, `src/runner/schedule.ts`), `bot:chat`/`chat-rules`, `recover:missing`, `mark:messages`, `watch:status`, `src/lesson/recovery.ts` — mọi chỗ còn lại đang dùng `Buoi`/`sessionOf`/`sessionWindow`/`config.sessions`.
@@ -24,12 +26,12 @@ Vì Chặng 2 đụng tới `bot:runner`/`bot:chat` đang chạy thật, plan ph
 
 ## 4 giai đoạn & mốc giờ (giờ Việt Nam)
 
-| Giai đoạn | Khung giờ (thô, theo đồng hồ) |
-|---|---|
-| `dausang` (đầu buổi sáng) | 17h30 hôm trước → trước 9h00 hôm nay |
-| `cuoisang` (cuối buổi sáng) | 9h00 → trước 12h30 |
-| `dauchieu` (đầu buổi chiều) | 12h30 → trước 15h00 |
-| `cuoichieu` (cuối buổi chiều) | 15h00 → trước 17h30 |
+| Giá trị `Phase` | Ý nghĩa | Khung giờ (thô, theo đồng hồ) |
+|---|---|---|
+| `morningstart` | đầu buổi sáng | 17h30 hôm trước → trước 9h00 hôm nay |
+| `morningend` | cuối buổi sáng | 9h00 → trước 12h30 |
+| `afternoonstart` | đầu buổi chiều | 12h30 → trước 15h00 |
+| `afternoonend` | cuối buổi chiều | 15h00 → trước 17h30 |
 
 Mốc giờ để trong config (`config.phases`), không hard-code, theo đúng style `config.sessions` hiện tại.
 
@@ -42,28 +44,28 @@ Phân loại dựa trên **giờ gửi** (`thoiGian`) VÀ **loại báo cáo** (
 **Bước 2 — áp dụng quy tắc theo loại** (`classifyPhase`):
 - Tin **CUỐI BUỔI** (`CuoiBuoi`): **luôn nhận đúng giai đoạn thô**, không có ngoại lệ — kể cả khi giai đoạn thô ra là một khung "đầu buổi" (ví dụ cuối buổi sáng gửi trễ sau 12h30 thì rơi vào khung "đầu buổi chiều" theo giờ thô, và **nhận luôn**, không bị coi là sai).
 - Tin **ĐẦU BUỔI** (`DauBuoi`): được "bảo vệ" để luôn nằm trong một khung đầu-buổi, không bao giờ lẫn vào file cuối-buổi:
-  - Giai đoạn thô là `dausang` hoặc `dauchieu` → giữ nguyên.
-  - Giai đoạn thô là `cuoisang` (lỡ hẹn đầu-sáng, gửi sau 9h) → đẩy sang **`dauchieu`, cùng ngày**.
-  - Giai đoạn thô là `cuoichieu` (lỡ hẹn đầu-chiều, gửi sau 15h) → đẩy sang **`dausang`, NGÀY MAI**.
+  - Giai đoạn thô là `morningstart` hoặc `afternoonstart` → giữ nguyên.
+  - Giai đoạn thô là `morningend` (lỡ hẹn đầu-sáng, gửi sau 9h) → đẩy sang **`afternoonstart`, cùng ngày**.
+  - Giai đoạn thô là `afternoonend` (lỡ hẹn đầu-chiều, gửi sau 15h) → đẩy sang **`morningstart`, NGÀY MAI**.
 
 **Ngày (`day`, `YYYY-MM-DD`)** đi kèm giai đoạn cuối cùng (không phải ngày lịch thô của `thoiGian`):
-- Giai đoạn thô là `dausang` do gửi sau 17h30 (đêm nay) → ngày = **ngày mai**.
-- Giai đoạn thô là `dausang` do gửi trước 9h (sáng nay) → ngày = hôm nay.
+- Giai đoạn thô là `morningstart` do gửi sau 17h30 (đêm nay) → ngày = **ngày mai**.
+- Giai đoạn thô là `morningstart` do gửi trước 9h (sáng nay) → ngày = hôm nay.
 - 3 giai đoạn còn lại (không wrap qua nửa đêm) → ngày = ngày lịch của `thoiGian`.
-- Trường hợp đẩy `cuoichieu` → `dausang` (đầu-buổi lỡ hẹn đầu-chiều): ngày ép thành **ngày lịch của `thoiGian` + 1** (không phải ngày lịch thô của `thoiGian`, vì giờ gửi thật luôn < 17h30 nên không tự động wrap được — phải cộng ngày thủ công).
+- Trường hợp đẩy `afternoonend` → `morningstart` (đầu-buổi lỡ hẹn đầu-chiều): ngày ép thành **ngày lịch của `thoiGian` + 1** (không phải ngày lịch thô của `thoiGian`, vì giờ gửi thật luôn < 17h30 nên không tự động wrap được — phải cộng ngày thủ công).
 
 Đã kiểm chứng logic trên khớp với dữ liệu thật trong DB (có báo cáo ĐẦU BUỔI gửi lúc 09:18-09:48, tức lỡ hẹn 9h khá phổ biến, không phải trường hợp hiếm).
 
 ### Interface đề xuất (`src/lesson/time.ts`, thêm mới — không sửa hàm cũ)
 
 ```ts
-export type Phase = "dausang" | "cuoisang" | "dauchieu" | "cuoichieu";
+export type Phase = "morningstart" | "morningend" | "afternoonstart" | "afternoonend";
 
 export interface PhaseHours {
-    cuoiSangFromHour: number; // 9
-    dauChieuFromHour: number; // 12.5
-    cuoiChieuFromHour: number; // 15
-    dauSangFromHour: number;  // 17.5 — mốc "đầu buổi sáng NGÀY MAI" bắt đầu
+    morningEndFromHour: number;     // 9    — giờ bắt đầu "cuối buổi sáng"
+    afternoonStartFromHour: number; // 12.5 — giờ bắt đầu "đầu buổi chiều"
+    afternoonEndFromHour: number;   // 15   — giờ bắt đầu "cuối buổi chiều"
+    morningStartFromHour: number;   // 17.5 — giờ bắt đầu "đầu buổi sáng NGÀY MAI" (wrap qua nửa đêm)
 }
 
 export function phaseOf(ts: number, hours?: PhaseHours): Phase;           // giai đoạn thô, chỉ theo giờ
@@ -79,13 +81,13 @@ export function addDays(day: string, n: number): string;                  // hel
 
 Hiện tại lọc tin nhắn theo `(day, buoi)` **TRƯỚC KHI parse** (dùng `vietnamDay`/`sessionOf` trên tin thô — dòng 68). Với giai đoạn mới, việc này **không làm được nữa theo cách cũ**: `classifyPhase` cần `loaiBaoCao`, mà `loaiBaoCao` chỉ có được **sau khi parse** title của từng tin (việc parse hiện nằm trong vòng lặp phía dưới, dùng `classifyTitle`).
 
-Hướng sửa: đổi thứ tự — lọc tin nhắn theo một **khung ngày rộng hơn** trước (đủ chứa cả phần "đêm hôm trước" của `dausang`, ví dụ toàn bộ `[ngày-1 17h30, ngày 24h00)`), parse tất cả tin trong khung đó như bình thường, rồi lọc **kết quả đã parse** (`Report[]`) theo `classifyPhase(report.thoiGian, report.loaiBaoCao) === { day: opts.day, phase: opts.buoi }` khi `opts.buoi` được truyền. Ghi rõ điểm này trong plan — đây là điểm phức tạp nhất của Chặng 1, cần task/test riêng.
+Hướng sửa: đổi thứ tự — lọc tin nhắn theo một **khung ngày rộng hơn** trước (đủ chứa cả phần "đêm hôm trước" của `morningstart`, ví dụ toàn bộ `[ngày-1 17h30, ngày 24h00)`), parse tất cả tin trong khung đó như bình thường, rồi lọc **kết quả đã parse** (`Report[]`) theo `classifyPhase(report.thoiGian, report.loaiBaoCao) === { day: opts.day, phase: opts.buoi }` khi `opts.buoi` được truyền. Ghi rõ điểm này trong plan — đây là điểm phức tạp nhất của Chặng 1, cần task/test riêng.
 
 `ExtractOptions.buoi?: Buoi` đổi type thẳng sang `ExtractOptions.buoi?: Phase` (Chặng 1 chỉ đổi ở `extract.ts`/`extract-reports.ts` — nơi khác trong Chặng 2 như `recovery.ts`, `affectedSessions.ts` vẫn giữ `Buoi`/`SessionKey` cũ cho tới khi migrate, không import `ExtractOptions` nên không bị ảnh hưởng dây chuyền).
 
 ## Cờ CLI
 
-**Đổi thẳng, không giữ song song:** `--buoi` ở cả 3 lệnh (`extract:reports`, `fill:report`, `fill:status-reports`) đổi sang chỉ nhận `dausang|cuoisang|dauchieu|cuoichieu` — bỏ hẳn `sang|chieu|toi` ở 3 lệnh này (báo lỗi rõ ràng nếu ai còn gõ giá trị cũ). Tên cờ giữ nguyên `--buoi` (không đổi tên cờ), chỉ đổi tập giá trị hợp lệ và ý nghĩa bên trong (dùng `Phase`/`classifyPhase` thay vì `Buoi`/`sessionOf`).
+**Đổi thẳng, không giữ song song:** `--buoi` ở cả 3 lệnh (`extract:reports`, `fill:report`, `fill:status-reports`) đổi sang chỉ nhận `morningstart|morningend|afternoonstart|afternoonend` — bỏ hẳn `sang|chieu|toi` ở 3 lệnh này (báo lỗi rõ ràng nếu ai còn gõ giá trị cũ). Tên cờ giữ nguyên `--buoi` (không đổi tên cờ), chỉ đổi tập giá trị hợp lệ và ý nghĩa bên trong (dùng `Phase`/`classifyPhase` thay vì `Buoi`/`sessionOf`).
 
 `output/meta.json` (do `extract:reports` ghi, `fill:report`/`fill:status-reports` đọc mặc định khi không truyền `--buoi`): field `buoi` vẫn tên `buoi`, nhưng giá trị giờ là một trong 4 giá trị mới.
 
@@ -93,7 +95,7 @@ Hướng sửa: đổi thứ tự — lọc tin nhắn theo một **khung ngày 
 
 Đổi `reportFileName()` hiện có sang nhận `Phase` thay vì `Buoi`:
 ```
-baocaobuoi<buoi>_<ddMMyy>.xlsm    // vd: baocaobuoidausang_290926.xlsm — buoi giờ là 1 trong 4 giá trị mới
+baocaobuoi<buoi>_<ddMMyy>.xlsm    // vd: baocaobuoimorningstart_290926.xlsm — buoi giờ là 1 trong 4 giá trị mới
 ```
 
 ## `fill:status-reports` — đổi cấu trúc thư mục + tên file
@@ -107,12 +109,12 @@ baocaobuoi<buoi>_<ddMMyy>.xlsm    // vd: baocaobuoidausang_290926.xlsm — buoi 
   - `<thứ>` = số thứ theo quy ước Excel `WEEKDAY(d,1)` (1=CN...7=Thứ 7), tính theo `yyMMdd` ở trên (hàm `WEEKDAY_EXCEL_TYPE1` đã có sẵn trong `statusReportLayout.ts`, tái dùng).
   - `<HHmm>` = **mốc giờ cố định kết thúc của giai đoạn**, KHÔNG phải giờ báo cáo thật, giống nhau cho cả 10 file trong 1 lần xuất:
 
-    | Giai đoạn | HHmm |
+    | `Phase` | HHmm |
     |---|---|
-    | `dausang` | `0900` |
-    | `cuoisang` | `1230` |
-    | `dauchieu` | `1500` |
-    | `cuoichieu` | `1730` |
+    | `morningstart` | `0900` |
+    | `morningend` | `1230` |
+    | `afternoonstart` | `1500` |
+    | `afternoonend` | `1730` |
 
   Ví dụ đầy đủ: `TÌNH TRẠNG LOA_260929_T3_0900.xlsx` (xuất giai đoạn đầu buổi sáng, ngày 29/09/2026 — thứ Ba).
 
@@ -131,8 +133,8 @@ LC   -> "LC"   (giữ nguyên, không đổi)
 
 ## Review Focus (đưa vào plan)
 
-1. Tin ĐẦU BUỔI gửi rất trễ, lỡ **cả 2** khung đầu-buổi trong ngày (giả thuyết: gửi sau `cuoichieu` đã đóng, tức sau 17h30) — đã có quy tắc (đẩy sang `dausang` ngày mai), cần test rõ ràng.
-2. Tin CUỐI BUỔI gửi rất sớm (trước 9h, khi chưa khung cuối-buổi nào "mở" theo nghĩa thông thường) — theo quy tắc đã chốt, nhận đúng giai đoạn thô (`dausang`) không có ngoại lệ; cần 1 test khẳng định rõ hành vi này (dễ bị coi nhầm là bug nếu không có test).
-3. `extractAll` lọc theo khung ngày rộng rồi lọc lại sau khi parse (mục "Ảnh hưởng tới extractAll") — test riêng cho việc tin nhắn "đêm hôm trước" (sau 17h30) được đưa đúng vào kết quả của "ngày mai, dausang" chứ không bị lọc mất ở bước lọc thô ban đầu.
+1. Tin ĐẦU BUỔI gửi rất trễ, lỡ **cả 2** khung đầu-buổi trong ngày (giả thuyết: gửi sau `afternoonend` đã đóng, tức sau 17h30) — đã có quy tắc (đẩy sang `morningstart` ngày mai), cần test rõ ràng.
+2. Tin CUỐI BUỔI gửi rất sớm (trước 9h, khi chưa khung cuối-buổi nào "mở" theo nghĩa thông thường) — theo quy tắc đã chốt, nhận đúng giai đoạn thô (`morningstart`) không có ngoại lệ; cần 1 test khẳng định rõ hành vi này (dễ bị coi nhầm là bug nếu không có test).
+3. `extractAll` lọc theo khung ngày rộng rồi lọc lại sau khi parse (mục "Ảnh hưởng tới extractAll") — test riêng cho việc tin nhắn "đêm hôm trước" (sau 17h30) được đưa đúng vào kết quả của "ngày mai, morningstart" chứ không bị lọc mất ở bước lọc thô ban đầu.
 4. File mẫu không có dòng tiêu đề đọc được ở A1 (dòng 2) — hành vi lỗi phải rõ ràng (throw có tên file, không âm thầm dùng tên rỗng).
 5. `fill:status-reports` chạy 2 lần liên tiếp cho CÙNG một giai đoạn (không phải test tự động, nhưng cần xác nhận bằng tay): ghi đè đúng file cũ trong đúng thư mục `yyMM/yyMMdd/`, không tạo file trùng tên khác giờ do làm tròn.
