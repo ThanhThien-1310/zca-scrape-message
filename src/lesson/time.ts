@@ -1,5 +1,5 @@
 import { config } from "../../config.js";
-import type { Buoi, SessionHours } from "../types/index.js";
+import type { Buoi, LoaiBaoCao, Phase, PhaseHours, SessionHours } from "../types/index.js";
 
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -48,4 +48,57 @@ export function isBuoi(value: string | undefined): value is Buoi {
 export function reportFileName(day: string, buoi: Buoi): string {
     const [y, m, d] = day.split("-");
     return `baocaobuoi${buoi}_${d}${m}${y.slice(2)}.xlsm`;
+}
+
+/** `YYYY-MM-DD` cộng/trừ `n` ngày lịch (không phụ thuộc múi giờ — thao tác thuần trên ngày/tháng/năm). */
+export function addDays(day: string, n: number): string {
+    const [y, m, d] = day.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d + n));
+    return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+}
+
+function hourOfDayVN(ts: number): number {
+    const d = new Date(ts + VN_OFFSET_MS);
+    return d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+}
+
+/**
+ * Giai đoạn THÔ của một mốc thời gian, chỉ theo giờ đồng hồ (giờ Việt Nam), không xét loại báo cáo.
+ * Mặc định 4 mốc: 9:00, 12:30, 15:00, 17:30 (config.phases). `morningstart` bao trùm cả sáng sớm (giờ < mốc đầu)
+ * lẫn đêm khuya (giờ >= mốc cuối, khi đó thuộc "đầu buổi sáng NGÀY MAI" — xem `phaseDay`).
+ */
+export function phaseOf(ts: number, hours: PhaseHours = config.phases): Phase {
+    const h = hourOfDayVN(ts);
+    if (h < hours.morningEndFromHour) return "morningstart";
+    if (h < hours.afternoonStartFromHour) return "morningend";
+    if (h < hours.afternoonEndFromHour) return "afternoonstart";
+    if (h < hours.morningStartFromHour) return "afternoonend";
+    return "morningstart";
+}
+
+/** Ngày ứng với giai đoạn THÔ (`phaseOf`) của một mốc thời gian — cộng 1 ngày khi rơi vào phần "đêm khuya" của `morningstart`. */
+export function phaseDay(ts: number, hours: PhaseHours = config.phases): string {
+    const day = vietnamDay(ts);
+    return hourOfDayVN(ts) >= hours.morningStartFromHour ? addDays(day, 1) : day;
+}
+
+/**
+ * Phân loại một tin nhắn vào đúng (giai đoạn, ngày) theo `loaiBaoCao` VÀ giờ gửi — xem
+ * "Quy tắc phân loại" trong spec. Báo cáo CUỐI BUỔI luôn nhận nguyên giai đoạn/ngày thô (kể cả khi đó là
+ * một khung "đầu buổi"). Báo cáo ĐẦU BUỔI lỡ hẹn (giai đoạn thô ra "cuối buổi") bị đẩy sang khung đầu-buổi
+ * KẾ TIẾP: lỡ đầu-sáng (giai đoạn thô `morningend`) -> `afternoonstart` cùng ngày; lỡ đầu-chiều (giai đoạn
+ * thô `afternoonend`) -> `morningstart` NGÀY MAI (ngày phải cộng thêm 1 thủ công vì giờ gửi thật luôn < mốc
+ * wrap nên `phaseDay` không tự cộng được).
+ */
+export function classifyPhase(ts: number, loaiBaoCao: LoaiBaoCao, hours: PhaseHours = config.phases): { phase: Phase; day: string } {
+    const raw = phaseOf(ts, hours);
+    const day = phaseDay(ts, hours);
+    if (loaiBaoCao !== "DauBuoi") return { phase: raw, day };
+    if (raw === "morningend") return { phase: "afternoonstart", day };
+    if (raw === "afternoonend") return { phase: "morningstart", day: addDays(day, 1) };
+    return { phase: raw, day };
+}
+
+export function isPhase(value: string | undefined): value is Phase {
+    return value === "morningstart" || value === "morningend" || value === "afternoonstart" || value === "afternoonend";
 }

@@ -22,4 +22,5 @@ export interface ConfigShape {
     recovery: { marginMinutes: number };
     chat: { pollSeconds: number; heartbeatSeconds: number; skipBackoffSeconds: number; sentLedgerMinutes: number; echoWindowSeconds: number; restorePreviousConversation: boolean };
     sessions: { chieuFromHour: number; toiFromHour: number };
+    phases: { morningEndFromHour: number; afternoonStartFromHour: number; afternoonEndFromHour: number; morningStartFromHour: number };
 }

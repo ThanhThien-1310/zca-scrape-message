@@ -35,3 +35,13 @@ export interface SessionKey {
     day: string;
     buoi: Buoi;
 }
+
+export type Phase = "morningstart" | "morningend" | "afternoonstart" | "afternoonend";
+
+/** Mốc giờ (24h, có thể lẻ như 12.5 = 12h30) chia ngày thành 4 giai đoạn — xem `phaseOf`/`classifyPhase` trong time.ts. */
+export interface PhaseHours {
+    morningEndFromHour: number;
+    afternoonStartFromHour: number;
+    afternoonEndFromHour: number;
+    morningStartFromHour: number;
+}

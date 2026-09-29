@@ -30,8 +30,8 @@ test("every key of config has a documented entry, and every entry points at a re
     assert.deepEqual(documented, real);
 });
 
-test("every entry belongs to one of the 8 sections and names who reads it and what it means", () => {
-    assert.equal(SECTIONS.length, 8);
+test("every entry belongs to one of the 9 sections and names who reads it and what it means", () => {
+    assert.equal(SECTIONS.length, 9);
     for (const s of SETTINGS) {
         assert.ok(SECTIONS.includes(s.section), `${s.path}: unknown section ${s.section}`);
         assert.ok(s.readers.length > 0, `${s.path}: readers`);
