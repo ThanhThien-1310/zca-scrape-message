@@ -157,6 +157,19 @@ test("with a session, only that session's messages are considered and marked", a
     assert.equal(r.summary.xet, 1);
 });
 
+test("extractAll still accepts the OLD Buoi values (sang/chieu/toi) — bot:runner hasn't migrated to Phase yet (Chặng 2)", async () => {
+    const morning = msg(COMPLETE, at(8));
+    const afternoon = msg(COMPLETE, at(14));
+    const r = await extractAll([morning, afternoon], { day: DAY, buoi: "sang", lookupRoomIds: lookup });
+    assert.deepEqual(r.reports.map((x) => x.maTinNhan), [morning.msgId]);
+});
+
+test("extractAll with the OLD Buoi value does NOT widen the window to the night before (that's Phase-only behavior)", async () => {
+    const lateLastNight = msg(COMPLETE, Date.UTC(2026, 8, 23, 11, 0)); // 18:00 VN on 2026-09-23 (the day BEFORE DAY)
+    const r = await extractAll([lateLastNight], { day: DAY, buoi: "sang" });
+    assert.equal(r.reports.length, 0);
+});
+
 test("the morningend/afternoonstart boundary is 12:30 Vietnam time (CuoiBuoi, which never reroutes)", async () => {
     const lastMorningEnd = msg(IT_MAINTENANCE, at(12, 29));
     const firstAfternoonStart = msg(IT_MAINTENANCE, at(12, 30));

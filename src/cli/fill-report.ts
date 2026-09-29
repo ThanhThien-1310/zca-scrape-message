@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { outputDir, repoRoot, scriptsDir, templatesDir } from "../core/paths.js";
 import { buildRows } from "../lesson/rows.js";
-import { isPhase, reportFileNameV2, todayVietnam } from "../lesson/time.js";
+import { isBuoi, isPhase, reportFileName, reportFileNameV2, todayVietnam } from "../lesson/time.js";
 import type { Report } from "../types/index.js";
 
 /**
@@ -39,7 +39,10 @@ function main(): void {
     const meta: { day?: string; buoi?: string } = fs.existsSync(metaFile) ? JSON.parse(fs.readFileSync(metaFile, "utf8").replace(/^\uFEFF/, "")) : {};
     const day = option("--day") ?? meta.day ?? todayVietnam();
     const buoi = option("--buoi") ?? meta.buoi;
-    if (!isPhase(buoi)) throw new Error("Cần --buoi morningstart|morningend|afternoonstart|afternoonend hoặc output/meta.json do extract:reports tạo.");
+    // Giá trị Buoi cũ (sang|chieu|toi) vẫn được nhận TẠM THỜI cho tới khi bot:runner migrate sang Phase (Chặng 2).
+    if (!isPhase(buoi) && !isBuoi(buoi)) {
+        throw new Error("Cần --buoi morningstart|morningend|afternoonstart|afternoonend (hoặc sang|chieu|toi cũ) hoặc output/meta.json do extract:reports tạo.");
+    }
     const template = path.resolve(option("--template") ?? path.join(templatesDir, "Temp_RoomFacility_rpt.xlsm"));
     if (!fs.existsSync(template)) throw new Error(`Template not found: ${template}`);
 
@@ -49,7 +52,7 @@ function main(): void {
     fs.writeFileSync(rowsFile, JSON.stringify(rows), "utf8");
 
     const outArg = option("--out");
-    const outFile = outArg ? path.resolve(outArg) : path.join(repoRoot, "data", "export", reportFileNameV2(day, buoi));
+    const outFile = outArg ? path.resolve(outArg) : path.join(repoRoot, "data", "export", isBuoi(buoi) ? reportFileName(day, buoi) : reportFileNameV2(day, buoi));
     fs.mkdirSync(path.dirname(outFile), { recursive: true });
     const logFile = path.join(outDir, "fill.log");
     fs.rmSync(logFile, { force: true });

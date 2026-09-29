@@ -1,14 +1,19 @@
 import { applyOverride, deriveReport, extractRaw } from "./build.js";
 import { classifyTitle } from "./parseReport.js";
 import { roomKeyString, roomLookupName } from "./roomKey.js";
-import { addDays, classifyPhase, phaseDay, phaseOf, vietnamDay } from "./time.js";
-import type { LyDo, Mark, MessageKey, Override, Phase, RawFields, Report, ReviewItem, RoomKey, RoomLookup, SourceMessage } from "../types/index.js";
+import { addDays, classifyPhase, isBuoi, phaseDay, phaseOf, sessionOf, vietnamDay } from "./time.js";
+import type { Buoi, LyDo, Mark, MessageKey, Override, Phase, RawFields, Report, ReviewItem, RoomKey, RoomLookup, SourceMessage } from "../types/index.js";
 
 export interface ExtractOptions {
     /** `YYYY-MM-DD` on the Vietnam calendar; only messages sent that day are considered. */
     day: string;
-    /** Only messages classified into this phase of that day (see `classifyPhase`); omit to consider the whole day. */
-    buoi?: Phase;
+    /**
+     * Phase (giá trị mới, 4 giai đoạn — xem `classifyPhase`) là đường chính. `Buoi` (giá trị cũ sang|chieu|toi)
+     * vẫn được nhận TẠM THỜI cho tới khi `bot:runner`/`src/runner/steps.ts` migrate sang Phase (Chặng 2) — dùng
+     * lại đúng logic lọc cũ (`sessionOf`, cùng ngày, không mở rộng cửa sổ đêm hôm trước, không có luật đẩy giai
+     * đoạn của báo cáo đầu buổi lỡ hẹn). Omit to consider the whole day.
+     */
+    buoi?: Buoi | Phase;
     overrides?: Override[];
     /** Omit to skip the room lookup (offline runs and tests): `maPhong` stays null and is not treated as an error. */
     lookupRoomIds?: RoomLookup;
@@ -64,11 +69,17 @@ export async function extractAll(messages: SourceMessage[], opts: ExtractOptions
     const overrides = new Map((opts.overrides ?? []).map((o) => [keyOf(o.key.maNhom, o.key.maTinNhan), o]));
     const known = new Set(messages.map((m) => keyOf(m.groupId, m.msgId)));
     const unknownOverrides = (opts.overrides ?? []).filter((o) => !known.has(keyOf(o.key.maNhom, o.key.maTinNhan))).map((o) => o.key);
-    // Cửa sổ RỘNG (hôm qua + hôm nay) khi lọc theo giai đoạn: một tin "đêm hôm trước" (sau 17h30) có thể thuộc
-    // "đầu buổi sáng" của opts.day dù calendar-day của nó là ngày trước. Lọc chính xác theo (opts.day, opts.buoi)
-    // chỉ làm được SAU KHI parse (cần loaiBaoCao) — xem bước lọc report/mark/review cuối hàm.
+    const usingOldBuoi = opts.buoi !== undefined && isBuoi(opts.buoi);
+    // Cửa sổ RỘNG (hôm qua + hôm nay) khi lọc theo giai đoạn MỚI: một tin "đêm hôm trước" (sau 17h30) có thể
+    // thuộc "đầu buổi sáng" của opts.day dù calendar-day của nó là ngày trước. Lọc chính xác theo (opts.day,
+    // opts.buoi) chỉ làm được SAU KHI parse (cần loaiBaoCao) — xem bước lọc report/mark/review cuối hàm.
+    // Giá trị Buoi CŨ vẫn lọc y hệt logic cũ (cùng ngày, sessionOf, không mở rộng cửa sổ) — không đổi hành vi
+    // cho bot:runner khi nó chưa migrate.
     const dayMessages = messages
-        .filter((m) => (opts.buoi === undefined ? vietnamDay(m.ts) === opts.day : vietnamDay(m.ts) === opts.day || vietnamDay(m.ts) === addDays(opts.day, -1)))
+        .filter((m) => {
+            if (usingOldBuoi) return vietnamDay(m.ts) === opts.day && sessionOf(m.ts) === (opts.buoi as Buoi);
+            return opts.buoi === undefined ? vietnamDay(m.ts) === opts.day : vietnamDay(m.ts) === opts.day || vietnamDay(m.ts) === addDays(opts.day, -1);
+        })
         .sort((a, b) => a.ts - b.ts);
 
     const marks: Mark[] = [];
@@ -136,8 +147,8 @@ export async function extractAll(messages: SourceMessage[], opts: ExtractOptions
     let finalReview = review;
     let xet = dayMessages.length;
 
-    if (opts.buoi !== undefined) {
-        const buoi = opts.buoi;
+    if (opts.buoi !== undefined && !usingOldBuoi) {
+        const buoi = opts.buoi as Phase;
         const tsOf = new Map(dayMessages.map((m) => [keyOf(m.groupId, m.msgId), m.ts]));
         const inTarget = (ts: number, loaiBaoCao: Report["loaiBaoCao"] | null): boolean => {
             if (loaiBaoCao !== null) {

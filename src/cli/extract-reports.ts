@@ -4,9 +4,9 @@ import { outputDir } from "../core/paths.js";
 import { extractAll } from "../lesson/extract.js";
 import { readOverrides } from "../lesson/overrides.js";
 import { lookupRoomIds } from "../lesson/roomLookup.js";
-import { isPhase, phaseOf, todayVietnam } from "../lesson/time.js";
+import { isBuoi, isPhase, phaseOf, todayVietnam } from "../lesson/time.js";
 import { MessageStore } from "../store/messageStore.js";
-import type { Phase, SourceMessage } from "../types/index.js";
+import type { Buoi, Phase, SourceMessage } from "../types/index.js";
 
 /**
  * Extracts every start/end-of-lesson report of ONE giai đoạn (đầu/cuối buổi sáng, đầu/cuối buổi chiều) of
@@ -38,8 +38,12 @@ async function main(): Promise<void> {
     const day = option("--day") ?? todayVietnam();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error(`--day must be YYYY-MM-DD, got "${day}"`);
     const buoiArg = option("--buoi");
-    if (buoiArg !== undefined && !isPhase(buoiArg)) throw new Error(`--buoi must be morningstart, morningend, afternoonstart or afternoonend, got "${buoiArg}"`);
-    const buoi: Phase = buoiArg ?? phaseOf(Date.now());
+    // Giá trị Buoi cũ (sang|chieu|toi) vẫn được nhận TẠM THỜI cho tới khi bot:runner migrate sang Phase (Chặng 2)
+    // — xem ExtractOptions.buoi trong src/lesson/extract.ts.
+    if (buoiArg !== undefined && !isPhase(buoiArg) && !isBuoi(buoiArg)) {
+        throw new Error(`--buoi must be morningstart, morningend, afternoonstart, afternoonend (or the deprecated sang, chieu, toi), got "${buoiArg}"`);
+    }
+    const buoi: Buoi | Phase = buoiArg ?? phaseOf(Date.now());
     const noDb = process.argv.includes("--no-db");
 
     const store = new MessageStore();
