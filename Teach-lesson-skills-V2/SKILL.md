@@ -410,17 +410,23 @@ Cách điền:
 
 ## Báo cáo tình trạng thiết bị (thêm, không thuộc quy trình bắt buộc ở trên)
 
-Sau khi có `output/output.json` của một buổi (bước 4), `npm run fill:status-reports -- output/output.json` điền trực tiếp (không macro) 5 file mẫu mới: BO SUNG MAY TINH, TINH TRẠNG LOA, LOI INTERNET, LOI MÁY TÍNH, LOI NETSUPPORT (tên file trên đĩa hiện là `TINH TRANG LOI NETUPPORT.xlsx`, thiếu chữ S — sheet bên trong vẫn tên NETSUPPORT); 5 file chưa có nguồn dữ liệu khác được chép nguyên trạng. Cả 10 file cùng nằm trong `data/export/trang-thai/<buoi>/` (một thư mục riêng cho mỗi buổi sang/chieu/toi — buổi sau không ghi đè lên buổi trước trong cùng ngày; chạy lại cùng buổi thì ghi đè, không cộng dồn).
+Sau khi có `output/output.json` của một giai đoạn (bước 4), `npm run fill:status-reports -- output/output.json` điền trực tiếp (không macro) 5 file mẫu mới: BO SUNG MAY TINH, TINH TRẠNG LOA, LOI INTERNET, LOI MÁY TÍNH, LOI NETSUPPORT (tên file trên đĩa hiện là `TINH TRANG LOI NETUPPORT.xlsx`, thiếu chữ S — sheet bên trong vẫn tên NETSUPPORT); 5 file chưa có nguồn dữ liệu khác được chép nguyên trạng (trừ VI PHAM NOI QUY THUC TAP.xlsx — xem "Ngoài phạm vi" bên dưới). Cả 10 file cùng nằm trong `data/export/trang-thai/<yyMM>/<yyMMdd>/` (`yyMMdd` là ngày tính theo giai đoạn, xem dưới — không phải ngày lịch thô; chạy lại cùng giai đoạn thì ghi đè, không cộng dồn).
 
-Mỗi phòng (`maNhom` + `phongMay`) chỉ giữ báo cáo có `thoiGian` **lớn nhất trong buổi** (`latestPerRoom` trong `statusRows.ts`) — đầu buổi hay cuối buổi tuỳ báo cáo nào gửi sau, khớp cơ chế cũ của file .xlsm ("với mỗi cặp (ngày, RoomId) chỉ giữ báo cáo Timestamp lớn nhất"). Một phòng có cả 2 loại báo cáo trong buổi không còn ra 2 dòng, và số liệu lấy đúng tình trạng MỚI NHẤT (báo cáo cuối buổi có thể xấu hơn hoặc tốt hơn đầu buổi) chứ không cố định theo đầu buổi.
+**Giai đoạn (thay cho buổi sáng/chiều/tối cũ):** hệ thống dùng 4 giai đoạn cố định — `morningstart` (đầu buổi sáng, 17h30 hôm trước → trước 9h), `morningend` (cuối buổi sáng, 9h → trước 12h30), `afternoonstart` (đầu buổi chiều, 12h30 → trước 15h), `afternoonend` (cuối buổi chiều, 15h → trước 17h30) — mốc giờ ở `config.phases`. Một tin nhắn được xếp vào giai đoạn dựa trên `loaiBaoCao` VÀ giờ gửi (`classifyPhase` trong `src/lesson/time.ts`): báo cáo CUỐI BUỔI luôn nhận đúng giai đoạn thô theo giờ (kể cả khi đó là một khung "đầu buổi"); báo cáo ĐẦU BUỔI lỡ hẹn bị đẩy sang khung đầu-buổi kế tiếp (lỡ đầu-sáng → đầu-chiều cùng ngày; lỡ đầu-chiều → đầu-sáng NGÀY MAI), không bao giờ lẫn vào file cuối-buổi. `extract:reports`/`fill:report`/`fill:status-reports` đều nhận `--buoi morningstart|morningend|afternoonstart|afternoonend`.
 
+Mỗi phòng (`maNhom` + `phongMay`) chỉ giữ báo cáo có `thoiGian` **lớn nhất trong giai đoạn** (`latestPerRoom` trong `statusRows.ts`) — đầu buổi hay cuối buổi tuỳ báo cáo nào gửi sau, khớp cơ chế cũ của file .xlsm ("với mỗi cặp (ngày, RoomId) chỉ giữ báo cáo Timestamp lớn nhất"). Một phòng có cả 2 loại báo cáo trong giai đoạn không còn ra 2 dòng, và số liệu lấy đúng tình trạng MỚI NHẤT (báo cáo cuối buổi có thể xấu hơn hoặc tốt hơn đầu buổi) chứ không cố định theo đầu buổi.
+
+- **Tên file**: `<tiêu đề đọc từ ô A1 dòng 2 của chính file mẫu đó>_<yyMMdd>_T<thứ theo quy ước Excel WEEKDAY(d,1)>_<HHmm>.xlsx`. `<HHmm>` là mốc giờ CỐ ĐỊNH kết thúc giai đoạn (không phải giờ báo cáo thật), giống nhau cho cả 10 file trong 1 lần xuất: `morningstart`→`0900`, `morningend`→`1230`, `afternoonstart`→`1500`, `afternoonend`→`1730`. Ví dụ: `TÌNH TRẠNG LOA_260929_T3_0900.xlsx`.
 - Cột **PM** (tên phòng máy): lấy từ `phongMay`, điền ở LOA/INTERNET/NETSUPPORT/MÁY TÍNH.
 - Cột **SỐ LẦN** (chỉ có ở file INTERNET, NETSUPPORT): số lần liên tiếp bị báo lỗi (K), tính theo từng báo cáo (đã lọc theo phòng-mới-nhất) chứ không theo ngày lịch, lưu ở `data/.status-streaks.json` qua các lần chạy.
 - Cột **XẾP LOẠI** ở LOA/INTERNET/NETSUPPORT: các dòng được sắp lại theo thứ tự T, B, K liền nhau (không theo thứ tự báo cáo tới), STT đánh lại theo thứ tự đã sắp.
+- Cột **CẤP** ở BO SUNG MAY TINH: `TH`→`I`, `THCS`→`II`, `THPT`→`III` (số La Mã), `LC` giữ nguyên.
 - BO SUNG MAY TINH: PM BỔ SUNG chỉ có dòng khi (SL máy thiếu − SL máy lỗi) > 0. Đây là file duy nhất có công thức ở dòng TỔNG (COUNTA/SUM) và khối CHÚ GIẢI VÀ THỐNG KÊ (COUNTIF theo XẾP LOẠI); script luôn ghi đè lại các công thức này theo đúng số dòng thực tế (kể cả 0 dòng) nên không bao giờ ra `#REF!` dù Excel không tự mở rộng được một vùng chỉ 1 dòng khi chèn/xoá dòng kề bên.
 - MÁY TÍNH: ghi chú trong ngoặc của "Tổng số máy bị lỗi: N (...)" vào cột HIỆN TRẠNG, không phải GHI CHÚ.
 
-Thiết kế đầy đủ: `docs/superpowers/specs/2026-09-28-status-report-fill-design.md`.
+**Ngoài phạm vi (chưa làm):** `VI PHAM NOI QUY THUC TAP.xlsx` chưa theo 4 giai đoạn trên — copy y nguyên tên gốc, chưa có dữ liệu; ý tưởng dùng mốc giờ riêng (8h/14h) để phát hiện đi trễ/vi phạm còn để làm sau, chưa lên spec. `bot:runner`/`bot:chat`/`recover:missing`/`mark:messages`/`watch:status` vẫn dùng "buổi" sáng/chiều/tối cũ (`Buoi`/`config.sessions`), chưa migrate sang giai đoạn — 2 khái niệm tồn tại song song cho tới khi hoàn tất.
+
+Thiết kế đầy đủ: `docs/superpowers/specs/2026-09-29-giai-doan-4-phan-design.md` (và spec cũ `docs/superpowers/specs/2026-09-28-status-report-fill-design.md` cho phần chưa đổi).
 
 ## `src/cli/mark-messages.ts` (bước 6)
 

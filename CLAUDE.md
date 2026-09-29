@@ -27,9 +27,9 @@ npx tsx src/cli/export-excel.ts <threadId> [senderName]   # export already-scrap
 npm run mcp                                    # start the read-only MCP server over stdio
 npm run typecheck                              # tsc --noEmit
 npm test                                       # unit tests for the lesson-report extractor (node:test)
-npm run extract:reports -- [--day YYYY-MM-DD] [--buoi sang|chieu|toi] [--no-db]   # extract one session's start/end-of-lesson reports -> output/{output,marks,review,meta}.json
-npm run fill:report -- output/output.json      # fill templates/Temp_RoomFacility_rpt.xlsm, run its macro -> data/export/baocaobuoi<buoi>_<ddMMyy>.xlsm (needs Excel)
-npm run fill:status-reports -- output/output.json   # fill 5 non-macro status templates (BO SUNG MAY TINH, LOA, INTERNET, NETSUPPORT, MÁY TÍNH) from output/output.json, copy the other 5 as-is, into data/export/trang-thai/ (needs Excel)
+npm run extract:reports -- [--day YYYY-MM-DD] [--buoi morningstart|morningend|afternoonstart|afternoonend] [--no-db]   # extract one PHASE's start/end-of-lesson reports -> output/{output,marks,review,meta}.json
+npm run fill:report -- output/output.json      # fill templates/Temp_RoomFacility_rpt.xlsm, run its macro -> data/export/baocaobuoi<phase>_<ddMMyy>.xlsm (needs Excel)
+npm run fill:status-reports -- output/output.json   # fill 5 non-macro status templates (BO SUNG MAY TINH, LOA, INTERNET, NETSUPPORT, MÁY TÍNH) from output/output.json, copy the other 5 as-is (except VI PHAM NOI QUY THUC TAP), into data/export/trang-thai/<yyMM>/<yyMMdd>/<title>_<yyMMdd>_T<thu>_<HHmm>.xlsx (needs Excel)
 npm run mark:messages -- output/marks.json     # set StatusId/HasRead on Zalo_CrawlMessage rows
 npm run watch:status                           # is bot:watch alive? when did it last beat, which sources are up, recent gaps
 npm run bot:runner                             # long-running orchestrator: queue has groups + quiet for 2 min -> scrape, sync DB, extract, refresh the session's Excel
