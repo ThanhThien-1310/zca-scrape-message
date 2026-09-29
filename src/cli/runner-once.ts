@@ -1,9 +1,9 @@
 import { acquireScrapeLock, releaseScrapeLock } from "../core/scrapeLock.js";
-import { currentSession, isBuoi, todayVietnam } from "../lesson/time.js";
+import { isPhase, phaseOf, todayVietnam } from "../lesson/time.js";
 import { readBuilt, sessionReportKeys, writeBuilt } from "../runner/builtReports.js";
 import { appendLog } from "../runner/runnerState.js";
 import { buildSession, loadMessages } from "../runner/steps.js";
-import type { Buoi, CycleSummary } from "../types/index.js";
+import type { CycleSummary, Phase } from "../types/index.js";
 
 /**
  * Rebuilds ONE session's outputs without scraping: extract (applying output/overrides.json),
@@ -12,7 +12,7 @@ import type { Buoi, CycleSummary } from "../types/index.js";
  * queue, but it shares `output/` with the runner's cycles, so it takes the same lock and refuses to run
  * while a cycle (or a manual scrape) holds it; try again in a minute.
  *
- *   npm run runner:once -- [--day YYYY-MM-DD] [--buoi sang|chieu|toi]
+ *   npm run runner:once -- [--day YYYY-MM-DD] [--buoi morningstart|morningend|afternoonstart|afternoonend]
  */
 function option(name: string): string | undefined {
     const i = process.argv.indexOf(name);
@@ -23,8 +23,8 @@ async function main(): Promise<void> {
     const day = option("--day") ?? todayVietnam();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error(`--day must be YYYY-MM-DD, got "${day}"`);
     const buoiArg = option("--buoi");
-    if (buoiArg !== undefined && !isBuoi(buoiArg)) throw new Error(`--buoi must be sang, chieu or toi, got "${buoiArg}"`);
-    const buoi: Buoi = buoiArg ?? currentSession();
+    if (buoiArg !== undefined && !isPhase(buoiArg)) throw new Error(`--buoi must be morningstart, morningend, afternoonstart or afternoonend, got "${buoiArg}"`);
+    const buoi: Phase = buoiArg ?? phaseOf(Date.now());
 
     const lock = acquireScrapeLock("runner:once");
     if (!lock.ok) {

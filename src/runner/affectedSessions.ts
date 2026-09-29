@@ -1,9 +1,9 @@
 import { classifyTitle } from "../lesson/parseReport.js";
 import { messageKey } from "../lesson/recovery.js";
-import { sessionOf, vietnamDay } from "../lesson/time.js";
-import type { Buoi, SessionKey, SourceMessage } from "../types/index.js";
+import { classifyPhase } from "../lesson/time.js";
+import type { Phase, SessionKey, SourceMessage } from "../types/index.js";
 
-const ORDER: Record<Buoi, number> = { sang: 0, chieu: 1, toi: 2 };
+const ORDER: Record<Phase, number> = { morningstart: 0, morningend: 1, afternoonstart: 2, afternoonend: 3 };
 
 /** Union of session lists, one entry per (day, buoi), oldest first. */
 export function mergeSessions(...lists: SessionKey[][]): SessionKey[] {
@@ -23,7 +23,8 @@ export function affectedSessions(before: Set<string>, after: SourceMessage[]): S
         if (before.has(messageKey(m))) continue;
         const kind = classifyTitle(m.content);
         if (kind !== "DauBuoi" && kind !== "CuoiBuoi") continue;
-        found.push({ day: vietnamDay(m.ts), buoi: sessionOf(m.ts) });
+        const { day, phase } = classifyPhase(m.ts, kind);
+        found.push({ day, buoi: phase });
     }
     return mergeSessions(found);
 }

@@ -31,9 +31,12 @@ export interface SessionHours {
     toiFromHour: number;
 }
 
+/** `buoi` là `Phase` (4 giai đoạn mới) — dùng cho hệ theo dõi "phiên nào cần dựng lại Excel" (`affectedSessions.ts`,
+ *  `builtReports.ts`, `runner/steps.ts`). Hệ khôi phục khi `bot:watch` gián đoạn (`recoveryRun.ts` và các CLI liên
+ *  quan) vẫn dùng `Buoi` cũ riêng, chưa migrate — xem Chặng 2 phần "khôi phục" trong spec. */
 export interface SessionKey {
     day: string;
-    buoi: Buoi;
+    buoi: Phase;
 }
 
 export type Phase = "morningstart" | "morningend" | "afternoonstart" | "afternoonend";

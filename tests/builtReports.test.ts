@@ -18,9 +18,9 @@ test("reportKeys lists only start/end-of-lesson reports", () => {
 });
 
 test("sessionReportKeys keeps only the reports of that session", () => {
-    const a = msg(COMPLETE, at(9));
-    const b = msg(IT_MAINTENANCE, at(13));
-    assert.deepEqual(sessionReportKeys([a, b], { day: DAY, buoi: "chieu" }), [messageKey(b)]);
+    const a = msg(COMPLETE, at(8)); // DauBuoi, 8:00 -> morningstart (no reroute)
+    const b = msg(IT_MAINTENANCE, at(13)); // CuoiBuoi, 13:00 -> afternoonstart
+    assert.deepEqual(sessionReportKeys([a, b], { day: DAY, buoi: "afternoonstart" }), [messageKey(b)]);
 });
 
 test("built keys round-trip; a missing file reads as null and a corrupt one as null", () => {
@@ -45,8 +45,8 @@ test("the first start treats the reports that already exist as built, and later 
 });
 
 test("dirty sessions are the sessions with a report that is not built yet", () => {
-    const a = msg(COMPLETE, at(9));
-    const b = msg(IT_MAINTENANCE, at(13));
-    assert.deepEqual(dirtySessions([a, b], new Set([messageKey(a)])), [{ day: DAY, buoi: "chieu" }]);
+    const a = msg(COMPLETE, at(8)); // morningstart
+    const b = msg(IT_MAINTENANCE, at(13)); // afternoonstart
+    assert.deepEqual(dirtySessions([a, b], new Set([messageKey(a)])), [{ day: DAY, buoi: "afternoonstart" }]);
     assert.deepEqual(dirtySessions([a, b], new Set([messageKey(a), messageKey(b)])), []);
 });
