@@ -149,10 +149,16 @@ export async function extractAll(messages: SourceMessage[], opts: ExtractOptions
 
         finalReports = reports.filter((r) => inTarget(r.thoiGian, r.loaiBaoCao));
         const reportKeys = new Set(finalReports.map((r) => keyOf(r.maNhom, r.maTinNhan)));
+        // Toàn bộ report ĐÃ PARSE ĐƯỢC (kể cả report bị lọc khỏi finalReports vì lỡ hẹn sang giai đoạn khác) —
+        // dùng để phân biệt "tin có report nhưng thuộc giai đoạn khác" (phải loại khỏi mark) với "tin không có
+        // report nào cả" (mark -1, chỉ có thể xét theo giờ thô). Nhầm 2 trường hợp này khiến mark.json của MỘT
+        // giai đoạn ghi nhận nhầm cả tin thuộc giai đoạn KHÁC (đã tái hiện bằng test).
+        const reportByKey = new Map(reports.map((r) => [keyOf(r.maNhom, r.maTinNhan), r]));
 
         finalMarks = marks.filter((mk) => {
             const key = keyOf(mk.maNhom, mk.maTinNhan);
-            if (reportKeys.has(key)) return true;
+            const rep = reportByKey.get(key);
+            if (rep) return inTarget(rep.thoiGian, rep.loaiBaoCao);
             const ts = tsOf.get(key);
             return ts !== undefined && inTarget(ts, null);
         });

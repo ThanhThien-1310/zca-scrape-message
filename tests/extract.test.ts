@@ -226,6 +226,14 @@ test("extractAll with a Phase buoi: a late DauBuoi report (after 9h) lands in af
     assert.equal(inAfternoonStart.reports.length, 1);
 });
 
+test("extractAll with a Phase buoi: a late DauBuoi report rerouted away from morningend leaves NO mark there either (not just no report)", async () => {
+    const late = msg(COMPLETE, at(9, 48));
+    const inMorningEnd = await extractAll([late], { day: DAY, buoi: "morningend" });
+    assert.equal(inMorningEnd.reports.length, 0);
+    assert.deepEqual(inMorningEnd.marks, []);
+    assert.equal(inMorningEnd.summary.xet, 0);
+});
+
 test("extractAll with a Phase buoi: a CuoiBuoi report sent before 9h stays in morningstart, not corrected", async () => {
     const cuoiBuoiEarly = msg(COMPLETE.replace("BÁO CÁO ĐẦU BUỔI DẠY", "BÁO CÁO CUỐI BUỔI DẠY"), at(3));
     const r = await extractAll([cuoiBuoiEarly], { day: DAY, buoi: "morningstart" });
