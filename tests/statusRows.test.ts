@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildBoSungRows, buildInternetRows, buildLoaRows, buildMayTinhRows, buildNetSupportRows, latestPerRoom, mayTinhGrade } from "../src/lesson/statusRows.js";
+import { buildBoSungRows, buildInternetRows, buildLoaRows, buildMayTinhRows, buildNetSupportRows, capToRoman, latestPerRoom, mayTinhGrade } from "../src/lesson/statusRows.js";
 import type { CoSoVatChat, Report } from "../src/types/index.js";
 
 const facility = (loai: CoSoVatChat["loai"], xepLoai: string | null, soLuong?: CoSoVatChat["soLuong"]): CoSoVatChat => ({ loai, xepLoai, soLuong });
@@ -56,10 +56,18 @@ test("mayTinhGrade: 0 is A, 1-5 is B, 6-9 is C, 10+ is D, null stays null", () =
     assert.equal(mayTinhGrade(null), null);
 });
 
+test("capToRoman: TH/THCS/THPT map to Roman numerals, LC and unknown values pass through unchanged", () => {
+    assert.equal(capToRoman("TH"), "I");
+    assert.equal(capToRoman("THCS"), "II");
+    assert.equal(capToRoman("THPT"), "III");
+    assert.equal(capToRoman("LC"), "LC");
+    assert.equal(capToRoman("XYZ"), "XYZ");
+});
+
 test("BO SUNG: a room with thieu - loi > 0 gets a row naming the room, quantities equal to thieu", () => {
-    const r = report("m1", "PM1", [facility("MayTinh", "A", [{ loai: "Thieu", so: 3 }, { loai: "Loi", so: 1 }])]);
+    const r = report("m1", "PM1", [facility("MayTinh", "A", [{ loai: "Thieu", so: 3 }, { loai: "Loi", so: 1 }])], { truong: { capHoc: "TH", tenRieng: "CHU VĂN AN", coSo: null } });
     const rows = buildBoSungRows([r]);
-    assert.deepEqual(rows, [{ A: 1, B: "LC", C: "CHU VĂN AN", D: "BTAN", J: "PM1", L: 3, M: 3 }]);
+    assert.deepEqual(rows, [{ A: 1, B: "I", C: "CHU VĂN AN", D: "BTAN", J: "PM1", L: 3, M: 3 }]);
 });
 
 test("BO SUNG: thieu - loi exactly 0, or negative, or either missing, produces no row", () => {
