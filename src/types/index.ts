@@ -1,5 +1,7 @@
 // One door for the shared types: `import type { Report } from "../types/index.js"`.
+export * from "./attendance.js";
 export * from "./chat.js";
+export * from "./cleaning.js";
 export * from "./config.js";
 export * from "./core.js";
 export * from "./message.js";

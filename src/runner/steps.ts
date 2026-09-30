@@ -109,6 +109,18 @@ export function realDeps(opts: { freshGaps: () => Gap[] }): CycleDeps {
             await mustRun("sync-db.ts", ["--apply"]);
         },
         build: buildSession,
+        buildExtras: async () => {
+            const warnings: string[] = [];
+            const scripts: Array<[string, string]> = [
+                ["fill-cleaning-report.ts", "vệ sinh"],
+                ["fill-attendance-report.ts", "vi phạm"],
+            ];
+            for (const [script, label] of scripts) {
+                const r = await runScript(script, []);
+                if (r.code !== 0) warnings.push(`fill-${label}: thoát mã ${r.code}: ${tail(r.output)}`);
+            }
+            return warnings;
+        },
         built: { read: () => readBuilt() ?? new Set<string>(), write: (keys) => writeBuilt(keys) },
     };
 }

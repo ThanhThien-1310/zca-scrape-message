@@ -13,8 +13,7 @@ import type { Report } from "../types/index.js";
 /**
  * Điền 5 file báo cáo tình trạng (BO SUNG MAY TINH, LOA, INTERNET, NETSUPPORT, MÁY TÍNH) từ `output/output.json`
  * (đã áp override, mỗi phòng chỉ lấy báo cáo MỚI NHẤT trong buổi — đầu buổi hay cuối buổi tuỳ báo cáo nào gửi
- * sau — khớp cơ chế cũ của file .xlsm), và chép nguyên trạng 5 file chưa có dữ liệu (trừ VI PHAM NOI QUY THUC
- * TAP.xlsx, ngoài phạm vi giai đoạn — copy y nguyên tên gốc, xem spec). Cả 10 file cùng nằm trong
+ * sau — khớp cơ chế cũ của file .xlsm), và chép nguyên trạng 3 file chưa có dữ liệu. Cả 10 file cùng nằm trong
  * `data/export/trang-thai/<yyMM>/<yyMMdd>/` (ngày tính theo giai đoạn — xem `classifyPhase`), tên file
  * `<tiêu đề đọc từ ô A1 file mẫu>_<yyMMdd>_T<thứ>_<HHmm cố định theo giai đoạn>.xlsx`, ghi đè mỗi lần chạy lại
  * CÙNG giai đoạn đó. Không có macro, không qua Zalo — chỉ cần Excel cài trên máy.
@@ -50,14 +49,10 @@ function main(): void {
     const outDir = path.join(config.dataDir, "export", "trang-thai", yyMM, yyMMdd);
     fs.mkdirSync(outDir, { recursive: true });
 
-    // VI PHAM NOI QUY THUC TAP.xlsx nằm ngoài phạm vi giai đoạn (mốc giờ riêng, chưa làm) — copy y nguyên tên gốc.
-    // 4 file còn lại đổi sang tên mới, đọc tiêu đề từ chính sheet đầu tiên của mỗi file mẫu.
+    // 3 file còn lại ngoài phạm vi dữ liệu (VỆ SINH/VI PHẠM giờ có script riêng, xem
+    // docs/superpowers/specs/2026-09-30-ve-sinh-vi-pham-design.md) — chỉ chép nguyên trạng, đổi tên theo tiêu đề mẫu.
     for (const file of OTHER_TEMPLATE_FILES) {
         const src = path.join(templatesSrc, file);
-        if (file === "VI PHAM NOI QUY THUC TAP.xlsx") {
-            fs.copyFileSync(src, path.join(outDir, file));
-            continue;
-        }
         const wb = XLSX.readFile(src);
         const title = readTemplateTitle(src, wb.SheetNames[0]);
         fs.copyFileSync(src, path.join(outDir, statusFileName(title, day, buoi)));

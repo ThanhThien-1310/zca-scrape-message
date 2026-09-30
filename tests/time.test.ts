@@ -1,7 +1,7 @@
 import "./helpers/pinConfig.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, classifyPhase, currentSession, excelDateSerial, excelTimeFraction, isBuoi, isPhase, phaseDay, phaseOf, reportFileName, reportFileNameV2, sessionOf, todayVietnam, vietnamDay } from "../src/lesson/time.js";
+import { addDays, classifyPhase, currentSession, excelDateSerial, excelTimeFraction, isBuoi, isPhase, phaseDay, phaseOf, reportFileName, reportFileNameV2, sessionOf, todayVietnam, vietnamDay, vietnamHourMinute } from "../src/lesson/time.js";
 
 test("time helpers use the Vietnam calendar", () => {
     const ts = Date.UTC(2026, 8, 23, 18, 30); // 01:30 on 24 Sep in Vietnam
@@ -9,6 +9,12 @@ test("time helpers use the Vietnam calendar", () => {
     assert.equal(excelDateSerial(ts), 46289);
     assert.equal(excelTimeFraction(ts), (1 * 60 + 30) / 1440);
     assert.equal(todayVietnam(ts), "2026-09-24");
+    assert.deepEqual(vietnamHourMinute(ts), { hour: 1, minute: 30 });
+});
+
+test("vietnamHourMinute rolls back across the Vietnam midnight boundary correctly", () => {
+    assert.deepEqual(vietnamHourMinute(Date.UTC(2026, 8, 27, 17, 0)), { hour: 0, minute: 0 }); // 00:00 on 28 Sep VN
+    assert.deepEqual(vietnamHourMinute(Date.UTC(2026, 8, 28, 6, 59)), { hour: 13, minute: 59 }); // 13:59 on 28 Sep VN
 });
 
 test("a message just before Vietnam midnight stays on the same day", () => {
