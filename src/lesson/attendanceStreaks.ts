@@ -1,5 +1,5 @@
 import { attendanceSessionOf, isLateAttendance } from "./attendanceReport.js";
-import { vietnamDay } from "./time.js";
+import { vietnamDay, vietnamHourMinute } from "./time.js";
 import type { AttendanceEntry } from "../types/index.js";
 
 export interface AttendanceDayRecord {
@@ -10,13 +10,15 @@ export interface AttendanceDayRecord {
     afternoon: { hour: number; minute: number } | null;
 }
 
-/** Gộp tin thô theo (người, ngày), tách sáng/chiều theo giờ TỰ BÁO (không theo giờ gửi tin) — xem design doc.
- * Nếu cùng 1 khung trong ngày có nhiều tin (báo lại), chỉ giữ tin có `thoiGian` (giờ gửi) lớn nhất. */
+/** Gộp tin thô theo (người, ngày), tách sáng/chiều theo giờ Zalo GHI NHẬN tin gửi tới (`thoiGian`) — KHÔNG
+ * theo giá trị tự khai trong tin (đã xác nhận với người dùng: tự khai có thể sai/lệch với giờ gửi thật, xem
+ * attendanceReport.ts). Nếu cùng 1 khung trong ngày có nhiều tin (báo lại), chỉ giữ tin gửi MUỘN NHẤT. */
 export function groupAttendanceByDay(entries: AttendanceEntry[]): AttendanceDayRecord[] {
     const byKey = new Map<string, AttendanceDayRecord & { morningTs: number; afternoonTs: number }>();
     for (const en of entries) {
         const day = vietnamDay(en.thoiGian);
-        const session = attendanceSessionOf(en.gioDenGio);
+        const { hour, minute } = vietnamHourMinute(en.thoiGian);
+        const session = attendanceSessionOf(hour);
         const key = `${en.tenNV}|${day}`;
         let rec = byKey.get(key);
         if (!rec) {
@@ -24,11 +26,11 @@ export function groupAttendanceByDay(entries: AttendanceEntry[]): AttendanceDayR
             byKey.set(key, rec);
         }
         if (session === "morning" && en.thoiGian >= rec.morningTs) {
-            rec.morning = { hour: en.gioDenGio, minute: en.gioDenPhut };
+            rec.morning = { hour, minute };
             rec.morningTs = en.thoiGian;
             rec.noiLamViec = en.noiLamViec;
         } else if (session === "afternoon" && en.thoiGian >= rec.afternoonTs) {
-            rec.afternoon = { hour: en.gioDenGio, minute: en.gioDenPhut };
+            rec.afternoon = { hour, minute };
             rec.afternoonTs = en.thoiGian;
             rec.noiLamViec = en.noiLamViec;
         }

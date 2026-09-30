@@ -15,6 +15,12 @@ export function todayVietnam(now: number = Date.now()): string {
     return vietnamDay(now);
 }
 
+/** Giờ:phút trên đồng hồ Việt Nam của một mốc epoch-ms. */
+export function vietnamHourMinute(ts: number): { hour: number; minute: number } {
+    const d = new Date(ts + VN_OFFSET_MS);
+    return { hour: d.getUTCHours(), minute: d.getUTCMinutes() };
+}
+
 /** Excel date serial (whole days since 1899-12-30) of the Vietnam calendar day. */
 export function excelDateSerial(ts: number): number {
     const d = new Date(ts + VN_OFFSET_MS);

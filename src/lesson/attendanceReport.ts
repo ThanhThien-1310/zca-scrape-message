@@ -3,7 +3,6 @@ import { fold, splitLabel } from "./parseReport.js";
 export interface AttendanceRoomResult {
     tenNV: string;
     noiLamViec: string;
-    gioDen: { hour: number; minute: number };
 }
 
 export function classifyAttendanceTitle(content: string): boolean {
@@ -11,33 +10,27 @@ export function classifyAttendanceTitle(content: string): boolean {
     return fold(lines[0] ?? "") === "bao cao diem danh";
 }
 
-/** "8h25", "8:25", "8g25", "8h25'" -> { hour: 8, minute: 25 }; "8h" (không có phút) -> phút = 0. Chấp nhận
- * ":", "h", "g" làm dấu phân cách (cách viết giờ tự do thường gặp trong chat), dấu nháy đơn cuối bị bỏ qua.
- * null nếu không đúng khuôn hoặc giờ/phút ngoài phạm vi hợp lệ — im lặng bỏ 1 tin là chấp nhận được, nhưng
- * không được bỏ những cách viết phổ biến thật (xem test). */
-function parseHm(value: string): { hour: number; minute: number } | null {
-    const m = /^(\d{1,2})[:hg](\d{1,2})?'?$/i.exec(value.trim());
-    if (!m) return null;
-    const hour = Number(m[1]);
-    const minute = m[2] === undefined ? 0 : Number(m[2]);
-    if (hour > 23 || minute > 59) return null;
-    return { hour, minute };
-}
-
+/**
+ * Giờ để tính trễ và giờ hiển thị ở cột SÁNG/CHIỀU lấy từ giờ Zalo GHI NHẬN tin gửi tới (msg.ts, xem
+ * attendanceStreaks.ts), KHÔNG đọc giá trị tự khai trong dòng "Thời gian đến nơi" — tin thật (vd tự khai
+ * "14h00" nhưng gửi lúc 14:30) cho thấy giá trị tự khai không đáng tin bằng giờ gửi thật (đã xác nhận với
+ * người dùng). Dòng "Thời gian đến nơi" vẫn phải CÓ MẶT và không rỗng để coi là 1 tin điểm danh hợp lệ — chỉ
+ * không đọc/parse giá trị của nó thành giờ nữa.
+ */
 export function parseAttendanceMessage(content: string): AttendanceRoomResult | null {
     const lines = content.normalize("NFC").split(/\r?\n/);
     let tenNV = "";
     let noiLamViec = "";
-    let gioDen: { hour: number; minute: number } | null = null;
+    let hasArrivalField = false;
     for (const line of lines) {
         const parsed = splitLabel(line);
         if (!parsed) continue;
         if (parsed.label === "ten nv it thuc tap") tenNV = parsed.value;
-        else if (parsed.label === "thoi gian den noi") gioDen = parseHm(parsed.value);
+        else if (parsed.label === "thoi gian den noi") hasArrivalField = parsed.value.trim() !== "";
         else if (parsed.label === "noi lam viec") noiLamViec = parsed.value;
     }
-    if (!tenNV || !noiLamViec || !gioDen) return null;
-    return { tenNV, noiLamViec, gioDen };
+    if (!tenNV || !noiLamViec || !hasArrivalField) return null;
+    return { tenNV, noiLamViec };
 }
 
 export type AttendanceSession = "morning" | "afternoon";

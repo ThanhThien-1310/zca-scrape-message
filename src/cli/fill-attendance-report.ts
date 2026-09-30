@@ -40,7 +40,7 @@ async function main(): Promise<void> {
         if (!classifyAttendanceTitle(msg.content)) continue;
         const parsed = parseAttendanceMessage(msg.content);
         if (!parsed) continue;
-        entries.push({ maNhom: msg.groupId, maTinNhan: msg.msgId, thoiGian: msg.ts, tenNV: parsed.tenNV, noiLamViec: parsed.noiLamViec, gioDenGio: parsed.gioDen.hour, gioDenPhut: parsed.gioDen.minute });
+        entries.push({ maNhom: msg.groupId, maTinNhan: msg.msgId, thoiGian: msg.ts, tenNV: parsed.tenNV, noiLamViec: parsed.noiLamViec });
     }
 
     const records = groupAttendanceByDay(entries);
