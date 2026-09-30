@@ -2,11 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { classifyTitle } from "../lesson/parseReport.js";
 import { messageKey } from "../lesson/recovery.js";
-import { sessionOf, vietnamDay } from "../lesson/time.js";
+import { classifyPhase } from "../lesson/time.js";
 import { affectedSessions } from "./affectedSessions.js";
 import { DEFAULT_RUNNER_FILES } from "./runnerState.js";
 import { writeFileAtomic } from "../core/atomicWrite.js";
-import type { SessionKey, SourceMessage } from "../types/index.js";
+import type { LoaiBaoCao, SessionKey, SourceMessage } from "../types/index.js";
 
 /**
  * The set of start/end-of-lesson reports (`messageKey`s) already built into an Excel. What still needs
@@ -14,18 +14,25 @@ import type { SessionKey, SourceMessage } from "../types/index.js";
  * nothing is lost when the runner dies mid-cycle and messages scraped by other means (a manual `bot:scrape`,
  * `recover:missing`) are picked up too.
  */
-const isReport = (m: SourceMessage): boolean => {
+function reportKind(m: SourceMessage): LoaiBaoCao | null {
     const kind = classifyTitle(m.content);
-    return kind === "DauBuoi" || kind === "CuoiBuoi";
-};
-
-export function reportKeys(messages: SourceMessage[]): Set<string> {
-    return new Set(messages.filter(isReport).map(messageKey));
+    return kind === "DauBuoi" || kind === "CuoiBuoi" ? kind : null;
 }
 
-/** Keys of the reports whose own timestamp falls in `session`. */
+export function reportKeys(messages: SourceMessage[]): Set<string> {
+    return new Set(messages.filter((m) => reportKind(m) !== null).map(messageKey));
+}
+
+/** Keys of the reports whose own (giai đoạn, ngày) — theo `classifyPhase` — khớp `session`. */
 export function sessionReportKeys(messages: SourceMessage[], session: SessionKey): string[] {
-    return messages.filter((m) => isReport(m) && vietnamDay(m.ts) === session.day && sessionOf(m.ts) === session.buoi).map(messageKey);
+    return messages
+        .filter((m) => {
+            const kind = reportKind(m);
+            if (kind === null) return false;
+            const c = classifyPhase(m.ts, kind);
+            return c.day === session.day && c.phase === session.buoi;
+        })
+        .map(messageKey);
 }
 
 /** Sessions that have at least one report not in `built`, oldest first. */

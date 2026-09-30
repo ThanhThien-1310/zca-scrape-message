@@ -1,25 +1,28 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import XLSX from "xlsx";
 import { config } from "../../config.js";
 import { outputDir, scriptsDir } from "../core/paths.js";
 import { applyStreaks, readStreaks, writeStreaks } from "../lesson/faultStreaks.js";
-import { buildFillSpecs, FILE_LAYOUT, OTHER_TEMPLATE_FILES } from "../lesson/statusReportLayout.js";
+import { buildFillSpecs, FILE_LAYOUT, OTHER_TEMPLATE_FILES, readTemplateTitle, statusFileName } from "../lesson/statusReportLayout.js";
 import { latestPerRoom } from "../lesson/statusRows.js";
-import { isBuoi, todayVietnam } from "../lesson/time.js";
+import { isPhase, todayVietnam } from "../lesson/time.js";
 import type { Report } from "../types/index.js";
 
 /**
  * Điền 5 file báo cáo tình trạng (BO SUNG MAY TINH, LOA, INTERNET, NETSUPPORT, MÁY TÍNH) từ `output/output.json`
  * (đã áp override, mỗi phòng chỉ lấy báo cáo MỚI NHẤT trong buổi — đầu buổi hay cuối buổi tuỳ báo cáo nào gửi
- * sau — khớp cơ chế cũ của file .xlsm), và chép nguyên trạng 5 file chưa có dữ liệu. Cả 10 file cùng nằm trong
- * `data/export/trang-thai/<buoi>/` (mỗi buổi một thư mục riêng), ghi đè mỗi lần chạy lại CÙNG buổi đó. Không
- * có macro, không qua Zalo — chỉ cần Excel cài trên máy.
- * Xem thiết kế: docs/superpowers/specs/2026-09-28-status-report-fill-design.md
+ * sau — khớp cơ chế cũ của file .xlsm), và chép nguyên trạng 5 file chưa có dữ liệu (trừ VI PHAM NOI QUY THUC
+ * TAP.xlsx, ngoài phạm vi giai đoạn — copy y nguyên tên gốc, xem spec). Cả 10 file cùng nằm trong
+ * `data/export/trang-thai/<yyMM>/<yyMMdd>/` (ngày tính theo giai đoạn — xem `classifyPhase`), tên file
+ * `<tiêu đề đọc từ ô A1 file mẫu>_<yyMMdd>_T<thứ>_<HHmm cố định theo giai đoạn>.xlsx`, ghi đè mỗi lần chạy lại
+ * CÙNG giai đoạn đó. Không có macro, không qua Zalo — chỉ cần Excel cài trên máy.
+ * Xem thiết kế: docs/superpowers/specs/2026-09-29-giai-doan-4-phan-design.md
  *
- *   npm run fill:status-reports -- output/output.json [--day YYYY-MM-DD] [--buoi sang|chieu|toi]
+ *   npm run fill:status-reports -- output/output.json [--day YYYY-MM-DD] [--buoi morningstart|morningend|afternoonstart|afternoonend]
  *
- * Ngày/buổi mặc định lấy từ output/meta.json (do extract:reports ghi), giống fill:report.
+ * Ngày/giai đoạn mặc định lấy từ output/meta.json (do extract:reports ghi), giống fill:report.
  */
 function option(name: string): string | undefined {
     const i = process.argv.indexOf(name);
@@ -28,7 +31,7 @@ function option(name: string): string | undefined {
 
 function main(): void {
     const inputPath = process.argv.slice(2).find((a, i, all) => !a.startsWith("--") && (i === 0 || !all[i - 1].startsWith("--")));
-    if (!inputPath) throw new Error("Usage: npm run fill:status-reports -- <output.json> [--day YYYY-MM-DD] [--buoi sang|chieu|toi]");
+    if (!inputPath) throw new Error("Usage: npm run fill:status-reports -- <output.json> [--day YYYY-MM-DD] [--buoi morningstart|morningend|afternoonstart|afternoonend]");
 
     // Mỗi phòng (maNhom+phongMay) chỉ giữ báo cáo mới nhất trong buổi: một phòng có cả báo cáo đầu và cuối
     // buổi không còn ra 2 dòng (dupe giả), và tình trạng thiết bị lấy đúng số liệu MỚI NHẤT (báo cáo cuối
@@ -39,15 +42,25 @@ function main(): void {
     const meta: { day?: string; buoi?: string } = fs.existsSync(metaFile) ? JSON.parse(fs.readFileSync(metaFile, "utf8").replace(/^﻿/, "")) : {};
     const day = option("--day") ?? meta.day ?? todayVietnam();
     const buoi = option("--buoi") ?? meta.buoi;
-    if (!isBuoi(buoi)) throw new Error("Cần --buoi sang|chieu|toi hoặc output/meta.json do extract:reports tạo.");
+    if (!isPhase(buoi)) throw new Error("Cần --buoi morningstart|morningend|afternoonstart|afternoonend hoặc output/meta.json do extract:reports tạo.");
 
     const templatesSrc = path.join(config.dataDir, "mau bao cao new");
-    // Một thư mục con riêng cho từng buổi (sang/chieu/toi) — tránh buổi sau ghi đè lên buổi trước trong cùng ngày.
-    const outDir = path.join(config.dataDir, "export", "trang-thai", buoi);
+    const yyMM = day.slice(2, 4) + day.slice(5, 7);
+    const yyMMdd = day.slice(2, 4) + day.slice(5, 7) + day.slice(8, 10);
+    const outDir = path.join(config.dataDir, "export", "trang-thai", yyMM, yyMMdd);
     fs.mkdirSync(outDir, { recursive: true });
 
+    // VI PHAM NOI QUY THUC TAP.xlsx nằm ngoài phạm vi giai đoạn (mốc giờ riêng, chưa làm) — copy y nguyên tên gốc.
+    // 4 file còn lại đổi sang tên mới, đọc tiêu đề từ chính sheet đầu tiên của mỗi file mẫu.
     for (const file of OTHER_TEMPLATE_FILES) {
-        fs.copyFileSync(path.join(templatesSrc, file), path.join(outDir, file));
+        const src = path.join(templatesSrc, file);
+        if (file === "VI PHAM NOI QUY THUC TAP.xlsx") {
+            fs.copyFileSync(src, path.join(outDir, file));
+            continue;
+        }
+        const wb = XLSX.readFile(src);
+        const title = readTemplateTitle(src, wb.SheetNames[0]);
+        fs.copyFileSync(src, path.join(outDir, statusFileName(title, day, buoi)));
     }
 
     const streaksBefore = readStreaks();
@@ -65,12 +78,13 @@ function main(): void {
     for (const key of Object.keys(FILE_LAYOUT) as Array<keyof typeof FILE_LAYOUT>) {
         const spec = specs[key];
         const layout = FILE_LAYOUT[key];
+        const outName = statusFileName(readTemplateTitle(path.join(templatesSrc, layout.templateFile), spec.sheet), day, buoi);
         const psSpec = {
             files: [
                 {
                     name: key,
                     template: path.join(templatesSrc, layout.templateFile),
-                    out: path.join(outDir, layout.templateFile),
+                    out: path.join(outDir, outName),
                     sheet: spec.sheet,
                     firstDataRow: spec.firstDataRow,
                     totalRowBefore: spec.totalRowBefore,

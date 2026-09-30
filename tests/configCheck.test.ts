@@ -14,6 +14,7 @@ const good = (): ConfigShape => ({
     recovery: { marginMinutes: 5 },
     chat: { pollSeconds: 3, heartbeatSeconds: 30, skipBackoffSeconds: 45, sentLedgerMinutes: 10, echoWindowSeconds: 120, restorePreviousConversation: false },
     sessions: { chieuFromHour: 12, toiFromHour: 18 },
+    phases: { morningEndFromHour: 9, afternoonStartFromHour: 12.5, afternoonEndFromHour: 15, morningStartFromHour: 17.5 },
 });
 const bad = (mutate: (c: ConfigShape) => void) => {
     const c = good();
@@ -70,6 +71,13 @@ test("session hours must satisfy 0 < chieuFromHour < toiFromHour <= 23", () => {
     assert.throws(bad((c) => (c.sessions.toiFromHour = 24)), /toiFromHour/);
     assert.throws(bad((c) => (c.sessions.chieuFromHour = 11.5)), /chieuFromHour/);
     assert.deepEqual(bad((c) => (c.sessions.toiFromHour = 17))(), []);
+});
+
+test("phases hours must satisfy 0 < morningEndFromHour < afternoonStartFromHour < afternoonEndFromHour < morningStartFromHour <= 24", () => {
+    assert.throws(bad((c) => (c.phases.morningEndFromHour = 0)), /phases/);
+    assert.throws(bad((c) => (c.phases.morningStartFromHour = c.phases.afternoonEndFromHour)), /phases/);
+    assert.throws(bad((c) => (c.phases.morningStartFromHour = 25)), /phases/);
+    assert.deepEqual(bad((c) => (c.phases.morningStartFromHour = 18))(), []);
 });
 
 test("scroll delay: both non-negative and min <= max", () => {

@@ -10,6 +10,9 @@ dist/
 # Plan-execution scratch (ledger, briefs)
 /.superpowers/
 
+# Isolated worktrees for in-progress features
+/.worktrees/
+
 # npm
 npm-debug.log*
 

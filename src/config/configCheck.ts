@@ -66,6 +66,11 @@ export function validateConfig(cfg: ConfigShape): string[] {
         errors.push(`sessions.toiFromHour phải là số nguyên lớn hơn chieuFromHour (${chieuFromHour}) và không quá 23 (đang là ${JSON.stringify(toiFromHour)}).`);
     }
 
+    const { morningEndFromHour, afternoonStartFromHour, afternoonEndFromHour, morningStartFromHour } = cfg.phases;
+    if (!(morningEndFromHour > 0 && morningEndFromHour < afternoonStartFromHour && afternoonStartFromHour < afternoonEndFromHour && afternoonEndFromHour < morningStartFromHour && morningStartFromHour <= 24)) {
+        errors.push(`phases phải thoả 0 < morningEndFromHour < afternoonStartFromHour < afternoonEndFromHour < morningStartFromHour <= 24 (đang là ${JSON.stringify(cfg.phases)}).`);
+    }
+
     const { min, max } = cfg.scrollDelayMs;
     if (typeof min !== "number" || typeof max !== "number" || min < 0 || max < 0 || min > max) errors.push(`scrollDelayMs phải có 0 <= min <= max (đang là ${JSON.stringify(cfg.scrollDelayMs)}).`);
 

@@ -7,7 +7,7 @@ import type { CycleSummary, RunnerState } from "../src/types/index.js";
 
 const NOW = at(10, 0);
 const state = (over: Partial<RunnerState> = {}): RunnerState => ({ pid: 777, startedAt: at(7, 0), lastBeat: NOW - 5_000, state: "idle", consecutiveFailures: 0, ...over });
-const cycle = (over: Partial<CycleSummary> = {}): CycleSummary => ({ kind: "cycle", at: at(9, 40), ok: true, groups: ["LC_HoaSen1_TĐ"], sessions: [{ day: DAY, buoi: "sang" }], reviewCount: 2, buildErrors: [], excel: ["data/export/baocaobuoisang_240926.xlsm"], warnings: [], errors: [], ...over });
+const cycle = (over: Partial<CycleSummary> = {}): CycleSummary => ({ kind: "cycle", at: at(9, 40), ok: true, groups: ["LC_HoaSen1_TĐ"], sessions: [{ day: DAY, buoi: "morningstart" }], reviewCount: 2, buildErrors: [], excel: ["data/export/baocaobuoimorningstart_240926.xlsm"], warnings: [], errors: [], ...over });
 const text = (input: Partial<Parameters<typeof formatRunnerStatus>[0]> = {}) =>
     formatRunnerStatus({ state: state(), queue: [], firstQueuedAt: null, dirty: [], now: NOW, ...input }).join("\n");
 
@@ -45,26 +45,26 @@ test("the last cycle shows groups, sessions, review count and the Excel written"
     const t = text({ state: state({ lastCycle: cycle() }) });
     assert.match(t, /vòng gần nhất lúc 09:40: OK/);
     assert.match(t, /nhóm: LC_HoaSen1_TĐ/);
-    assert.match(t, /buổi: sang 2026-09-24/);
+    assert.match(t, /buổi: morningstart 2026-09-24/);
     assert.match(t, /cần xem: 2/);
-    assert.match(t, /baocaobuoisang_240926\.xlsm/);
+    assert.match(t, /baocaobuoimorningstart_240926\.xlsm/);
 });
 
 test("a failed cycle lists its errors and warnings", () => {
-    const t = text({ state: state({ lastCycle: cycle({ ok: false, errors: ["2026-09-24 sang: Excel COM failed"], warnings: ['không cào được "B"'] }) }) });
+    const t = text({ state: state({ lastCycle: cycle({ ok: false, errors: ["2026-09-24 morningstart: Excel COM failed"], warnings: ['không cào được "B"'] }) }) });
     assert.match(t, /vòng gần nhất lúc 09:40: LỖI/);
-    assert.match(t, /lỗi: 2026-09-24 sang: Excel COM failed/);
+    assert.match(t, /lỗi: 2026-09-24 morningstart: Excel COM failed/);
     assert.match(t, /cảnh báo: không cào được "B"/);
 });
 
 test("sessions still owing a rebuild are listed", () => {
-    assert.match(text({ dirty: [{ day: DAY, buoi: "chieu" }] }), /buổi chưa dựng xong: chieu 2026-09-24/);
+    assert.match(text({ dirty: [{ day: DAY, buoi: "afternoonstart" }] }), /buổi chưa dựng xong: afternoonstart 2026-09-24/);
 });
 
 test("a build error is shown apart from cycle errors", () => {
-    const t = text({ state: state({ lastCycle: cycle({ buildErrors: ["2026-09-24 sang: template missing"] }) }) });
+    const t = text({ state: state({ lastCycle: cycle({ buildErrors: ["2026-09-24 morningstart: template missing"] }) }) });
     assert.match(t, /vòng gần nhất lúc 09:40: OK/);
-    assert.match(t, /lỗi dựng: 2026-09-24 sang: template missing/);
+    assert.match(t, /lỗi dựng: 2026-09-24 morningstart: template missing/);
 });
 
 test("the last cycle shows how long it took, per step, and how long each group took", () => {

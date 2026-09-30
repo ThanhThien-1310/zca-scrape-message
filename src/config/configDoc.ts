@@ -1,5 +1,5 @@
-/** 8 mục theo thứ tự trong config.ts. */
-export const SECTIONS = ["1. ZALO", "2. NHÓM THEO DÕI", "3. CÀO", "4. WATCH (bot:watch)", "5. RUNNER (bot:runner)", "6. KHÔI PHỤC", "7. CHAT (bot:chat)", "8. BUỔI HỌC"];
+/** 9 mục theo thứ tự trong config.ts. */
+export const SECTIONS = ["1. ZALO", "2. NHÓM THEO DÕI", "3. CÀO", "4. WATCH (bot:watch)", "5. RUNNER (bot:runner)", "6. KHÔI PHỤC", "7. CHAT (bot:chat)", "8. BUỔI HỌC", "9. GIAI ĐOẠN BÁO CÁO"];
 
 export interface Setting {
     section: string;
@@ -64,6 +64,10 @@ export const SETTINGS: Setting[] = [
 
     { section: SECTIONS[7], path: "sessions.chieuFromHour", unit: "giờ", default: 12, readers: ["bot:runner", "extract:reports", "recover:missing"], note: "Giờ bắt đầu buổi chiều." },
     { section: SECTIONS[7], path: "sessions.toiFromHour", unit: "giờ", default: 18, readers: ["bot:runner", "extract:reports", "recover:missing"], note: "Giờ bắt đầu buổi tối." },
+    { section: SECTIONS[8], path: "phases.morningEndFromHour", unit: "giờ", default: 9, readers: ["extract:reports", "fill:report", "fill:status-reports"], note: "Giờ bắt đầu \"cuối buổi sáng\"." },
+    { section: SECTIONS[8], path: "phases.afternoonStartFromHour", unit: "giờ", default: 12.5, readers: ["extract:reports", "fill:report", "fill:status-reports"], note: "Giờ bắt đầu \"đầu buổi chiều\"." },
+    { section: SECTIONS[8], path: "phases.afternoonEndFromHour", unit: "giờ", default: 15, readers: ["extract:reports", "fill:report", "fill:status-reports"], note: "Giờ bắt đầu \"cuối buổi chiều\"." },
+    { section: SECTIONS[8], path: "phases.morningStartFromHour", unit: "giờ", default: 17.5, readers: ["extract:reports", "fill:report", "fill:status-reports"], note: "Giờ bắt đầu \"đầu buổi sáng NGÀY MAI\" (wrap qua nửa đêm)." },
 ];
 
 const getPath = (obj: unknown, path: string): unknown => path.split(".").reduce<unknown>((o, k) => (o === undefined || o === null ? undefined : (o as Record<string, unknown>)[k]), obj);

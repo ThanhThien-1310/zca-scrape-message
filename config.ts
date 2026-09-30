@@ -284,6 +284,21 @@ export const config = {
          */
         toiFromHour: 18,
     },
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 9. GIAI ĐOẠN BÁO CÁO (giờ Việt Nam) — thay cho buổi sáng/chiều/tối cũ.
+    // ═══════════════════════════════════════════════════════════════════════
+    /** Giai đoạn báo cáo trạng thái thiết bị (thay cho buổi sáng/chiều/tối cũ) — xem `phaseOf`/`classifyPhase` trong src/lesson/time.ts. */
+    phases: {
+        /** Giờ bắt đầu "cuối buổi sáng" (0-24, có thể lẻ). */
+        morningEndFromHour: 9,
+        /** Giờ bắt đầu "đầu buổi chiều". */
+        afternoonStartFromHour: 12.5,
+        /** Giờ bắt đầu "cuối buổi chiều". */
+        afternoonEndFromHour: 15,
+        /** Giờ bắt đầu "đầu buổi sáng NGÀY MAI" (wrap qua nửa đêm). Yêu cầu morningEndFromHour < afternoonStartFromHour < afternoonEndFromHour < morningStartFromHour. */
+        morningStartFromHour: 17.5,
+    },
 };
 
 export type BotConfig = typeof config;

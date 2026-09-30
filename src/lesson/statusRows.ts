@@ -46,6 +46,12 @@ export function mayTinhGrade(loi: number | null): "A" | "B" | "C" | "D" | null {
     return "D";
 }
 
+/** Cột CẤP ở BO SUNG MAY TINH: TH/THCS/THPT hiển thị số La Mã, LC và mọi giá trị khác giữ nguyên. */
+export function capToRoman(capHoc: string): string {
+    const map: Record<string, string> = { TH: "I", THCS: "II", THPT: "III" };
+    return map[capHoc] ?? capHoc;
+}
+
 export function buildBoSungRows(reports: Report[]): Array<Record<string, Cell>> {
     const rows: Array<Record<string, Cell>> = [];
     let stt = 0;
@@ -56,7 +62,7 @@ export function buildBoSungRows(reports: Report[]): Array<Record<string, Cell>> 
         const loi = quantity(mayTinh, "Loi").so;
         if (thieu === null || loi === null || thieu - loi <= 0) continue;
         stt++;
-        rows.push({ A: stt, B: r.data.truong?.capHoc ?? "", C: r.data.truong?.tenRieng ?? "", D: r.data.khuVuc ?? "", J: r.data.phongMay, L: thieu, M: thieu });
+        rows.push({ A: stt, B: r.data.truong?.capHoc ? capToRoman(r.data.truong.capHoc) : "", C: r.data.truong?.tenRieng ?? "", D: r.data.khuVuc ?? "", J: r.data.phongMay, L: thieu, M: thieu });
     }
     return rows;
 }

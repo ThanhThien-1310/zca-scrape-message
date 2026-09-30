@@ -4,7 +4,7 @@
 import { config } from "../../config.js";
 import { SETTINGS } from "../../src/config/configDoc.js";
 
-const SECTIONS = ["watch.", "runner.", "recovery.", "chat.", "sessions."];
+const SECTIONS = ["watch.", "runner.", "recovery.", "chat.", "sessions.", "phases."];
 for (const setting of SETTINGS) {
     if (setting.default === undefined || !SECTIONS.some((s) => setting.path.startsWith(s))) continue;
     const [section, key] = setting.path.split(".");
