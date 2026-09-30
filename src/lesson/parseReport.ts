@@ -4,17 +4,27 @@ export function stripDiacritics(s: string): string {
     return s.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/g, "d").replace(/Đ/g, "D");
 }
 
-const fold = (s: string): string => stripDiacritics(s).toLowerCase().replace(/\s+/g, " ").trim();
+export const fold = (s: string): string => stripDiacritics(s).toLowerCase().replace(/\s+/g, " ").trim();
 
 /** Classifies a message by its title line; `gan_giong` = mentions a start/end report but the title is not the standard one. */
 export function classifyTitle(content: string): TitleKind {
     const lines = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     const first = fold(lines[0] ?? "");
-    if (/^bao cao dau buoi/.test(first)) return "DauBuoi";
-    if (/^bao cao cuoi buoi/.test(first)) return "CuoiBuoi";
+    if (/^bao cao dau buoi day\b/.test(first)) return "DauBuoi";
+    if (/^bao cao cuoi buoi day\b/.test(first)) return "CuoiBuoi";
     const all = fold(content);
     if (/bao cao/.test(all) && /(dau|cuoi) buoi/.test(all)) return "gan_giong";
     return null;
+}
+
+/** Splits a "- Label: value" line (any of `-•*+` as the bullet, or none). Returns null when there is no ":".
+ * `label` is already `fold()`-ed for comparison; `value` keeps its original text (trimmed). Used by report
+ * parsers that are not `parseLines` (e.g. cleaningReport.ts, attendanceReport.ts). */
+export function splitLabel(line: string): { label: string; value: string } | null {
+    const t = line.replace(/^\s*[-•*+]?\s*/, "");
+    const colon = t.indexOf(":");
+    if (colon < 0) return null;
+    return { label: fold(t.slice(0, colon)), value: t.slice(colon + 1).trim() };
 }
 
 export const FIELD_KEYS: FieldKey[] = ["giaoVien", "phongMay", "loi", "thieu", "netSupport", "internet", "amThanh", "mayLanh"];

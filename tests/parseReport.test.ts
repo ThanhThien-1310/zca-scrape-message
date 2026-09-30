@@ -5,12 +5,16 @@ import { classifyTitle, computerGrade, parseCount, parseGrade, parseLines, parse
 test("classifyTitle", () => {
     assert.equal(classifyTitle("BÁO CÁO ĐẦU BUỔI DẠY\n- Tên Giáo Viên: A"), "DauBuoi");
     assert.equal(classifyTitle("báo cáo cuối buổi dạy"), "CuoiBuoi");
-    assert.equal(classifyTitle("BAO CAO DAU BUOI"), "DauBuoi");
+    assert.equal(classifyTitle("BAO CAO DAU BUOI DAY"), "DauBuoi");
     assert.equal(classifyTitle("BÁO CÁO CHUYÊN MÔN\n- Lớp: 9A"), null);
     assert.equal(classifyTitle("BÁO CÁO CHUYÊN MÔN 2"), null);
     assert.equal(classifyTitle("test báo cáo"), null);
     assert.equal(classifyTitle(""), null);
     assert.equal(classifyTitle("Xin gửi\nbáo cáo đầu buổi hôm nay"), "gan_giong");
+    // Tiêu đề vệ sinh phòng máy (không có "DẠY") không được lẫn vào báo cáo trường học: rơi vào "gan_giong"
+    // (đã có sẵn — đi vào review.json để người xem, KHÔNG được coi là DauBuoi/CuoiBuoi và build thành Report).
+    assert.equal(classifyTitle("BÁO CÁO CUỐI BUỔI\n- Tên trường: X"), "gan_giong");
+    assert.equal(classifyTitle("BÁO CÁO ĐẦU BUỔI"), "gan_giong");
 });
 
 test("parseRoom follows the room table", () => {
