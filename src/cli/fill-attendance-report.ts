@@ -57,6 +57,13 @@ async function main(): Promise<void> {
     const hhmm = new Date(now + 7 * 3_600_000).toISOString().slice(11, 16).replace(":", "");
     const outName = freeFormFileName(title, day, hhmm);
 
+    // Xoá các file cùng ngày (mọi HHmm cũ) trước khi ghi file mới — cùng lý do đã sửa ở fill-cleaning-report.ts:
+    // chạy lại nhiều lần trong ngày không được để hàng chục file gần trùng nhau tồn đọng.
+    const outPrefix = `${title}_${yyMMdd}_T`;
+    for (const f of fs.readdirSync(outDir)) {
+        if (f.startsWith(outPrefix) && f.endsWith(".xlsx")) fs.rmSync(path.join(outDir, f));
+    }
+
     runFillTemplate({
         name: "attendance",
         templatesSrc,

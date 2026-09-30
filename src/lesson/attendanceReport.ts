@@ -11,12 +11,15 @@ export function classifyAttendanceTitle(content: string): boolean {
     return fold(lines[0] ?? "") === "bao cao diem danh";
 }
 
-/** "8h25" -> { hour: 8, minute: 25 }; null nếu không đúng khuôn hoặc giờ/phút ngoài phạm vi hợp lệ. */
+/** "8h25", "8:25", "8g25", "8h25'" -> { hour: 8, minute: 25 }; "8h" (không có phút) -> phút = 0. Chấp nhận
+ * ":", "h", "g" làm dấu phân cách (cách viết giờ tự do thường gặp trong chat), dấu nháy đơn cuối bị bỏ qua.
+ * null nếu không đúng khuôn hoặc giờ/phút ngoài phạm vi hợp lệ — im lặng bỏ 1 tin là chấp nhận được, nhưng
+ * không được bỏ những cách viết phổ biến thật (xem test). */
 function parseHm(value: string): { hour: number; minute: number } | null {
-    const m = /^(\d{1,2})h(\d{2})$/i.exec(value.trim());
+    const m = /^(\d{1,2})[:hg](\d{1,2})?'?$/i.exec(value.trim());
     if (!m) return null;
     const hour = Number(m[1]);
-    const minute = Number(m[2]);
+    const minute = m[2] === undefined ? 0 : Number(m[2]);
     if (hour > 23 || minute > 59) return null;
     return { hour, minute };
 }

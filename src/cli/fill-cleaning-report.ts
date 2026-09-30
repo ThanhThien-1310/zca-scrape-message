@@ -5,7 +5,7 @@ import { classifyCleaningTitle, cleaningReportDay, parseCleaningMessage } from "
 import { buildCleaningRows, CLEANING_LAYOUT, cleaningFormulaCells } from "../lesson/cleaningRows.js";
 import { runFillTemplate } from "../lesson/excelFill.js";
 import { excelDateSerialForDay, freeFormFileName, readTemplateTitle } from "../lesson/statusReportLayout.js";
-import { vietnamDay } from "../lesson/time.js";
+import { todayVietnam, vietnamDay } from "../lesson/time.js";
 import { MessageStore } from "../store/messageStore.js";
 import type { CleaningEntry, SourceMessage } from "../types/index.js";
 
@@ -54,6 +54,14 @@ async function main(): Promise<void> {
     const hhmm = new Date(now + 7 * 3_600_000).toISOString().slice(11, 16).replace(":", "");
     const outName = freeFormFileName(title, day, hhmm);
 
+    // Xoá các file cùng ngày (mọi HHmm cũ) trước khi ghi file mới: tên file luôn đóng dấu giờ chạy thực tế
+    // (theo yêu cầu ban đầu), nhưng chạy lại nhiều lần trong ngày (mỗi cycle của bot:runner) không được để
+    // hàng chục file gần trùng nhau tồn đọng — chỉ giữ đúng 1 file mới nhất cho mỗi ngày.
+    const outPrefix = `${title}_${yyMMdd}_T`;
+    for (const f of fs.readdirSync(outDir)) {
+        if (f.startsWith(outPrefix) && f.endsWith(".xlsx")) fs.rmSync(path.join(outDir, f));
+    }
+
     runFillTemplate({
         name: "cleaning",
         templatesSrc,
@@ -61,7 +69,9 @@ async function main(): Promise<void> {
         outDir,
         outName,
         rows,
-        headerCells: [{ ref: "H2", value: excelDateSerialForDay(day), numberFormat: "dd/mm/yyyy" }],
+        // "Ngày báo cáo" (H2) là ngày CHẠY báo cáo (hôm nay), khác với cột B (NGÀY, ngày dữ liệu nói về, đã lùi) —
+        // đúng theo ví dụ thật trong hướng dẫn (dữ liệu Thứ 7 26/09, "Ngày báo cáo" Thứ 2 28/09).
+        headerCells: [{ ref: "H2", value: excelDateSerialForDay(todayVietnam(now)), numberFormat: "dd/mm/yyyy" }],
         formulaCells: cleaningFormulaCells(CLEANING_LAYOUT.firstDataRow, rows.length),
     });
 

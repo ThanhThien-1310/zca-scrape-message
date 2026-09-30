@@ -26,7 +26,27 @@ test("buildCleaningRows: no entries -> no rows", () => {
 });
 
 test("cleaningFormulaCells: TỔNG luôn tham chiếu đúng vùng dữ liệu hiện tại, tối thiểu 1 dòng", () => {
-    assert.deepEqual(cleaningFormulaCells(4, 0), [{ ref: "C5", formula: "COUNTA(C4:C4)" }]);
-    assert.deepEqual(cleaningFormulaCells(4, 1), [{ ref: "C5", formula: "COUNTA(C4:C4)" }]);
-    assert.deepEqual(cleaningFormulaCells(4, 3), [{ ref: "C7", formula: "COUNTA(C4:C6)" }]);
+    assert.deepEqual(cleaningFormulaCells(4, 0), [
+        { ref: "C5", formula: "COUNTA(C4:C4)" },
+        { ref: "L10", formula: "COUNTIF(G4:G4,J10)" },
+        { ref: "L11", formula: "COUNTIF(G4:G4,J11)" },
+    ]);
+    assert.deepEqual(cleaningFormulaCells(4, 1), [
+        { ref: "C5", formula: "COUNTA(C4:C4)" },
+        { ref: "L10", formula: "COUNTIF(G4:G4,J10)" },
+        { ref: "L11", formula: "COUNTIF(G4:G4,J11)" },
+    ]);
+    // 3 dòng dữ liệu: firstDataRow=4, effectiveRows=3 -> totalRow=7 (khớp file mẫu gốc khi có đúng số dòng ban
+    // đầu là 4: totalRow=8, khối CHÚ GIẢI ở dòng 13 (A)/14 (B) — tức luôn là totalRow+5/totalRow+6).
+    assert.deepEqual(cleaningFormulaCells(4, 3), [
+        { ref: "C7", formula: "COUNTA(C4:C6)" },
+        { ref: "L12", formula: "COUNTIF(G4:G6,J12)" },
+        { ref: "L13", formula: "COUNTIF(G4:G6,J13)" },
+    ]);
+    // Đúng số dòng ban đầu của file mẫu (4 dòng) -> khối CHÚ GIẢI đúng vị trí gốc: A ở dòng 13, B ở dòng 14.
+    assert.deepEqual(cleaningFormulaCells(4, 4), [
+        { ref: "C8", formula: "COUNTA(C4:C7)" },
+        { ref: "L13", formula: "COUNTIF(G4:G7,J13)" },
+        { ref: "L14", formula: "COUNTIF(G4:G7,J14)" },
+    ]);
 });

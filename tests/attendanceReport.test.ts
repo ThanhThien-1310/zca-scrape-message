@@ -32,6 +32,13 @@ test("parseAttendanceMessage: giờ/phút không hợp lệ -> null", () => {
     assert.equal(parseAttendanceMessage(msg), null);
 });
 
+test("parseAttendanceMessage: chấp nhận các cách viết giờ khác nhau thay vì bỏ tin lặng lẽ", () => {
+    assert.deepEqual(parseAttendanceMessage(REAL_MORNING.replace("8h25", "8:25"))?.gioDen, { hour: 8, minute: 25 });
+    assert.deepEqual(parseAttendanceMessage(REAL_MORNING.replace("8h25", "8g25"))?.gioDen, { hour: 8, minute: 25 });
+    assert.deepEqual(parseAttendanceMessage(REAL_MORNING.replace("8h25", "8h25'"))?.gioDen, { hour: 8, minute: 25 });
+    assert.deepEqual(parseAttendanceMessage(REAL_MORNING.replace("8h25", "8h"))?.gioDen, { hour: 8, minute: 0 });
+});
+
 test("attendanceSessionOf: giờ < 12 là sáng, >= 12 là chiều", () => {
     assert.equal(attendanceSessionOf(8), "morning");
     assert.equal(attendanceSessionOf(11), "morning");
