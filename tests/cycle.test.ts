@@ -15,6 +15,7 @@ function harness(opts: {
     built?: string[];
     scrape?: () => Promise<QueueRunResult>;
     build?: (s: SessionKey) => Promise<BuildResult>;
+    buildExtras?: () => Promise<string[]>;
 } = {}) {
     const messages = [...(opts.messages ?? [])];
     let built = new Set(opts.built ?? []);
@@ -42,6 +43,7 @@ function harness(opts: {
                 calls.push(`build:${s.day} ${s.buoi}`);
                 return { reviewCount: 1, excel: `x_${s.buoi}.xlsm`, warnings: [] };
             }),
+        buildExtras: opts.buildExtras ?? (async () => []),
         built: { read: () => new Set(built), write: (keys) => void (built = new Set(keys)) },
     };
     return { deps, calls, get built() { return built; } };
@@ -181,4 +183,24 @@ test("a cycle that fails midway still reports the time it spent", async () => {
     const s = await runCycle(h.deps);
     assert.equal(s.ok, false);
     assert.equal(s.durationMs, 5_000);
+});
+
+test("runCycle calls buildExtras exactly once, even with zero dirty sessions", async () => {
+    let calls = 0;
+    const h = harness({ buildExtras: async () => { calls++; return []; } });
+    await runCycle(h.deps);
+    assert.equal(calls, 1);
+});
+
+test("runCycle: a buildExtras failure becomes a warning, does not fail the cycle", async () => {
+    const h = harness({ buildExtras: async () => { throw new Error("Excel COM lỗi"); } });
+    const s = await runCycle(h.deps);
+    assert.equal(s.ok, true);
+    assert.ok(s.warnings.some((w) => w.includes("Excel COM lỗi")));
+});
+
+test("runCycle: buildExtras returning warnings surfaces them in summary.warnings", async () => {
+    const h = harness({ buildExtras: async () => ["fill-vệ sinh: thoát mã 1"] });
+    const s = await runCycle(h.deps);
+    assert.ok(s.warnings.includes("fill-vệ sinh: thoát mã 1"));
 });

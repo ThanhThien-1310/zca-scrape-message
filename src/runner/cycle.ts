@@ -11,6 +11,10 @@ export interface CycleDeps {
     syncDb(): Promise<void>;
     /** Extract one session, write its Excel, mark its messages. */
     build(session: SessionKey): Promise<BuildResult>;
+    /** Chạy 2 báo cáo KHÔNG thuộc Phase/SessionKey nào (VỆ SINH, VI PHẠM) — đúng 1 lần/cycle, bất kể có
+     * session nào dirty hay không. KHÔNG BAO GIỜ throw — mọi lỗi tự trở thành 1 phần tử cảnh báo trong mảng
+     * trả về (xem docs/superpowers/specs/2026-09-30-ve-sinh-vi-pham-design.md). */
+    buildExtras(): Promise<string[]>;
     /** Keys of the reports already built into an Excel; kept on disk (src/runner/builtReports.ts). */
     built: { read(): Set<string>; write(keys: Set<string>): void };
 }
@@ -70,6 +74,15 @@ export async function runCycle(deps: CycleDeps): Promise<CycleSummary> {
                 summary.buildErrors.push(`${session.day} ${session.buoi}: ${(err as Error).message}`);
             }
             lap("build");
+        }
+
+        try {
+            const extraWarnings = await deps.buildExtras();
+            summary.warnings.push(...extraWarnings);
+        } catch (err) {
+            // Hợp đồng buildExtras() là không throw; bọc thêm ở đây phòng khi cài đặt tương lai vi phạm hợp
+            // đồng đó — một lỗi ở đây tuyệt đối không được làm sai summary.ok của cả cycle.
+            summary.warnings.push(`buildExtras: ${(err as Error).message}`);
         }
     } catch (err) {
         summary.ok = false;
