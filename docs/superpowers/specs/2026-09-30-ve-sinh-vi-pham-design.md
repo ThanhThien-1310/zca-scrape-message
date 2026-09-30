@@ -66,7 +66,7 @@ export interface AttendanceEntry {
 
 ### 3. VỆ SINH — `src/cli/fill-cleaning-report.ts`
 
-- `cleaningReportDay(now: number): string` (mới, `src/lesson/cleaningReport.ts`) — nếu hôm nay là Thứ 2 thì lùi 3 ngày (lấy Thứ 7); các ngày khác lùi 1 ngày. Không dùng `Phase`/`phaseDay`.
+- `cleaningReportDay(now: number): string` (mới, `src/lesson/cleaningReport.ts`) — nếu hôm nay là Thứ 2 thì lùi 2 ngày (Thứ 2 trừ 2 ngày = Thứ 7 tuần trước); các ngày khác lùi 1 ngày. Không dùng `Phase`/`phaseDay`.
 - Đọc toàn bộ tin nhắn qua `loadMessages()` (export dùng chung từ `src/runner/steps.ts`), lọc tin có ngày lịch (giờ Việt Nam) = ngày mục tiêu và tiêu đề khớp `classifyCleaningTitle`, parse bằng `parseCleaningMessage`. Mỗi tin hợp lệ = 1 phòng máy = 1 dòng.
 - XẾP LOẠI = `veSinhSach ? "A" : "B"`.
 - Ghi vào sheet `HANG NGAY`: A=STT, B=NGÀY (ngày mục tiêu), C=TÊN TRƯỜNG, D=KHU VỰC, E=PM, F=HỌ TÊN (tên IT), G=XẾP LOẠI, H=GHI CHÚ (trống). Sheet `TONG` không đụng.
@@ -97,7 +97,7 @@ Không cần thêm cấu hình mới cho giai đoạn test (dùng chung `"bot te
 ## Test
 
 - Unit test `classifyCleaningTitle`/`parseCleaningMessage`, `classifyAttendanceTitle`/`parseAttendanceMessage`: tin hợp lệ, tin thiếu trường, tin không khớp tiêu đề, tin gần giống nhưng không đúng tiêu đề.
-- Unit test `cleaningReportDay()`: Thứ 2 → Thứ 7 trước đó (lùi 3), các thứ khác → lùi 1, biên nửa đêm giờ Việt Nam.
+- Unit test `cleaningReportDay()`: Thứ 2 → Thứ 7 trước đó (lùi 2), các thứ khác → lùi 1, biên nửa đêm giờ Việt Nam.
 - Unit test phân loại khung giờ điểm danh: biên đúng/sai tại 08:00:00, 11:30:00, 14:00:00, 17:30:00.
 - Unit test tính SỐ LẦN từ lịch sử đầy đủ: nhiều ngày liên tiếp có/không vi phạm xen kẽ, và trường hợp tin đến không đúng thứ tự thời gian thật (mô phỏng gap-recovery).
 - Test regex `classifyTitle` mới (yêu cầu "DẠY"): chạy lại trên toàn bộ tiêu đề báo cáo trường học thật đã có, xác nhận không đổi hành vi; thêm test tiêu đề "BÁO CÁO CUỐI BUỔI" (không DẠY) không còn bị nhận là `CuoiBuoi`.
