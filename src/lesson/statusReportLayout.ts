@@ -23,8 +23,10 @@ export const FILE_LAYOUT = {
     mayTinh: { templateFile: "TINH TRANG LOI MAY TINH.xlsx", sheet: "2409", firstDataRow: 4, totalRowBefore: 7, lastColumn: "N" },
 } as const satisfies Record<string, FileLayout>;
 
-/** 5 file chưa có nguồn dữ liệu: chỉ chép nguyên trạng, không mở qua Excel COM (xem CLI, task 4). */
-export const OTHER_TEMPLATE_FILES: string[] = ["THAY THE MAY TINH.xlsx", "TINH TRANG LOI DIEN.xlsx", "TINH TRANG LOI PHAN MEM.xlsx", "TINH TRANG VE SINH PHONG MAY.xlsx", "VI PHAM NOI QUY THUC TAP.xlsx"];
+/** 3 file chưa có nguồn dữ liệu: chỉ chép nguyên trạng, không mở qua Excel COM (xem CLI, task 4). VỆ SINH và
+ * VI PHẠM có script riêng (fill-cleaning-report.ts / fill-attendance-report.ts — xem
+ * docs/superpowers/specs/2026-09-30-ve-sinh-vi-pham-design.md), không còn ở đây. */
+export const OTHER_TEMPLATE_FILES: string[] = ["THAY THE MAY TINH.xlsx", "TINH TRANG LOI DIEN.xlsx", "TINH TRANG LOI PHAN MEM.xlsx"];
 
 export interface HeaderCell {
     ref: string;
@@ -67,7 +69,7 @@ function boSungFormulaCells(firstDataRow: number, rowCount: number): FormulaCell
     ];
 }
 
-const WEEKDAY_EXCEL_TYPE1 = (jsDay: number): number => jsDay + 1; // JS getUTCDay(): 0=CN..6=Thứ 7; Excel WEEKDAY(d,1): 1=CN..7=Thứ 7.
+export const WEEKDAY_EXCEL_TYPE1 = (jsDay: number): number => jsDay + 1; // JS getUTCDay(): 0=CN..6=Thứ 7; Excel WEEKDAY(d,1): 1=CN..7=Thứ 7.
 const pad = (n: number): string => String(n).padStart(2, "0");
 
 /**
@@ -119,6 +121,15 @@ export function statusFileName(title: string, day: string, buoi: Phase): string 
     const yyMMdd = `${y.slice(2)}${m}${d}`;
     const weekday = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d))).getUTCDay();
     return `${title}_${yyMMdd}_T${WEEKDAY_EXCEL_TYPE1(weekday)}_${PHASE_HHMM[buoi]}.xlsx`;
+}
+
+/** Như `statusFileName`, nhưng cho file KHÔNG có mốc giờ cố định theo giai đoạn — VỆ SINH/VI PHẠM đóng dấu
+ * đúng giờ chạy thực tế (`hhmm` truyền vào tự do, dạng "HHmm") thay vì tra `PHASE_HHMM`. */
+export function freeFormFileName(title: string, day: string, hhmm: string): string {
+    const [y, m, d] = day.split("-");
+    const yyMMdd = `${y.slice(2)}${m}${d}`;
+    const weekday = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d))).getUTCDay();
+    return `${title}_${yyMMdd}_T${WEEKDAY_EXCEL_TYPE1(weekday)}_${hhmm}.xlsx`;
 }
 
 export function buildFillSpecs(reports: Report[], perMessage: Map<string, number>, day: string, generatedAt: number = Date.now()): Record<keyof typeof FILE_LAYOUT, FileFillSpec> {

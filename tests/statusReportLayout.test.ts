@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import XLSX from "xlsx";
 import { config } from "../config.js";
-import { buildFillSpecs, excelDateSerialForDay, FILE_LAYOUT, headerDateTexts, OTHER_TEMPLATE_FILES, PHASE_HHMM, readTemplateTitle, statusFileName } from "../src/lesson/statusReportLayout.js";
+import { buildFillSpecs, excelDateSerialForDay, FILE_LAYOUT, freeFormFileName, headerDateTexts, OTHER_TEMPLATE_FILES, PHASE_HHMM, readTemplateTitle, statusFileName, WEEKDAY_EXCEL_TYPE1 } from "../src/lesson/statusReportLayout.js";
 import type { CoSoVatChat, Report } from "../src/types/index.js";
 
 test("headerDateTexts matches the original TEXT()/WEEKDAY() formula's own output convention", () => {
@@ -82,13 +82,24 @@ test("buildFillSpecs: BO SUNG formulaCells range grows with more rows, TỔNG fo
     ]);
 });
 
-test("OTHER_TEMPLATE_FILES lists exactly the 5 files with no data source, and none overlap FILE_LAYOUT's templates", () => {
+test("OTHER_TEMPLATE_FILES lists exactly the 3 files with no data source, and none overlap FILE_LAYOUT's templates", () => {
     assert.deepEqual(
         [...OTHER_TEMPLATE_FILES].sort(),
-        ["TINH TRANG LOI DIEN.xlsx", "TINH TRANG LOI PHAN MEM.xlsx", "TINH TRANG VE SINH PHONG MAY.xlsx", "THAY THE MAY TINH.xlsx", "VI PHAM NOI QUY THUC TAP.xlsx"].sort(),
+        ["TINH TRANG LOI DIEN.xlsx", "TINH TRANG LOI PHAN MEM.xlsx", "THAY THE MAY TINH.xlsx"].sort(),
     );
     const inScope = new Set<string>(Object.values(FILE_LAYOUT).map((l) => l.templateFile));
     for (const f of OTHER_TEMPLATE_FILES) assert.equal(inScope.has(f), false, f);
+});
+
+test("freeFormFileName: <title>_<yyMMdd>_T<thu>_<hhmm tự do>.xlsx", () => {
+    // 2026-09-29 là thứ Ba -> Excel WEEKDAY(d,1) = 3.
+    assert.equal(freeFormFileName("TÌNH TRẠNG VỆ SINH PHÒNG MÁY", "2026-09-29", "1042"), "TÌNH TRẠNG VỆ SINH PHÒNG MÁY_260929_T3_1042.xlsx");
+});
+
+test("WEEKDAY_EXCEL_TYPE1: JS getUTCDay() (0=CN) -> Excel WEEKDAY(d,1) (1=CN)", () => {
+    assert.equal(WEEKDAY_EXCEL_TYPE1(0), 1);
+    assert.equal(WEEKDAY_EXCEL_TYPE1(2), 3);
+    assert.equal(WEEKDAY_EXCEL_TYPE1(6), 7);
 });
 
 const templatesDir = path.join(config.dataDir, "mau bao cao new");
