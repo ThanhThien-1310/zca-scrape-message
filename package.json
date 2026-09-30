@@ -17,6 +17,7 @@
         "fill:report": "tsx src/cli/fill-report.ts",
         "fill:status-reports": "tsx src/cli/fill-status-reports.ts",
         "fill:cleaning-report": "tsx src/cli/fill-cleaning-report.ts",
+        "fill:attendance-report": "tsx src/cli/fill-attendance-report.ts",
         "recover:missing": "tsx src/cli/recover-missing.ts",
         "watch:status": "tsx src/cli/watch-status.ts",
         "bot:runner": "tsx src/cli/bot-runner.ts",
