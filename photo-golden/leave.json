@@ -1,0 +1,22 @@
+{
+    "sourceDir": "data/images/AI_reading_picture",
+    "cases": [
+        {
+            "name": "nghi-phep-mau-02-10",
+            "files": ["1791259319786_8177341213137283974_8177341213137283974_755cbbb193c950ffe714d2031c85ef97.jpg"],
+            "loai": { "1791259319786_8177341213137283974_8177341213137283974_755cbbb193c950ffe714d2031c85ef97.jpg": "leave" },
+            "extracted": {
+                "leave": {
+                    "ngayBaoCao": "2026-10-02",
+                    "nguoiBaoCao": "Trần Thị Dung",
+                    "boPhan": "Nhân sự",
+                    "dong": [
+                        { "hoTen": "Nguyễn Quốc Pháp", "tuGio": "8:00", "tuThu": 7, "tuNgay": "2026-10-03", "denGio": "18:00", "denThu": 7, "denNgay": "2026-10-03", "soNgay": 1, "lyDo": "Cá nhân" },
+                        { "hoTen": "Trần Nguyên Lộc", "tuGio": "8:00", "tuThu": 2, "tuNgay": "2026-10-03", "denGio": "18:00", "denThu": 2, "denNgay": "2026-10-05", "soNgay": 2, "lyDo": "Cá nhân" },
+                        { "hoTen": "Hồ Đình Huy", "tuGio": "8:00", "tuThu": 2, "tuNgay": "2026-10-05", "denGio": "18:00", "denThu": 3, "denNgay": "2026-10-06", "soNgay": 2, "lyDo": "Cá nhân" }
+                    ]
+                }
+            }
+        }
+    ]
+}

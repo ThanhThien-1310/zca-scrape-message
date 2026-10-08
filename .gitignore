@@ -4,6 +4,15 @@ dist/
 # Runtime output — scraped messages, never commit
 /data/
 
+# Extractor output — never commit
+/output/
+
+# Plan-execution scratch (ledger, briefs)
+/.superpowers/
+
+# Isolated worktrees for in-progress features
+/.worktrees/
+
 # npm
 npm-debug.log*
 
@@ -11,3 +20,8 @@ npm-debug.log*
 .DS_Store
 
 .ua/
+
+# Secrets — DB credentials
+.env
+.env.*
+!.env.example

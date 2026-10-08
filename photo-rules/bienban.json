@@ -1,0 +1,24 @@
+{
+    "id": "bienban",
+    "version": 1,
+    "title": "Biên bản bàn giao cho trường",
+    "nhanRa": "Ảnh chụp tờ biên bản giấy của Tin Học Đại Dương: có logo và dòng CÔNG TY TNHH TƯ VẤN & ĐÀO TẠO ĐẠI DƯƠNG, tiêu đề in đậm TIN HỌC ĐẠI DƯƠNG rồi tên biên bản (ví dụ BIÊN BẢN BÀN GIAO PHÒNG MÁY CHO TRƯỜNG, BIÊN BẢN BÀN GIAO LINH KIỆN CHO TRƯỜNG), các dòng viết tay Hôm nay ngày, Người bàn giao hoặc Đại diện công ty, Người nhận hoặc Đại diện nhà trường, bảng thiết bị và chữ ký hai bên. Có thể là một tờ chụp một mình hoặc nhiều tờ xếp chồng.",
+    "soLuongMoiBo": { "toiThieu": 1, "toiDa": 10 },
+    "truong": [
+        {
+            "ten": "bienBan",
+            "kieu": "danh_sach",
+            "batBuoc": true,
+            "goiY": "Mỗi ảnh biên bản là MỘT phần tử, theo đúng thứ tự các ảnh biên bản. Chỉ đọc tờ nằm trên cùng, rõ nhất trong ảnh; bỏ qua các tờ khác bị che phía sau. Không đọc các ảnh khác.",
+            "phanTu": [
+                { "ten": "tieuDe", "kieu": "chu", "batBuoc": true, "goiY": "Tên biên bản in đậm dưới dòng TIN HỌC ĐẠI DƯƠNG, ví dụ BIÊN BẢN BÀN GIAO PHÒNG MÁY CHO TRƯỜNG, chép đúng như in, viết hoa." },
+                { "ten": "daiDienCty", "kieu": "chu", "goiY": "Họ tên viết tay ở dòng Người bàn giao hoặc Đại diện công ty (bên Tin Học Đại Dương), đầy đủ dấu. null nếu để trống." },
+                { "ten": "daiDienTruong", "kieu": "chu", "goiY": "Họ tên viết tay ở dòng Người nhận hoặc Đại diện nhà trường, đầy đủ dấu. null nếu để trống." },
+                { "ten": "boPhanTruong", "kieu": "chu", "goiY": "Chữ viết tay ở ô Bộ phận cùng dòng với Người nhận hoặc Đại diện nhà trường (bên trường), ví dụ Văn phòng. KHÔNG lấy Bộ phận của dòng người bàn giao (Kỹ thuật). null nếu để trống." },
+                { "ten": "laTrangTiep", "kieu": "dung_sai", "goiY": "true nếu ảnh là trang tiếp theo của một biên bản (không có tiêu đề biên bản hoặc ghi trang 2); ngược lại false." }
+            ]
+        }
+    ],
+    "docLanHai": "luon",
+    "nguongTinCay": "vua"
+}

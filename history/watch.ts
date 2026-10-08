@@ -1,7 +1,9 @@
+import http from "node:http";
 import { config } from "../config.js";
 import { MessageStore } from "../store/messageStore.js";
+import { downloadImageFromUrl } from "../store/imageStore.js";
 import { CdpPage, connectToZaloMainPageEarly, connectToZaloNotificationPage } from "./cdp.js";
-import { forceRestartZalo, installLiveMessageObserver, scrapeAndSaveLatest, toNormalizedMessage, waitForSidebarLoaded } from "./desktopScraper.js";
+import { forceRestartZalo, installLiveMessageObserver, scrapeAndSaveLatest, scrapeAndSaveTarget, toNormalizedMessage, waitForSidebarLoaded, type ScrapeTargetResult } from "./desktopScraper.js";
 import { installRealtimeListener } from "./realtimeListener.js";
 import type { ScrapedRow } from "./scrapeSelectors.js";
 
@@ -21,10 +23,12 @@ const LIVE_MSG_BINDING = "__zalobotLiveMsg";
  * ensureZaloReady) so the realtime WS source can observe its connection
  * from the very first frame — see forceRestartZalo's own comment.
  *
- * Do not run this at the same time as a scheduled `bot:scrape` run — both
- * can kill and relaunch Zalo Desktop; a scheduled run doing that mid-watch
- * would tear down this process's live CDP connections. Pick one operating
- * mode.
+ * Safe to run at the same time as `bot:scrape` (index.ts) — this also
+ * starts a localhost-only control server (see startControlServer below)
+ * that index.ts auto-detects and delegates on-demand scrapes to, instead
+ * of opening a second CDP connection that would otherwise race this
+ * process's own UI-driving operations (click / search / scroll) on the
+ * same real Zalo Desktop window.
  */
 export async function watch(): Promise<void> {
     if (config.targets.length === 0) {
@@ -75,6 +79,24 @@ export async function watch(): Promise<void> {
         );
     }
 
+    // Runs `fn` after everything already queued (same serialization as
+    // scheduleScrape above), but — unlike scheduleScrape's own fire-and-
+    // forget debounce — returns `fn`'s actual result to the caller. Used by
+    // the control server below so an HTTP request can report back real
+    // scrape counts instead of just "queued". A rejection from `fn` doesn't
+    // poison `queue` for whatever runs after it — only propagates to this
+    // call's own return value.
+    function runExclusive<T>(fn: () => Promise<T>): Promise<T> {
+        const result = queue.then(fn);
+        queue = result.then(
+            () => undefined,
+            () => undefined,
+        );
+        return result;
+    }
+
+    const controlServer = startControlServer((target) => runExclusive(() => scrapeAndSaveTarget(mainPage, store, target)));
+
     // `groupIdToTarget` starts empty and is filled in just below — the
     // listener is registered against this outer binding (not a snapshot)
     // so it still sees the real mapping once buildGroupIdMap resolves.
@@ -97,20 +119,28 @@ export async function watch(): Promise<void> {
         // scrape. store.save() dedupes by msgId, so if the DOM scrape below
         // does end up seeing the same row too, it's a harmless no-op.
         if (photoMessage) {
-            const saved = store.save({
-                msgId: photoMessage.msgId,
-                groupId,
-                groupName: target,
-                threadType: isGroup ? "group" : "user",
-                senderId: photoMessage.senderId,
-                senderName: photoMessage.senderName,
-                isSelf: photoMessage.isSelf,
-                ts: photoMessage.ts,
-                msgType: "chat.photo",
-                content: photoMessage.content,
-                url: photoMessage.url,
-            });
-            if (saved) console.log(`[watch] realtime-ws: saved photo message for "${target}" (${photoMessage.url})`);
+            // The CDN link is only used to download the file into this
+            // conversation's image folder; the row's `url` is that local
+            // path (see store/imageStore.ts), or absent if the download
+            // failed — the row is still saved, and a later DOM scrape may
+            // fill `url` in from Zalo's own cache.
+            void (async () => {
+                const localPath = await downloadImageFromUrl(groupId, photoMessage.msgId, photoMessage.url);
+                const saved = store.save({
+                    msgId: photoMessage.msgId,
+                    groupId,
+                    groupName: target,
+                    threadType: isGroup ? "group" : "user",
+                    senderId: photoMessage.senderId,
+                    senderName: photoMessage.senderName,
+                    isSelf: photoMessage.isSelf,
+                    ts: photoMessage.ts,
+                    msgType: "chat.photo",
+                    content: photoMessage.content,
+                    ...(localPath ? { url: localPath } : {}),
+                });
+                if (saved) console.log(`[watch] realtime-ws: saved photo message for "${target}" (${localPath ?? "image not downloaded"})`);
+            })().catch((err) => console.error(`[watch] realtime-ws: failed saving photo message for "${target}":`, err));
         }
 
         scheduleScrape(target, "realtime-ws");
@@ -184,6 +214,7 @@ export async function watch(): Promise<void> {
 
     const stopWatching = () => {
         console.log("\n[watch] stopping...");
+        controlServer.close();
         mainPage.close();
         notifPage.close();
         process.exit(0);
@@ -195,6 +226,77 @@ export async function watch(): Promise<void> {
         console.error("[watch] lost connection to Zalo's notification window — exiting. Restart `npm run bot:watch` to resume.");
         process.exit(1);
     });
+}
+
+type ScrapeTargetFn = (target: string) => Promise<ScrapeTargetResult>;
+
+/**
+ * Localhost-only HTTP server so `bot:scrape` (index.ts) can delegate an
+ * on-demand full scrape to this already-running `bot:watch` process instead
+ * of opening its own competing CDP connection to the same Zalo Desktop
+ * window — two independent processes each driving the one real UI (search
+ * box, clicked conversation, scroll position) at the same time is the
+ * actual risk of running both at once, not Zalo Desktop restarting (see
+ * README "Chế độ theo dõi thời gian thực"). `scrapeTarget` already routes
+ * through `watch()`'s own serialized queue (see `runExclusive` above), so a
+ * request handled here can never race a WS- or notification-triggered
+ * scrape for the shared `mainPage`.
+ *
+ * `POST /scrape` body: `{ targets?: string[] }` — omit `targets` to scrape
+ * everything in `config.targets`. Responds only once every requested
+ * target has actually finished (or failed), so the caller gets real counts,
+ * not just an acknowledgement that the request was queued.
+ */
+function startControlServer(scrapeTarget: ScrapeTargetFn): http.Server {
+    const server = http.createServer((req, res) => {
+        if (req.method !== "POST" || req.url !== "/scrape") {
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "not found" }));
+            return;
+        }
+
+        let body = "";
+        req.on("data", (chunk) => (body += chunk));
+        req.on("end", async () => {
+            let requestedTargets: string[] | undefined;
+            try {
+                const parsed = body.trim() ? JSON.parse(body) : {};
+                if (parsed.targets !== undefined) {
+                    if (!Array.isArray(parsed.targets) || !parsed.targets.every((t: unknown) => typeof t === "string")) {
+                        throw new Error("targets must be an array of strings");
+                    }
+                    requestedTargets = parsed.targets;
+                }
+            } catch (err) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: `invalid request body: ${(err as Error).message}` }));
+                return;
+            }
+
+            const targets = (requestedTargets ?? config.targets).filter((t) => config.targets.includes(t));
+            const results: Array<{ target: string; scraped: number; written: number } | { target: string; error: string }> = [];
+            for (const target of targets) {
+                try {
+                    const { scraped, written } = await scrapeTarget(target);
+                    results.push({ target, scraped, written });
+                } catch (err) {
+                    results.push({ target, error: (err as Error).message });
+                }
+            }
+
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ results }));
+        });
+    });
+
+    server.listen(config.watchControlPort, "127.0.0.1", () => {
+        console.log(`[watch] control server ready on 127.0.0.1:${config.watchControlPort} — \`bot:scrape\` will delegate here automatically while this process is running`);
+    });
+    server.on("error", (err) => {
+        console.error(`[watch] control server failed to start on port ${config.watchControlPort} — \`bot:scrape\` will fall back to running standalone instead of delegating:`, err);
+    });
+
+    return server;
 }
 
 /**

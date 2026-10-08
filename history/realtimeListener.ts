@@ -183,6 +183,17 @@ export function installRealtimeListener(page: CdpPage, onMessage: (event: Realti
                     // mistaken for a photo below, but not acted on yet.
                     const isRecall = msg.msgType === "chat.undo" || (typeof msg.content === "object" && msg.content !== null && "deleteMsg" in msg.content);
 
+                    // Only text and photo messages are supported right now
+                    // — anything else (chat.voice, chat.sticker, chat.gif,
+                    // chat.video.msg, share.file, chat.location.new...)
+                    // is ignored outright: no trigger, no scrape, nothing
+                    // saved. A recall is still worth letting through even
+                    // though its own msgType is "chat.undo" (not in this
+                    // allow-list), since it's about an *existing* saved
+                    // message, not a new one of some unsupported type.
+                    const isSupportedType = isRecall || msg.msgType === "webchat" || msg.msgType === "chat.photo";
+                    if (!isSupportedType) continue;
+
                     // WS's idTo is the bare numeric id; the store's groupId
                     // (and this listener's lookup map, built from it) uses
                     // "g<digits>" for groups, the bare id for DMs — see

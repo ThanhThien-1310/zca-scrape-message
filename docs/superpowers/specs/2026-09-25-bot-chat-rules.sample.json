@@ -1,0 +1,40 @@
+{
+    "version": 1,
+    "dryRun": false,
+    "limits": {
+        "maxRepliesPerMinute": 6,
+        "maxReplyDelaySeconds": 180,
+        "cooldownSecondsPerRule": 30
+    },
+    "groups": {
+        "bot test": {
+            "scrape": false,
+            "rules": [
+                {
+                    "id": "bao-cao-co-may-loi",
+                    "when": {
+                        "loaiBaoCao": ["DauBuoi", "CuoiBuoi"],
+                        "mayLoi": true
+                    },
+                    "reply": "Đã nhận thông tin có máy lỗi. Cảm ơn {senderName}, bộ phận IT sẽ kiểm tra."
+                },
+                {
+                    "id": "bao-cao-co-may-loi-gan-the",
+                    "when": {
+                        "loaiBaoCao": ["DauBuoi", "CuoiBuoi"],
+                        "mayLoi": true
+                    },
+                    "mention": ["Nguyễn Trọng Phúc"],
+                    "reply": "{chiTietLoi}. Ghi nhận kiểm tra."
+                },
+                {
+                    "id": "tu-khoa-may-loi",
+                    "when": {
+                        "keywords": ["máy lỗi", "máy hỏng", "máy không lên"]
+                    },
+                    "reply": "Đã nhận thông tin có máy lỗi."
+                }
+            ]
+        }
+    }
+}

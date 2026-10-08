@@ -67,4 +67,8 @@ export type ScrapedRow = {
     /** Display name of the conversation at scrape time — informational only; use `groupId` for identity. */
     groupName: string | null;
     isGroup: boolean;
+    /** True for a photo bubble (class-detected in extractRowsFromMessageSrc). */
+    isPhoto?: boolean;
+    /** Client message id parsed from data-qid — names the photo's file in Zalo's local download cache. */
+    cliMsgId?: string;
 };

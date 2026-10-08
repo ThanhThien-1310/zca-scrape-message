@@ -1,0 +1,22 @@
+{
+    "id": "speedtest",
+    "version": 1,
+    "title": "Ảnh đo tốc độ mạng",
+    "nhanRa": "Ảnh chụp màn hình trang đo tốc độ internet (Fast.com, Speedtest...): một số tốc độ lớn kèm đơn vị Kbps, Mbps hoặc Gbps; hoặc màn hình báo không có kết nối internet.",
+    "soLuongMoiBo": { "toiThieu": 1, "toiDa": 10 },
+    "truong": [
+        {
+            "ten": "lan",
+            "kieu": "danh_sach",
+            "batBuoc": true,
+            "goiY": "Mỗi ảnh đo tốc độ là MỘT phần tử, theo đúng thứ tự các ảnh đo tốc độ. Không đọc các ảnh khác.",
+            "phanTu": [
+                { "ten": "tocDo", "kieu": "so", "min": 0, "max": 1000000, "goiY": "Số tốc độ lớn nhất trên màn hình (số tải xuống), đúng như hiển thị, giữ phần thập phân. null nếu không có số." },
+                { "ten": "donVi", "kieu": "chu", "goiY": "Đơn vị ghi cạnh số tốc độ, đúng như trong ảnh: Kbps, Mbps hoặc Gbps. KHÔNG tự đổi đơn vị và KHÔNG đổi số." },
+                { "ten": "khongCoMang", "kieu": "dung_sai", "goiY": "true nếu ảnh báo không có kết nối internet hoặc lỗi mạng và không có số tốc độ; ngược lại false." }
+            ]
+        }
+    ],
+    "docLanHai": "khi_tin_cay_thap",
+    "nguongTinCay": "vua"
+}

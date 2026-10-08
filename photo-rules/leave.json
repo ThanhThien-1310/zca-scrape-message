@@ -1,0 +1,31 @@
+{
+    "id": "leave",
+    "version": 1,
+    "title": "Bảng nghỉ phép đã duyệt",
+    "nhanRa": "Ảnh bảng \"KỸ THUẬT NGHỈ PHÉP ĐÃ DUYỆT\" của Tin Học Đại Dương: có logo, các dòng Nhân viên báo cáo, Bộ phận, Ngày báo cáo, rồi bảng nhiều cột STT, HỌ TÊN, SỐ NGÀY, TỪ (giờ, thứ, ngày), ĐẾN (giờ, thứ, ngày), LÝ DO, ĐÚNG QĐ, XẾP LOẠI, GHI CHÚ và bảng chú giải thống kê bên dưới.",
+    "soLuongMoiBo": { "toiThieu": 1, "toiDa": 5 },
+    "truong": [
+        { "ten": "ngayBaoCao", "kieu": "ngay", "goiY": "Ngày ghi ở \"Ngày báo cáo\" trên đầu bảng, đổi sang YYYY-MM-DD." },
+        { "ten": "nguoiBaoCao", "kieu": "chu", "goiY": "Tên sau \"Nhân viên báo cáo:\"." },
+        { "ten": "boPhan", "kieu": "chu", "goiY": "Tên sau \"Bộ phận:\"." },
+        {
+            "ten": "dong",
+            "kieu": "danh_sach",
+            "batBuoc": true,
+            "goiY": "Mỗi dòng người nghỉ trong bảng chính, từ trên xuống dưới. KHÔNG đọc bảng chú giải thống kê ở dưới. Bỏ qua dòng trống. Nếu ảnh có nhiều ảnh nghỉ phép thì gộp các dòng của tất cả ảnh theo thứ tự ảnh.",
+            "phanTu": [
+                { "ten": "hoTen", "kieu": "chu", "batBuoc": true, "goiY": "Họ tên đầy đủ trong cột HỌ TÊN, giữ nguyên dấu." },
+                { "ten": "tuGio", "kieu": "chu", "batBuoc": true, "goiY": "Giờ bắt đầu ở cột TỪ - GIỜ, dạng H:mm, ví dụ 8:00 hoặc 13:30." },
+                { "ten": "tuThu", "kieu": "so", "min": 1, "max": 7, "goiY": "Số ở cột TỪ - THỨ (CN là 1, thứ hai là 2, ..., thứ bảy là 7)." },
+                { "ten": "tuNgay", "kieu": "ngay", "batBuoc": true, "goiY": "Ngày ở cột TỪ - NGÀY, đổi sang YYYY-MM-DD." },
+                { "ten": "denGio", "kieu": "chu", "batBuoc": true, "goiY": "Giờ kết thúc ở cột ĐẾN - GIỜ, dạng H:mm, ví dụ 18:00." },
+                { "ten": "denThu", "kieu": "so", "min": 1, "max": 7, "goiY": "Số ở cột ĐẾN - THỨ." },
+                { "ten": "denNgay", "kieu": "ngay", "batBuoc": true, "goiY": "Ngày ở cột ĐẾN - NGÀY, đổi sang YYYY-MM-DD." },
+                { "ten": "soNgay", "kieu": "so", "min": 0, "max": 366, "goiY": "Số ở cột SỐ NGÀY." },
+                { "ten": "lyDo", "kieu": "chu", "goiY": "Chữ ở cột LÝ DO." }
+            ]
+        }
+    ],
+    "docLanHai": "khi_tin_cay_thap",
+    "nguongTinCay": "vua"
+}

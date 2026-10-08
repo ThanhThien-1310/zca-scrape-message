@@ -2,6 +2,7 @@ import { exec, spawn } from "node:child_process";
 import { config } from "../config.js";
 import type { NormalizedMessage } from "../store/messageStore.js";
 import { MessageStore } from "../store/messageStore.js";
+import { copyImageFromZaloCache } from "../store/imageStore.js";
 import { CdpPage, connectToZaloMainPage, isCdpReachable } from "./cdp.js";
 import { messageIdPrefix, selectors, type ScrapedRow } from "./scrapeSelectors.js";
 
@@ -82,6 +83,12 @@ const readMsgIdentitySrc = `
  * whatever message types this hasn't been confirmed against yet (stickers,
  * voice, system messages...), so those still get scraped, just without a
  * Zalo-native id.
+ *
+ * Only text and photo messages are actually kept, though — everything else
+ * (video, voice, sticker, gif, file...) is dropped outright (`keepRow`),
+ * since none of those have a `.text-message__container` with real text nor
+ * match the photo-bubble class check, so scraping them would only ever
+ * produce an empty, type-less placeholder row.
  */
 const extractRowsFromMessageSrc = `
     const qidPattern = /^(\\d+)@(\\d+)_([^_]+)_([^_]+)$/;
@@ -94,42 +101,58 @@ const extractRowsFromMessageSrc = `
             content: contentEl ? contentEl.textContent.trim() : "",
         };
     };
+    // Text messages have real content via readBubble; photo bubbles are
+    // identified by class name (confirmed live 2026-09-23: single photos
+    // carry "photo-message-v2" / "chatImageMessage", album items carry
+    // "card--group-photo"). Only these two kinds are supported — anything
+    // else (video, voice, sticker, gif, file...) has neither real text nor
+    // a matching photo class, so extractRowsFromMessage drops it rather
+    // than saving an empty, type-less placeholder row for it.
+    const isPhotoEl = (el) => /photo-message|chatImageMessage|card--group-photo/.test(el.className);
+    const keepRow = (el, content) => content.length > 0 || isPhotoEl(el);
+
     const extractRowsFromMessage = (msgEl) => {
         const isSelf = / me /.test(" " + msgEl.className + " ");
         const qidEls = Array.from(msgEl.querySelectorAll("[data-qid]"));
 
         if (qidEls.length > 0) {
-            return qidEls.map((qidEl) => {
-                const raw = qidEl.getAttribute("data-qid") || "";
-                const m = raw.match(qidPattern);
-                const identity = readMsgIdentity(qidEl, isSelf);
-                const bubble = readBubble(qidEl, msgEl);
-                if (!m) {
+            return qidEls
+                .map((qidEl) => {
+                    const raw = qidEl.getAttribute("data-qid") || "";
+                    const m = raw.match(qidPattern);
+                    const identity = readMsgIdentity(qidEl, isSelf);
+                    const bubble = readBubble(qidEl, msgEl);
+                    if (!keepRow(qidEl, bubble.content)) return null;
+                    if (!m) {
+                        return {
+                            externalId: msgEl.id || null,
+                            senderId: identity.senderId,
+                            senderName: bubble.senderName,
+                            content: bubble.content,
+                            ts: null,
+                            isSelf,
+                            groupId: identity.groupId,
+                            groupName: identity.groupName,
+                            isGroup: identity.isGroup,
+                            isPhoto: isPhotoEl(qidEl),
+                        };
+                    }
+                    const realMsgId = m[1], cliMsgId = m[2], uidFrom = m[3], groupIdRaw = m[4];
                     return {
-                        externalId: msgEl.id || null,
-                        senderId: identity.senderId,
+                        externalId: realMsgId,
+                        senderId: uidFrom === "0" ? identity.senderId : uidFrom,
                         senderName: bubble.senderName,
                         content: bubble.content,
-                        ts: null,
+                        ts: Number(cliMsgId),
                         isSelf,
-                        groupId: identity.groupId,
+                        groupId: groupIdRaw || identity.groupId,
                         groupName: identity.groupName,
-                        isGroup: identity.isGroup,
+                        isGroup: groupIdRaw.startsWith("g"),
+                        isPhoto: isPhotoEl(qidEl),
+                        cliMsgId,
                     };
-                }
-                const realMsgId = m[1], cliMsgId = m[2], uidFrom = m[3], groupIdRaw = m[4];
-                return {
-                    externalId: realMsgId,
-                    senderId: uidFrom === "0" ? identity.senderId : uidFrom,
-                    senderName: bubble.senderName,
-                    content: bubble.content,
-                    ts: Number(cliMsgId),
-                    isSelf,
-                    groupId: groupIdRaw || identity.groupId,
-                    groupName: identity.groupName,
-                    isGroup: groupIdRaw.startsWith("g"),
-                };
-            });
+                })
+                .filter((row) => row !== null);
         }
 
         const id = msgEl.id || "";
@@ -137,6 +160,7 @@ const extractRowsFromMessageSrc = `
         const ts = tsPart && /^\\d+$/.test(tsPart) ? Number(tsPart) : null;
         const identity = readMsgIdentity(msgEl, isSelf);
         const bubble = readBubble(msgEl, null);
+        if (!keepRow(msgEl, bubble.content)) return [];
         return [{
             externalId: id || null,
             senderId: identity.senderId,
@@ -147,6 +171,8 @@ const extractRowsFromMessageSrc = `
             groupId: identity.groupId,
             groupName: identity.groupName,
             isGroup: identity.isGroup,
+            isPhoto: isPhotoEl(msgEl),
+            cliMsgId: ts != null ? String(ts) : undefined,
         }];
     };
 `;
@@ -178,24 +204,27 @@ export async function runScrape(store: MessageStore): Promise<void> {
     }
 }
 
-/** Scrapes one target thread's full window (scrolls back to sinceTs) and writes it to the JSON store — used by the scheduled one-shot run (bot/index.ts). */
-export async function scrapeAndSaveTarget(page: CdpPage, store: MessageStore, target: string): Promise<void> {
+export type ScrapeTargetResult = { scraped: number; written: number };
+
+/** Scrapes one target thread's full window (scrolls back to sinceTs) and writes it to the JSON store — used by the scheduled one-shot run (bot/index.ts) and by watch.ts's on-demand control server. */
+export async function scrapeAndSaveTarget(page: CdpPage, store: MessageStore, target: string): Promise<ScrapeTargetResult> {
     console.log(`[scrape] scraping "${target}"...`);
     const rows = await scrapeThreadHistory(page, target);
     if (rows.length === 0) {
         console.log(`[scrape] "${target}": no messages found in this window, nothing to save.`);
-        return;
+        return { scraped: 0, written: 0 };
     }
 
     const identity = resolveGroupIdentity(rows, target);
     if (!identity) {
         console.warn(`[scrape] "${target}": could not read groupId from any scraped row (React internals may have changed — see readMsgIdentitySrc) — skipping save.`);
-        return;
+        return { scraped: rows.length, written: 0 };
     }
 
     const normalized = rows.map((r) => toNormalizedMessage(r, identity.groupId, identity.groupName, identity.isGroup));
     const written = store.saveMany(normalized);
     console.log(`[scrape] "${target}": scraped ${rows.length}, ${written} new (data/${identity.groupId}.json)`);
+    return { scraped: rows.length, written };
 }
 
 /**
@@ -336,22 +365,31 @@ async function scrapeThreadHistory(page: CdpPage, targetName: string): Promise<S
     let previousHeight = -1;
     let stableRounds = 0;
     let passedCutoff = false;
+    let scrollRounds = 0;
 
     while (collected.size < config.targetMessageCount && stableRounds < 3 && !passedCutoff) {
         const rows = await extractVisibleRows(page);
         for (const row of rows) collected.set(row.externalId, row);
 
-        if (config.sinceTs != null && rows.length > 0 && rows.every((r) => r.ts != null && r.ts < config.sinceTs!)) {
+        // `rows` is every message currently in the DOM, newest included — so
+        // "have we scrolled far enough" means *some* row is already older than
+        // the cutoff (everything from the cutoff onward is then loaded), not
+        // that *every* row is older (never true while today's messages are
+        // still in the DOM, which made this scroll all the way to the top).
+        if (config.sinceTs != null && rows.some((r) => r.ts != null && r.ts < config.sinceTs!)) {
             passedCutoff = true;
             break;
         }
 
+        scrollRounds++;
         const height = await scrollMessagePaneToTop(page);
         await delay(randomBetween(config.scrollDelayMs.min, config.scrollDelayMs.max));
 
         stableRounds = height != null && height === previousHeight ? stableRounds + 1 : 0;
         previousHeight = height ?? previousHeight;
     }
+
+    console.log(`[scrape] "${targetName}": stopped after ${scrollRounds} scroll round(s) (${passedCutoff ? "reached sinceTs" : "no older history / limit"}), ${collected.size} row(s) loaded`);
 
     return [...collected.values()].filter((r) => {
         if (r.ts == null) return true;
@@ -554,19 +592,30 @@ export async function installLiveMessageObserver(page: CdpPage, bindingName: str
     return page.evaluate<boolean>(expr);
 }
 
+/**
+ * A photo row also gets its image copied out of Zalo's local download cache
+ * into this conversation's image folder (store/imageStore.ts) — a synchronous
+ * side effect, done here because this is the one place both the batch scrape
+ * and the live observer turn a scraped row into a stored one. If Zalo never
+ * downloaded that image to this machine there's nothing to copy, and the row
+ * is still marked `chat.photo`, just without a `url`.
+ */
 export function toNormalizedMessage(row: ScrapedRow, groupId: string, groupName: string, isGroup: boolean): NormalizedMessage {
-    return {
+    const base = {
         msgId: row.externalId,
         groupId,
         groupName,
-        threadType: isGroup ? "group" : "user",
+        threadType: (isGroup ? "group" : "user") as "group" | "user",
         senderId: row.senderId,
         senderName: row.senderName,
         isSelf: row.isSelf,
         ts: row.ts ?? Date.now(),
-        msgType: "desktop.text",
         content: row.content,
     };
+    if (!row.isPhoto) return { ...base, msgType: "desktop.text" };
+
+    const url = row.cliMsgId ? copyImageFromZaloCache(groupId, row.externalId, row.cliMsgId) : null;
+    return { ...base, msgType: "chat.photo", ...(url ? { url } : {}) };
 }
 
 /**
