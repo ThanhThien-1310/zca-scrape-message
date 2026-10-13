@@ -9,6 +9,7 @@
         "bot:watch": "tsx src/cli/bot-watch.ts",
         "zalo:debug": "tsx src/cli/debug/zalo.ts",
         "export:excel": "tsx src/cli/export-excel.ts",
+        "export:worker": "python python/export_worker.py",
         "mcp": "tsx src/mcp/server.ts",
         "typecheck": "tsc --noEmit",
         "sync:db": "tsx src/cli/sync-db.ts",

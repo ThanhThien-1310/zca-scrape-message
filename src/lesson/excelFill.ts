@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { outputDir, scriptsDir } from "../core/paths.js";
+import { outputDir, repoRoot, scriptsDir } from "../core/paths.js";
 import type { FileLayout, FormulaCell, HeaderCell } from "./statusReportLayout.js";
 import type { Cell } from "../types/index.js";
 
@@ -40,10 +40,9 @@ export function buildFillPsSpec(args: FillTemplateArgs): unknown {
 }
 
 /**
- * Chạy `scripts/fill-status-template.ps1` cho ĐÚNG 1 file — cùng cơ chế Excel COM `fill:status-reports` đang
- * dùng (xem src/cli/fill-status-reports.ts), tái sử dụng nguyên trạng: mỗi lần gọi là MỘT tiến trình
- * PowerShell riêng (bắt buộc — xem chú thích trong file .ps1 về lý do 2 file không được chạy chung 1 tiến
- * trình). Ném lỗi nếu PowerShell thoát khác 0; người gọi tự quyết định coi lỗi này là fatal hay chỉ cảnh báo.
+ * Điền file mẫu Excel: Ưu tiên sử dụng Python Export Worker (Pandas + Openpyxl) siêu tốc,
+ * giữ nguyên 100% định dạng, kẻ viền và cảnh báo màu.
+ * Tự động fallback về PowerShell COM nếu có sự cố hoặc khi USE_LEGACY_EXCEL_FILL=true.
  */
 export function runFillTemplate(args: FillTemplateArgs): string {
     const psSpec = buildFillPsSpec(args);
@@ -52,6 +51,22 @@ export function runFillTemplate(args: FillTemplateArgs): string {
     fs.writeFileSync(specFile, JSON.stringify(psSpec), "utf8");
     const logFile = path.join(outputDir, `fill-${args.name}.log`);
     fs.rmSync(logFile, { force: true });
+
+    const useLegacy = process.env.USE_LEGACY_EXCEL_FILL === "true";
+    if (!useLegacy) {
+        try {
+            const pythonWorker = path.join(repoRoot, "python", "export_worker.py");
+            execFileSync(
+                "python",
+                [pythonWorker, "--spec", specFile, "--log", logFile],
+                { stdio: "inherit", timeout: 60_000 },
+            );
+            return fs.existsSync(logFile) ? fs.readFileSync(logFile, "utf8").replace(/^﻿/, "").trimEnd() : "";
+        } catch (err) {
+            console.warn(`[excelFill] Python worker báo lỗi (${(err as Error).message}), tự động chuyển về fallback PowerShell COM.`);
+        }
+    }
+
     execFileSync(
         "powershell.exe",
         ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(scriptsDir, "fill-status-template.ps1"), "-Spec", specFile, "-Log", logFile],
